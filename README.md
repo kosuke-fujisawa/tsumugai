@@ -32,7 +32,7 @@ Getting Started
 
 Add to your Cargo.toml:
 
-tsumugai = { git = "https://github.com/yourname/tsumugai", tag = "v0.1.0" }
+tsumugai = { git = "[https://github.com/yourname/tsumugai](https://github.com/kosuke-fujisawa/tsumugai)", tag = "v0.1.0" }
 
 Usage
 
