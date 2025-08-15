@@ -44,15 +44,15 @@ loop {
         Step::Next => continue,
         Step::Wait(WaitKind::User) => {
             // Handle user input, then continue
-            break;
+            continue;
         }
         Step::Wait(WaitKind::Branch(choices)) => {
             // Handle branch selection, then jump
-            break;
+            continue;
         }
         Step::Wait(WaitKind::Timer(secs)) => {
             // Handle timer wait
-            break;
+            continue;
         }
         Step::Jump(label) => {
             engine.jump_to(&label)?;
