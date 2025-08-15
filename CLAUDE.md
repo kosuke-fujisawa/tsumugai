@@ -62,11 +62,13 @@ Use `#[cfg(test)]` blocks and validate parsers, command structures, and context 
 ```
 src/
 ├── lib.rs          # public API
-├── parser.rs       # Markdown -> Commands
-├── command.rs      # Command enum and helpers
-├── engine.rs       # Trait defining how commands are executed
-├── context.rs      # Variable and state management
-└── test_data/      # Sample scripts for testing
+├── parse.rs        # Markdown -> Program (IR)
+├── ir.rs           # Command/Choice/Value/Cmp/Program/SaveData
+├── engine/
+│   ├── mod.rs      # Engine, Step, WaitKind, execution loop
+│   └── directive.rs# Directive, ResId (host-facing)
+├── resolve.rs      # Resolver trait & BasicResolver
+└── tests/          # Integration and unit tests
 ```
 
 Claude Code should always clarify before acting when ambiguity exists, and document the location, role, and impact of each generated artifact.

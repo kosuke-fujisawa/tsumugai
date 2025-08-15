@@ -153,7 +153,7 @@ fn main() {
                             execution_log.push(format!("Emitted: {:?}", directive));
                             println!("  {:?}", directive);
                         }
-                        
+
                         print!("Press Enter to continue...");
                         io::stdout().flush().unwrap();
                         let mut input = String::new();
