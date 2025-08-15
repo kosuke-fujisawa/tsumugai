@@ -4,6 +4,7 @@ use crate::ir::Choice;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum Directive {
     Say { speaker: String, text: String },
     PlayBgm { res: ResId },

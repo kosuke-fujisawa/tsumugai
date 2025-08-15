@@ -7,7 +7,7 @@ The library does NOT implement audio/video playback, rendering, or UI - it only 
 ## Features
 
 - **Markdown-based scenarios**: Write scenarios in plain Markdown with simple command syntax
-- **Step-by-step execution**: Control flow with `Step::Next`, `Step::WaitForUser`, `Step::Jump`, and `Step::Halt`
+- **Step-by-step execution**: Control flow with `Step::Next`, `Step::Wait(User|Branch|Timer)`, `Step::Jump`, and `Step::Halt`
 - **Resource resolution**: Map logical names to file paths with customizable resolvers
 - **Variables and branching**: Support for variables, conditions, and user choices
 - **Save/load support**: Serialize and restore execution state
@@ -25,7 +25,7 @@ tsumugai = "0.1.0"
 ### Basic Example
 
 ```rust
-use tsumugai::{parse, Engine, Step, Directive};
+use tsumugai::{parse, Engine, Step, WaitKind, Directive};
 
 let markdown = r#"
 [SAY speaker=Ayumi]
@@ -42,8 +42,16 @@ let mut engine = Engine::new(program);
 loop {
     match engine.step() {
         Step::Next => continue,
-        Step::WaitForUser => {
+        Step::Wait(WaitKind::User) => {
             // Handle user input, then continue
+            break;
+        }
+        Step::Wait(WaitKind::Branch(choices)) => {
+            // Handle branch selection, then jump
+            break;
+        }
+        Step::Wait(WaitKind::Timer(secs)) => {
+            // Handle timer wait
             break;
         }
         Step::Jump(label) => {

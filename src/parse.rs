@@ -3,6 +3,14 @@
 use crate::ir::{Choice, Cmp, Command, Op, Program, Value};
 use std::collections::{HashMap, HashSet};
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ParseMode {
+    /// Standard parameter parsing
+    Standard,
+    /// BRANCH-specific parsing with comma-separated heuristics
+    Branch,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ParseError {
     #[error("Missing required parameter '{param}' for command '{command}' at line {line}")]
@@ -92,7 +100,12 @@ impl Parser {
         }
 
         let command_name = parts[0];
-        let params = self.parse_params(&parts[1..])?;
+        let parse_mode = if command_name == "BRANCH" {
+            ParseMode::Branch
+        } else {
+            ParseMode::Standard
+        };
+        let params = self.parse_params(&parts[1..], parse_mode)?;
 
         match command_name {
             "SAY" => {
@@ -187,13 +200,17 @@ impl Parser {
         }
     }
 
-    fn parse_params(&self, parts: &[&str]) -> Result<HashMap<String, String>, ParseError> {
+    fn parse_params(
+        &self,
+        parts: &[&str],
+        mode: ParseMode,
+    ) -> Result<HashMap<String, String>, ParseError> {
         let mut params = HashMap::new();
 
         let full_params = parts.join(" ");
 
-        // First try to parse as comma-separated for BRANCH commands
-        if full_params.contains(',') {
+        // Use BRANCH-specific parsing when mode is Branch, or fallback to comma detection
+        if mode == ParseMode::Branch || full_params.contains(',') {
             let param_parts: Vec<&str> = full_params.split(',').collect();
             for part in param_parts {
                 let part = part.trim();
@@ -383,6 +400,16 @@ impl Parser {
                             label: label.clone(),
                             line: idx + 1,
                         });
+                    }
+                }
+                Command::Branch { choices } => {
+                    for choice in choices {
+                        if !self.labels.contains(&choice.label) {
+                            return Err(ParseError::UndefinedLabel {
+                                label: choice.label.clone(),
+                                line: idx + 1,
+                            });
+                        }
                     }
                 }
                 _ => {}

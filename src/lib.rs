@@ -94,13 +94,17 @@ Hello, world!
     fn test_branch_parsing() {
         let markdown = r#"
 [BRANCH choice=左へ label=go_left, choice=右へ label=go_right]
+
+[LABEL name=go_left]
+
+[LABEL name=go_right]
 "#;
 
         let program = match parse(markdown) {
             Ok(p) => p,
             Err(e) => panic!("Parse error: {:?}", e),
         };
-        assert_eq!(program.cmds.len(), 1);
+        assert_eq!(program.cmds.len(), 3); // BRANCH + 2 LABELs
 
         match &program.cmds[0] {
             Command::Branch { choices } => {
@@ -158,7 +162,7 @@ Hello!
 
         // Third step: WAIT command
         let step = engine.step();
-        assert_eq!(step, Step::Wait(WaitKind::User));
+        assert_eq!(step, Step::Wait(WaitKind::Timer(1.5)));
 
         let directives = engine.take_emitted();
         assert_eq!(directives.len(), 1);
@@ -441,5 +445,128 @@ stop
             Step::Wait(WaitKind::User) => { /* OK */ }
             other => panic!("expected User wait, got {other:?}"),
         }
+    }
+
+    /// Unit test: Parse label validation
+    /// Verifies that undefined labels result in ParseError with line numbers included.
+    /// Metric: Error message must contain "line N" for proper debugging.
+    #[test]
+    fn parse_label_validation() {
+        let markdown_with_undefined_label = r#"
+[SAY speaker=A]
+Hello
+
+[JUMP label=undefined_label]
+
+[LABEL name=valid_label]
+
+[SAY speaker=A]
+Done
+"#;
+
+        match parse(markdown_with_undefined_label) {
+            Err(crate::ParseError::UndefinedLabel { label, line }) => {
+                assert_eq!(label, "undefined_label");
+                assert_eq!(line, 2); // JUMP is command 1 (0-indexed + 1)
+
+                // Verify error message contains line information
+                let error_msg = format!(
+                    "{}",
+                    crate::ParseError::UndefinedLabel {
+                        label: label.clone(),
+                        line
+                    }
+                );
+                assert!(
+                    error_msg.contains(&format!("line {}", line)),
+                    "Error message should contain 'line {}', got: {}",
+                    line,
+                    error_msg
+                );
+            }
+            Err(other_error) => {
+                panic!("Expected UndefinedLabel error, got: {:?}", other_error);
+            }
+            Ok(_) => {
+                panic!("Expected parse error for undefined label, but parsing succeeded");
+            }
+        }
+    }
+
+    #[test]
+    fn parse_label_validation_branch() {
+        let markdown_with_undefined_branch_label = r#"
+[SAY speaker=A]
+Hello
+
+[BRANCH choice=Go label=undefined_target, choice=Stay label=valid_target]
+
+[LABEL name=valid_target]
+
+[SAY speaker=A]
+Done
+"#;
+
+        match parse(markdown_with_undefined_branch_label) {
+            Err(crate::ParseError::UndefinedLabel { label, line }) => {
+                assert_eq!(label, "undefined_target");
+                assert_eq!(line, 2); // BRANCH is command 1 (0-indexed + 1)
+
+                // Verify error message format
+                let error_msg = format!(
+                    "{}",
+                    crate::ParseError::UndefinedLabel {
+                        label: label.clone(),
+                        line
+                    }
+                );
+                assert!(
+                    error_msg.contains("line"),
+                    "Error message should contain 'line', got: {}",
+                    error_msg
+                );
+                assert!(
+                    error_msg.contains("undefined_target"),
+                    "Error message should contain label name, got: {}",
+                    error_msg
+                );
+            }
+            Err(other_error) => {
+                panic!("Expected UndefinedLabel error, got: {:?}", other_error);
+            }
+            Ok(_) => {
+                panic!("Expected parse error for undefined branch label, but parsing succeeded");
+            }
+        }
+    }
+
+    #[test]
+    fn parse_label_validation_all_valid() {
+        let markdown_with_all_valid_labels = r#"
+[SAY speaker=A]
+Hello
+
+[JUMP label=target]
+
+[LABEL name=target]
+
+[BRANCH choice=Go label=end, choice=Loop label=target]
+
+[LABEL name=end]
+
+[SAY speaker=A]
+Done
+"#;
+
+        // This should parse successfully
+        let result = parse(markdown_with_all_valid_labels);
+        assert!(
+            result.is_ok(),
+            "All labels are defined, parsing should succeed: {:?}",
+            result.err()
+        );
+
+        let program = result.unwrap();
+        assert_eq!(program.cmds.len(), 6); // SAY, JUMP, LABEL, BRANCH, LABEL, SAY
     }
 }

@@ -29,6 +29,15 @@ This file defines the development rules and guardrails for Claude Code when cont
 - Create binaries; this is a library crate
 - Touch assets or runtime UI rendering logic
 
+## Asset Restriction Rules
+
+Assets in `assets/` directory (BGM, images, sounds, scenarios) are provided for testing and demonstration purposes only. These files:
+
+- Must NOT be modified unless explicitly requested for testing purposes
+- Serve as test data for resource resolution and parser validation
+- Follow the BasicResolver naming conventions for integration testing
+- Are excluded from production builds (library users provide their own assets)
+
 # ✅ Example Flow
 
 When asked to implement support for a new command:
@@ -36,7 +45,7 @@ When asked to implement support for a new command:
 1.  Create a new variant in the `Command` enum.
 2.  Extend the Markdown parser to detect and emit this variant.
 3.  Add tests for round-trip parsing.
-4.  Document it in `README.md` and `claude.md`.
+4.  Document it in `README.md` and `CLAUDE.md`.
 
 # Testing
 

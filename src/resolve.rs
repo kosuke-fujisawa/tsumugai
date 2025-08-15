@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-pub trait Resolver: Send {
+pub trait Resolver: Send + Sync {
     fn resolve_bgm(&self, logical: &str) -> Option<PathBuf> {
         let _ = logical;
         None

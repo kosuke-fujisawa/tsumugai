@@ -17,11 +17,14 @@ pub enum Step {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum WaitKind {
     /// 台詞やWAITやムービー… Enter等で進む
     User,
     /// 分岐選択が入るまで進めない（選択肢payloadもここで渡す）
     Branch(Vec<crate::ir::Choice>),
+    /// タイマー待ち（秒数指定）
+    Timer(f32),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -126,7 +129,7 @@ impl Engine {
             Command::Wait { secs } => {
                 self.emit(Directive::Wait { secs: *secs });
                 self.pc += 1;
-                Step::Wait(WaitKind::User)
+                Step::Wait(WaitKind::Timer(*secs))
             }
             Command::Branch { choices } => {
                 // emit は1回だけにしたければフラグで制御（なくても致命ではない）
