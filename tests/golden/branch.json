@@ -1,0 +1,89 @@
+{
+  "input_hash": "4775c9f8047b4b20c8fbe30e04f6c1a7",
+  "steps": [
+    {
+      "step_number": 0,
+      "next_action": "WaitUser",
+      "directives": [
+        {
+          "type": "Say",
+          "args": {
+            "speaker": "Guide",
+            "text": "Choose your path."
+          }
+        }
+      ]
+    },
+    {
+      "step_number": 1,
+      "next_action": "WaitBranch",
+      "directives": [
+        {
+          "type": "Branch",
+          "args": {
+            "choices": [
+              "Left",
+              "Right"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "step_number": 2,
+      "next_action": "Next",
+      "directives": [
+        {
+          "type": "JumpTo",
+          "args": {
+            "label": "go_left"
+          }
+        }
+      ]
+    },
+    {
+      "step_number": 3,
+      "next_action": "WaitUser",
+      "directives": [
+        {
+          "type": "Say",
+          "args": {
+            "speaker": "Guide",
+            "text": "You went left."
+          }
+        }
+      ]
+    },
+    {
+      "step_number": 4,
+      "next_action": "Next",
+      "directives": [
+        {
+          "type": "JumpTo",
+          "args": {
+            "label": "go_right"
+          }
+        }
+      ]
+    },
+    {
+      "step_number": 5,
+      "next_action": "WaitUser",
+      "directives": [
+        {
+          "type": "Say",
+          "args": {
+            "speaker": "Guide",
+            "text": "You went right."
+          }
+        }
+      ]
+    },
+    {
+      "step_number": 6,
+      "next_action": "Halt",
+      "directives": []
+    }
+  ],
+  "final_state": "Completed"
+}

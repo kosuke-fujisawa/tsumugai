@@ -1,4 +1,4 @@
-use tsumugai::{Engine, Step, WaitKind, parse};
+use tsumugai::{Engine, NextAction};
 
 /// Integration test: Branch choice input loop
 /// Verifies that BRANCH commands with invalid input allow re-input and eventually accept valid choices.
@@ -22,90 +22,67 @@ You went left.
 You went right.
 "#;
 
-    let program = parse(markdown).expect("Failed to parse test scenario");
-    let mut engine = Engine::new(program);
+    let mut engine = Engine::from_markdown(markdown).expect("Failed to parse test scenario");
 
     // Step 1: SAY command should wait for user
-    let step = engine.step();
-    assert!(matches!(step, Step::Wait(WaitKind::User)));
-    let directives = engine.take_emitted();
-    assert_eq!(directives.len(), 1);
+    let step_result = engine.step().unwrap();
+    assert_eq!(step_result.next, NextAction::WaitUser);
+    assert_eq!(step_result.directives.len(), 1);
 
     // Step 2: BRANCH command should wait for branch selection
-    let step = engine.step();
-    if let Step::Wait(WaitKind::Branch(choices)) = step {
-        assert_eq!(choices.len(), 2);
-        assert_eq!(choices[0].choice, "左へ");
-        assert_eq!(choices[0].label, "go_left");
-        assert_eq!(choices[1].choice, "右へ");
-        assert_eq!(choices[1].label, "go_right");
+    let step_result = engine.step().unwrap();
+    assert_eq!(step_result.next, NextAction::WaitBranch);
+    assert_eq!(step_result.directives.len(), 1);
+    
+    match &step_result.directives[0] {
+        tsumugai::Directive::Branch { choices } => {
+            assert_eq!(choices.len(), 2);
+            assert_eq!(choices[0], "左へ");
+            assert_eq!(choices[1], "右へ");
+        }
+        _ => panic!("Expected Branch directive"),
+    }
 
-        // Take emitted directives (should include Branch)
-        let directives = engine.take_emitted();
-        assert_eq!(directives.len(), 1);
-        assert!(matches!(directives[0], tsumugai::Directive::Branch { .. }));
+    // Test invalid input simulation: In new API, invalid choice would return error
+    // Metric: Simulate 2 invalid attempts, then 1 successful attempt (total: 3 attempts)
+    let mut input_attempts = 0;
 
-        // Test that calling step() again on branch doesn't re-emit
-        let step_again = engine.step();
-        assert!(matches!(step_again, Step::Wait(WaitKind::Branch(_))));
-        let again_directives = engine.take_emitted();
-        assert!(
-            again_directives.is_empty(),
-            "Branch should not re-emit directive"
-        );
+    // Simulate invalid input 1 (out of range choice)
+    input_attempts += 1;
+    let invalid_result = engine.choose(5); // Invalid index
+    assert!(invalid_result.is_err(), "Invalid choice should return error");
 
-        // Test invalid input simulation (would be handled by application layer)
-        // Here we simulate that user eventually selects a valid choice
+    // Simulate invalid input 2 (another out of range choice)
+    input_attempts += 1;
+    let invalid_result2 = engine.choose(10); // Another invalid index
+    assert!(invalid_result2.is_err(), "Invalid choice should return error");
 
-        // Metric: Simulate 2 invalid attempts, then 1 successful attempt (total: 3 attempts)
-        let mut input_attempts = 0;
+    // Simulate successful choice
+    input_attempts += 1;
+    let valid_result = engine.choose(0); // Choose "左へ" (index 0)
+    assert!(valid_result.is_ok(), "Valid choice should succeed");
 
-        // Simulate invalid input 1 (application would handle this, engine stays in wait state)
-        input_attempts += 1;
-        let step_after_invalid1 = engine.step();
-        assert!(matches!(
-            step_after_invalid1,
-            Step::Wait(WaitKind::Branch(_))
-        ));
+    // Verify we have the expected number of attempts
+    assert_eq!(
+        input_attempts, 3,
+        "Expected 2 invalid + 1 successful = 3 attempts"
+    );
 
-        // Simulate invalid input 2
-        input_attempts += 1;
-        let step_after_invalid2 = engine.step();
-        assert!(matches!(
-            step_after_invalid2,
-            Step::Wait(WaitKind::Branch(_))
-        ));
+    // Step 3: Should be at LABEL go_left
+    let step_result = engine.step().unwrap();
+    assert_eq!(step_result.next, NextAction::Next);
 
-        // Simulate successful choice
-        input_attempts += 1;
-        engine.jump_to("go_left").expect("Jump should succeed");
-
-        // Verify we have the expected number of attempts
-        assert_eq!(
-            input_attempts, 3,
-            "Expected 2 invalid + 1 successful = 3 attempts"
-        );
-
-        // Step 3: Should be at LABEL go_left
-        let step = engine.step();
-        assert!(matches!(step, Step::Next));
-        let directives = engine.take_emitted();
-        assert_eq!(directives.len(), 1);
-        assert!(matches!(directives[0], tsumugai::Directive::Label { .. }));
-
-        // Step 4: Should be at SAY for left path
-        let step = engine.step();
-        assert!(matches!(step, Step::Wait(WaitKind::User)));
-        let directives = engine.take_emitted();
-        assert_eq!(directives.len(), 1);
-        if let tsumugai::Directive::Say { speaker, text } = &directives[0] {
+    // Step 4: Should be at SAY for left path
+    let step_result = engine.step().unwrap();
+    assert_eq!(step_result.next, NextAction::WaitUser);
+    assert_eq!(step_result.directives.len(), 1);
+    
+    match &step_result.directives[0] {
+        tsumugai::Directive::Say { speaker, text } => {
             assert_eq!(speaker, "Guide");
             assert_eq!(text, "You went left.");
-        } else {
-            panic!("Expected Say directive");
         }
-    } else {
-        panic!("Expected Branch wait, got {:?}", step);
+        _ => panic!("Expected Say directive"),
     }
 }
 
@@ -122,33 +99,29 @@ fn branch_choice_different_paths() {
 [SAY speaker=X] Path B
 "#;
 
-    let program = parse(markdown).expect("Failed to parse test scenario");
-    let mut engine = Engine::new(program);
+    let mut engine = Engine::from_markdown(markdown).expect("Failed to parse test scenario");
 
     // Get to branch
-    let step = engine.step();
-    if let Step::Wait(WaitKind::Branch(_choices)) = step {
-        engine.take_emitted(); // Clear branch directive
+    let step_result = engine.step().unwrap();
+    assert_eq!(step_result.next, NextAction::WaitBranch);
+    assert_eq!(step_result.directives.len(), 1);
 
-        // Test choosing path B
-        engine.jump_to("path_b").expect("Jump should succeed");
+    // Test choosing path B (index 1)
+    engine.choose(1).expect("Choice should succeed");
 
-        // Should be at LABEL path_b
-        let step = engine.step();
-        assert!(matches!(step, Step::Next));
-        engine.take_emitted(); // Clear label directive
+    // Should be at LABEL path_b
+    let step_result = engine.step().unwrap();
+    assert_eq!(step_result.next, NextAction::Next);
 
-        // Should be at SAY for path B
-        let step = engine.step();
-        assert!(matches!(step, Step::Wait(WaitKind::User)));
-        let directives = engine.take_emitted();
+    // Should be at SAY for path B
+    let step_result = engine.step().unwrap();
+    assert_eq!(step_result.next, NextAction::WaitUser);
+    assert_eq!(step_result.directives.len(), 1);
 
-        if let tsumugai::Directive::Say { text, .. } = &directives[0] {
+    match &step_result.directives[0] {
+        tsumugai::Directive::Say { text, .. } => {
             assert_eq!(text, "Path B");
-        } else {
-            panic!("Expected Say directive");
         }
-    } else {
-        panic!("Expected Branch wait");
+        _ => panic!("Expected Say directive"),
     }
 }
