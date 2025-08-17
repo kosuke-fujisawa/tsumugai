@@ -1,4 +1,31 @@
 //! Legacy adapter - Bridges old API to new implementation for backward compatibility
+//!
+//! # Adapter Pattern Usage
+//!
+//! This module implements the Adapter pattern to maintain backward compatibility
+//! while migrating from the legacy IR-based API to the new domain-driven implementation.
+//!
+//! ## Key Adaptations
+//!
+//! - **Domain → Legacy IR**: Converts domain `StoryCommand` to legacy `Command`
+//! - **Resource Mapping**: Adapts `ResourceId` to string-based legacy format
+//! - **Error Translation**: Maps domain/infrastructure errors to legacy `ParseError`
+//!
+//! ## Migration Strategy
+//!
+//! 1. Legacy clients continue to use `parse_legacy()` function
+//! 2. Internally, we use the new domain parser and convert the result
+//! 3. Future versions will deprecate legacy functions in favor of new API
+//! 4. Eventually, this module can be moved to a separate compatibility crate
+//!
+//! ## Usage
+//!
+//! ```rust,ignore
+//! use tsumugai::legacy_adapter::parse_legacy;
+//!
+//! let program = parse_legacy(markdown_content).await?;
+//! // Returns legacy Program compatible with existing engine
+//! ```
 
 use crate::domain::value_objects::*;
 use crate::infrastructure::parsing::{MarkdownScenarioParser, ScenarioParser, ParseError as InfraParseError};
@@ -10,10 +37,13 @@ trait ToLegacy<T> {
 }
 
 /// Helper function for converting resource commands
-fn convert_resource_command<T>(
+fn convert_resource_command<T, F>(
     resource: &ResourceId, 
-    constructor: fn(String) -> T
-) -> T {
+    constructor: F
+) -> T 
+where 
+    F: FnOnce(String) -> T
+{
     constructor(resource.as_str().to_string())
 }
 
@@ -150,6 +180,9 @@ fn convert_parse_error(err: InfraParseError) -> crate::ParseError {
             crate::ParseError::InvalidSyntax { line, content }
         }
         InfraParseError::ValidationError { message } => {
+            // TODO: Replace string parsing with structured error types for better reliability
+            log::debug!("Parsing ValidationError message: {}", message);
+            
             // Check if this is an undefined label error
             if message.contains("Undefined label") {
                 // Extract label name and line from the message
@@ -170,6 +203,7 @@ fn convert_parse_error(err: InfraParseError) -> crate::ParseError {
                         }
                     }
                 }
+                log::trace!("Failed to parse undefined label from ValidationError, falling back to InvalidSyntax");
             }
             crate::ParseError::InvalidSyntax { 
                 line: 0, 

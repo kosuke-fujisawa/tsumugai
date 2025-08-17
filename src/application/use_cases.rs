@@ -7,21 +7,25 @@ use crate::domain::{entities::*, services::*, value_objects::*};
 pub struct ScenarioPlaybackUseCase {
     scenario_repository: Arc<dyn ScenarioRepositoryTrait>,
     execution_service: StoryExecutionService,
+    #[allow(unused)]
+    resource_resolver: Arc<dyn ResourceResolverTrait>,
 }
 
 impl ScenarioPlaybackUseCase {
     pub fn new(
-        scenario_repository: Arc<dyn ScenarioRepositoryTrait>
+        scenario_repository: Arc<dyn ScenarioRepositoryTrait>,
+        resource_resolver: Arc<dyn ResourceResolverTrait>,
     ) -> Self {
         Self {
             scenario_repository,
             execution_service: StoryExecutionService::new(),
+            resource_resolver,
         }
     }
 
-    pub async fn start_scenario(&self, scenario_id: ScenarioId) -> Result<StoryExecution, ApplicationError> {
+    pub async fn start_scenario(&self, scenario_id: &ScenarioId) -> Result<StoryExecution, ApplicationError> {
         let scenario = self.scenario_repository
-            .load_scenario(&scenario_id)
+            .load_scenario(scenario_id)
             .await
             .map_err(ApplicationError::Repository)?;
 
@@ -132,6 +136,15 @@ pub enum RepositoryError {
     },
     #[error("Access denied: {message}")]
     AccessDenied { message: String },
+}
+
+impl RepositoryError {
+    pub fn not_found(id: impl Into<String>) -> Self {
+        Self::ScenarioNotFound {
+            id: id.into(),
+            source: Box::new(std::io::Error::new(std::io::ErrorKind::NotFound, "Scenario not found")),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

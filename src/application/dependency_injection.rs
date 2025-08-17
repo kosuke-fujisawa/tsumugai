@@ -1,4 +1,34 @@
 //! Dependency injection container for application layer
+//!
+//! # Dependency Injection Pattern
+//!
+//! This module provides a simple dependency injection container to manage
+//! application services and their dependencies.
+//!
+//! ## Purpose
+//!
+//! - Decouple application use cases from concrete infrastructure implementations
+//! - Enable easy testing with mock implementations
+//! - Centralize service configuration and lifecycle management
+//!
+//! ## Usage
+//!
+//! ```rust,ignore
+//! use tsumugai::application::dependency_injection::DependencyContainer;
+//!
+//! let container = DependencyContainer::new()
+//!     .register_scenario_repository(repository)
+//!     .register_resource_resolver(resolver);
+//!
+//! let use_case = container.get_scenario_playback_use_case().unwrap();
+//! ```
+//!
+//! ## Current Implementation
+//!
+//! - Simple HashMap-based container using TypeId for service lookup
+//! - Builder pattern for registration
+//! - Optional resolution (returns None if service not registered)
+//! - Future: Consider more sophisticated DI frameworks for complex scenarios
 
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -25,7 +55,7 @@ impl DependencyContainer {
         self
     }
 
-    /// Register execution service
+    /// Register execution service (for future integration when use cases need external story services)
     pub fn register_execution_service(mut self, service: Arc<StoryExecutionService>) -> Self {
         self.services.insert(TypeId::of::<Arc<StoryExecutionService>>(), Box::new(service));
         self
@@ -55,18 +85,17 @@ impl DependencyContainer {
         self
     }
 
-    /// Resolve a service by type
-    pub fn resolve<T: 'static>(&self) -> Option<T> {
-        // This is a simplified implementation
-        // In practice, we'd want more sophisticated resolution
-        None
+    /// Resolve a service by type (delegates to get_service for minimal implementation)
+    pub fn resolve<T: 'static + Clone>(&self) -> Option<T> {
+        self.get_service::<T>()
     }
 
     /// Get scenario playback use case
     pub fn get_scenario_playback_use_case(&self) -> Option<ScenarioPlaybackUseCase> {
         let scenario_repo = self.get_service::<Arc<dyn ScenarioRepositoryTrait>>()?;
+        let resource_resolver = self.get_service::<Arc<dyn ResourceResolverTrait>>()?;
         
-        Some(ScenarioPlaybackUseCase::new(scenario_repo))
+        Some(ScenarioPlaybackUseCase::new(scenario_repo, resource_resolver))
     }
 
     /// Get scenario loading use case

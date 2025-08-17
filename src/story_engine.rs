@@ -5,7 +5,7 @@ use crate::domain::{
     entities::{StoryExecution, Scenario},
     services::ExecutionResult,
 };
-use crate::application::ScenarioPlaybackUseCase;
+use crate::application::use_cases::ScenarioPlaybackUseCase;
 
 /// High-level story engine that provides a simple API for visual novel execution
 pub struct StoryEngine {
@@ -43,10 +43,11 @@ impl StoryEngine {
     }
 
     /// Create a story engine from markdown content with default setup
+    /// 
+    /// Note: This is a placeholder implementation that creates an empty scenario.
+    /// TODO: Future integration should pass the actual parsed scenario from new_engine to domain layer.
     pub async fn from_markdown(content: &str) -> Result<Self, StoryEngineError> {
         use crate::application::engine::Engine as NewEngine;
-        use crate::domain::entities::StoryExecution;
-        use crate::application::ScenarioPlaybackUseCase;
         use crate::infrastructure::repositories::InMemoryScenarioRepository;
         use crate::infrastructure::resource_resolution::InMemoryResourceResolver;
         use std::sync::Arc;
@@ -137,9 +138,8 @@ impl StoryEngine {
             }
         }
         
-        let _resource_resolver = Arc::new(ResourceResolverAdapter::new());
-        
-        let playback_use_case = ScenarioPlaybackUseCase::new(scenario_repository);
+        let resource_resolver = Arc::new(ResourceResolverAdapter::new());
+        let playback_use_case = ScenarioPlaybackUseCase::new(scenario_repository, resource_resolver);
         
         // Create a dummy execution for compatibility - this will need proper integration
         let scenario = crate::domain::entities::Scenario::new(

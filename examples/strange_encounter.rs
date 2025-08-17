@@ -7,7 +7,7 @@
 
 use std::fs;
 use std::io::{self, Write};
-use tsumugai::{BasicResolver, Directive, Engine, Step, WaitKind, parse};
+use tsumugai::{BasicResolver, Directive, Engine, NextAction};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Strange Encounter Demo ===\n");
@@ -15,55 +15,57 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let scenario_path = "assets/scenarios/strange_encounter.md";
     let markdown = fs::read_to_string(scenario_path)?;
 
-    let program = parse(&markdown)?;
-
     let resolver = BasicResolver::new("assets");
-    let mut engine = Engine::with_resolver(program, Box::new(resolver));
+    let mut engine = Engine::from_markdown_with_resolver(&markdown, Box::new(resolver))?;
 
     loop {
         match engine.step() {
-            Step::Next => {
-                let directives = engine.take_emitted();
-                handle_directives(&directives);
-            }
-            Step::Wait(WaitKind::User) => {
-                let directives = engine.take_emitted();
-                handle_directives(&directives);
-                print!("Press Enter to continue...");
-                io::stdout().flush().unwrap();
-                let mut input = String::new();
-                io::stdin().read_line(&mut input).unwrap();
-            }
-            Step::Wait(WaitKind::Branch(choices)) => {
-                let directives = engine.take_emitted();
-                handle_directives(&directives);
+            Ok(step_result) => {
+                handle_directives(&step_result.directives);
+                
+                match step_result.next {
+                    NextAction::Next => {
+                        // Continue immediately
+                    }
+                    NextAction::WaitUser => {
+                        print!("Press Enter to continue...");
+                        io::stdout().flush().unwrap();
+                        let mut input = String::new();
+                        io::stdin().read_line(&mut input).unwrap();
+                    }
+                    NextAction::WaitBranch => {
+                        // Branch choices are in the directives
+                        if let Some(Directive::Branch { choices }) = step_result.directives.iter()
+                            .find(|d| matches!(d, Directive::Branch { .. })) {
+                            
+                            println!("\n選択してください:");
+                            for (i, choice) in choices.iter().enumerate() {
+                                println!("{}. {}", i + 1, choice);
+                            }
 
-                println!("\n選択してください:");
-                for (i, choice) in choices.iter().enumerate() {
-                    println!("{}. {}", i + 1, choice.choice);
-                }
+                            print!("番号を入力: ");
+                            io::stdout().flush().unwrap();
 
-                print!("番号を入力: ");
-                io::stdout().flush().unwrap();
+                            let mut input = String::new();
+                            io::stdin().read_line(&mut input).unwrap();
 
-                let mut input = String::new();
-                io::stdin().read_line(&mut input).unwrap();
-
-                if let Ok(choice_num) = input.trim().parse::<usize>() {
-                    if choice_num > 0 && choice_num <= choices.len() {
-                        let selected = &choices[choice_num - 1];
-                        println!("選択: {}\n", selected.choice);
-                        engine.jump_to(&selected.label)?;
+                            if let Ok(choice_num) = input.trim().parse::<usize>() {
+                                if choice_num > 0 && choice_num <= choices.len() {
+                                    let choice_index = choice_num - 1;
+                                    println!("選択: {}\n", choices[choice_index]);
+                                    engine.choose(choice_index)?;
+                                }
+                            }
+                        }
+                    }
+                    NextAction::Halt => {
+                        println!("\n=== End of scenario ===");
+                        break;
                     }
                 }
             }
-            Step::Jump(label) => {
-                let directives = engine.take_emitted();
-                handle_directives(&directives);
-                engine.jump_to(&label)?;
-            }
-            Step::Halt => {
-                println!("\n=== End of scenario ===");
+            Err(e) => {
+                eprintln!("Error: {}", e);
                 break;
             }
         }
@@ -78,61 +80,54 @@ fn handle_directives(directives: &[Directive]) {
             Directive::Say { speaker, text } => {
                 println!("{}: {}", speaker, text);
             }
-            Directive::PlayBgm { res } => {
-                if let Some(path) = &res.resolved {
-                    println!(
-                        "[BGM] Playing: {} (resolved: {})",
-                        res.logical,
-                        path.display()
-                    );
+            Directive::PlayBgm { path } => {
+                if let Some(path) = path {
+                    println!("[BGM] Playing: {}", path);
                 } else {
-                    println!("[BGM] Playing: {} (not resolved)", res.logical);
+                    println!("[BGM] Playing: (not resolved)");
                 }
             }
-            Directive::PlaySe { res } => {
-                if let Some(path) = &res.resolved {
-                    println!(
-                        "[SE] Playing: {} (resolved: {})",
-                        res.logical,
-                        path.display()
-                    );
+            Directive::ShowImage { layer, path } => {
+                if let Some(path) = path {
+                    println!("[IMAGE] Showing on {}: {}", layer, path);
                 } else {
-                    println!("[SE] Playing: {} (not resolved)", res.logical);
+                    println!("[IMAGE] Showing on {}: (not resolved)", layer);
                 }
             }
-            Directive::ShowImage { res } => {
-                if let Some(path) = &res.resolved {
-                    println!(
-                        "[IMAGE] Showing: {} (resolved: {})",
-                        res.logical,
-                        path.display()
-                    );
-                } else {
-                    println!("[IMAGE] Showing: {} (not resolved)", res.logical);
-                }
+            Directive::Wait { seconds } => {
+                println!("[WAIT] Waiting for {} seconds", seconds);
             }
-            Directive::PlayMovie { res } => {
-                if let Some(path) = &res.resolved {
-                    println!(
-                        "[MOVIE] Playing: {} (resolved: {})",
-                        res.logical,
-                        path.display()
-                    );
-                } else {
-                    println!("[MOVIE] Playing: {} (not resolved)", res.logical);
-                }
+            Directive::SetVar { name, value } => {
+                println!("[SET] {} = {}", name, value);
             }
-            Directive::Wait { secs } => {
-                println!("[WAIT] Waiting for {} seconds", secs);
-            }
-            Directive::Label { name } => {
-                println!("[LABEL] Reached: {}", name);
-            }
-            Directive::Jump { label } => {
+            Directive::JumpTo { label } => {
                 println!("[JUMP] Jumping to: {}", label);
+            }
+            Directive::ClearLayer { layer } => {
+                println!("[CLEAR] Clearing layer: {}", layer);
             }
             Directive::Branch { choices: _ } => {
                 // Handled in the main loop
+            }
+            Directive::PlaySe { path } => {
+                if let Some(path) = path {
+                    println!("[SE] Playing: {}", path);
+                } else {
+                    println!("[SE] Playing: (not resolved)");
+                }
+            }
+            Directive::PlayMovie { path } => {
+                if let Some(path) = path {
+                    println!("[MOVIE] Playing: {}", path);
+                } else {
+                    println!("[MOVIE] Playing: (not resolved)");
+                }
+            }
+            Directive::ReachedLabel { label } => {
+                println!("[LABEL] Reached: {}", label);
+            }
+            _ => {
+                println!("[UNKNOWN] Unhandled directive: {:?}", directive);
             }
         }
     }

@@ -28,12 +28,13 @@ impl ApplicationCoordinator {
     pub fn get_scenario_playback_use_case(&self) -> ScenarioPlaybackUseCase {
         ScenarioPlaybackUseCase::new(
             self.scenario_repository.clone(),
+            self.resource_resolver.clone(),
         )
     }
 
     pub async fn initialize_scenario(&self, scenario_id: crate::domain::value_objects::ScenarioId) -> Result<StoryExecution, ApplicationError> {
         let use_case = self.get_scenario_playback_use_case();
-        use_case.start_scenario(scenario_id).await
+        use_case.start_scenario(&scenario_id).await
     }
 
     pub fn execute_story_step(&self, execution: &mut StoryExecution) -> Result<ExecutionResult, ApplicationError> {
