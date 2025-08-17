@@ -1,178 +1,136 @@
 # tsumugai
 
-tsumugai is a Rust library that parses Markdown scenarios into Command sequences and provides step-by-step execution with Directive emission for visual novel-like applications.
+Markdownでビジュアルノベルのシナリオを簡単に書けるスクリプトエンジン。
 
-The library does NOT implement audio/video playback, rendering, or UI - it only provides the execution logic and tells your application what to do through Directives.
+---
 
-## Features
+## 概要
 
-- **Markdown-based scenarios**: Write scenarios in plain Markdown with simple command syntax
-- **Step-by-step execution**: Control flow with `Step::Next`, `Step::Wait(User|Branch|Timer)`, `Step::Jump`, and `Step::Halt`
-- **Resource resolution**: Map logical names to file paths with customizable resolvers
-- **Variables and branching**: Support for variables, conditions, and user choices
-- **Save/load support**: Serialize and restore execution state
-- **HTML comment support**: Use `<!-- ... -->` for writing notes that are ignored by the parser
+**tsumugai** は、Markdownで記述したビジュアルノベルのシナリオをパースし、順次実行可能なコマンド列に変換するRustライブラリです。  
+**最小限・決定的・アプリ非依存** を方針とし、あらゆる描画・再生環境に組み込める設計になっています。
 
-## Quick Start
+---
 
-Add tsumugai to your `Cargo.toml`:
+## 責務
+
+1. **Markdownシナリオのパース**
+   - `.md` ファイルを読み込み。
+   - コマンドは `[COMMAND key=value, key=value]` 形式。
+   - コメントは `<!-- ... -->` を使用（LLMにも読みやすい）。
+
+2. **順次実行可能なコマンド列の生成**
+   - スクリプト順に上から解釈。
+   - 分岐 `[BRANCH ...]` やフラグ条件付き表示をサポート。
+
+3. **アセット参照情報の返却**
+   - 音楽・画像・動画のファイル名をそのまま返す。
+   - 存在確認やロードは行わない。
+
+4. **実行順序と状態の制御**
+   - アプリに実行結果を1ステップずつ返す。
+   - 進行度や分岐選択、フラグ更新を内部で保持。
+
+---
+
+## 非責務（やらないこと）
+
+- 画像・音声・動画の描画や再生  
+- アセットの存在確認  
+- UI表示やレイアウト  
+- LLMプロンプト生成  
+- フェード・トランジションなど複雑な演出
+
+---
+
+## 副次的メリット
+
+- **LLMフレンドリー**：プレーンテキスト＆構造化Markdownで、LLMによる生成・編集が容易。  
+- **Git/Lintフレンドリー**：テキストベースなので差分・Lint・自動テストがしやすい。  
+- **クロスプラットフォーム対応**：Rust単体で動作、Tauri/SvelteやUnityバインディングでも利用可能。
+
+---
+
+## 基本の流れ
+
+1. アプリが `.md` シナリオファイルのパスを渡す  
+2. tsumugai がパースしてイベント列を返す  
+3. アプリが受け取ったイベントを描画・再生する  
+4. 分岐選択やパラメータ変更をtsumugaiに渡す  
+5. 終了条件まで繰り返す
+
+---
+
+## 想定利用者
+
+- コードだけでビジュアルノベルを開発したいエンジニア  
+- Tauri + Svelte など、エディタ依存のない構成を選ぶ開発者  
+- Git管理やLLM支援でシナリオ制作を効率化したいチーム
+
+---
+
+## 導入
+
+`Cargo.toml` に追加：
 
 ```toml
-[dependencies]
-tsumugai = "0.1.0"
+tsumugai = { git = "https://github.com/yourname/tsumugai", tag = "v0.1.0" }
 ```
-
-### Basic Example
+使用例：
 
 ```rust
-use tsumugai::{parse, Engine, Step, WaitKind, Directive};
+use tsumugai::{Engine, NextAction};
 
-let markdown = r#"
-[SAY speaker=Ayumi]
-Hello, world!
-
-[PLAY_BGM name=intro]
-
-[WAIT 1.5s]
-"#;
-
-let program = parse(markdown)?;
-let mut engine = Engine::new(program);
+let source = std::fs::read_to_string("script.md")?;
+let mut engine = Engine::from_markdown(&source)?;
 
 loop {
-    match engine.step() {
-        Step::Next => continue,
-        Step::Wait(WaitKind::User) => {
-            // Handle user input, then continue
-            continue;
-        }
-        Step::Wait(WaitKind::Branch(choices)) => {
-            // Handle branch selection, then jump
-            continue;
-        }
-        Step::Wait(WaitKind::Timer(secs)) => {
-            // Handle timer wait
-            continue;
-        }
-        Step::Jump(label) => {
-            engine.jump_to(&label)?;
-        }
-        Step::Halt => break,
-    }
-    
-    // Get emitted directives
-    let directives = engine.take_emitted();
-    for directive in directives {
-        match directive {
-            Directive::Say { speaker, text } => {
-                println!("{}: {}", speaker, text);
+    match engine.step()? {
+        step_result => {
+            // Handle directives (Say, PlayBgm, ShowImage, etc.)
+            for directive in step_result.directives {
+                println!("Execute: {:?}", directive);
             }
-            Directive::PlayBgm { res } => {
-                println!("Playing BGM: {}", res.logical);
+            
+            match step_result.next {
+                NextAction::Next => continue,
+                NextAction::WaitUser => {
+                    // Wait for user input (Enter key)
+                    wait_for_input();
+                }
+                NextAction::WaitBranch => {
+                    // Show choices and get user selection
+                    let choice_index = get_user_choice();
+                    engine.choose(choice_index)?;
+                }
+                NextAction::Halt => break,
             }
-            Directive::Wait { secs } => {
-                println!("Waiting {} seconds", secs);
-            }
-            // Handle other directive types...
-            _ => {}
         }
     }
 }
 ```
+## ライセンス
+MIT License
 
-### Resource Resolution
+## アーキテクチャ
 
-Use `BasicResolver` or implement your own:
+### アダプタパターンの採用
 
-```rust
-use tsumugai::{Engine, BasicResolver};
+tsumugaiは段階的な移行のため、以下のアダプタパターンを採用しています：
 
-let resolver = BasicResolver::new("assets");
-let mut engine = Engine::with_resolver(program, Box::new(resolver));
-```
+- **Legacy Adapter** (`src/legacy_adapter.rs`): 旧IR-based APIと新domain-driven実装の橋渡し
+- **Resource Adapters** (`src/story_engine.rs`): インフラ層とアプリケーション層間のリソース解決適応
+- **Repository Adapters**: ドメインリポジトリとアプリケーション特性間の変換
 
-The `BasicResolver` searches for files with these patterns:
-- BGM: `assets/bgm/{name}.{ogg,mp3,wav}`
-- SE: `assets/se/{name}.{ogg,mp3,wav}`
-- Images: `assets/images/{name}.{png,jpg,webp}`
-- Movies: `assets/movies/{name}.{mp4,webm}`
+### プレースホルダ実装
 
-## Command Reference
+現在の `StoryEngine::from_markdown()` は**プレースホルダ実装**です：
 
-### Basic Commands
+- 実際のパース結果を使わず、空のシナリオを作成
+- 新Engine（application/engine.rs）と旧Engine（domain層）の統合は将来対応
+- 現在は動作確認と契約検証が目的
 
-- `[SAY speaker=Name] Dialogue text` - Character dialogue
-- `[PLAY_BGM name=intro]` - Play background music (non-blocking)
-- `[PLAY_SE name=sound]` - Play sound effect (non-blocking)
-- `[SHOW_IMAGE file=image]` - Display image (non-blocking)
-- `[PLAY_MOVIE file=video]` - Play video (blocking, waits for completion)
-- `[WAIT 1.5s]` or `[WAIT secs=1.5]` - Wait for specified seconds
-
-### Control Flow
-
-- `[LABEL name=target]` - Define a jump target
-- `[JUMP label=target]` - Jump to label
-- `[BRANCH choice=Left label=go_left, choice=Right label=go_right]` - Present choices
-
-### Variables
-
-- `[SET name=score value=10]` - Set variable
-- `[MODIFY name=score op=add value=5]` - Modify variable (add/sub)
-- `[JUMP_IF var=score cmp=ge value=15 label=success]` - Conditional jump
-
-Comparison operators: `eq`, `ne`, `lt`, `le`, `gt`, `ge`
-
-Variable types: `i32`, `bool`, `string`
-
-### Comments
-
-Use HTML comments for notes that are ignored by the parser:
-
-```markdown
-<!-- This is a note about the scene setup -->
-[PLAY_BGM name=morning]
-
-<!-- The player should see Ayumi looking happy -->
-[SHOW_IMAGE file=ayumi_happy]
-```
-
-## Demo Example
-
-Try the demo scenario:
-
-```bash
-cargo run --example strange_encounter
-```
-
-This demonstrates:
-- BGM and image display
-- Character dialogue
-- User choices with branching
-- Resource resolution
-
-## Save/Load
-
-```rust
-// Take a snapshot
-let save_data = engine.snapshot();
-
-// Restore later
-engine.restore(save_data)?;
-```
-
-Save data includes:
-- Program counter position
-- Variable values  
-- Optional seen flags and RNG seed for future extensions
-
-## Design Philosophy
-
-- **Resource names use logical names** (no file extensions) - resolved by your Resolver
-- **HTML comments are completely ignored** - useful for writing hints and notes
-- **No audio/video/rendering implementation** - tsumugai only provides execution logic
-- **Step-by-step execution model** - your application controls timing and user input
-- **Directive emission** - the engine tells you what to do, you decide how to do it
-
-## License
-
-This project is licensed under the MIT License.
+## 開発メモ（自分用）
+- CIでは全分岐をテストし、ゴールデンデータを更新
+- API変更時は API.md を先に更新
+- スキーマ更新はコード変更より先に行う
+- examples/ 内のサンプルは cargo run --example ... で動く状態を維持
