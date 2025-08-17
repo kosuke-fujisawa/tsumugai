@@ -13,6 +13,8 @@ jobs:
   core:
     name: Core Library Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
     - uses: actions/checkout@v4
     
@@ -22,7 +24,7 @@ jobs:
         components: rustfmt, clippy
     
     - name: Cache cargo
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/registry
@@ -50,14 +52,25 @@ jobs:
     
     - name: Test examples
       run: |
-        cargo run --example dump -- tests/fixtures/simple.md > /tmp/simple_output.json
-        cargo run --example dump -- tests/fixtures/branch.md > /tmp/branch_output.json
+        mkdir -p artifacts
+        cargo run --example dump -- tests/fixtures/simple.md > artifacts/simple_output.json
+        cargo run --example dump -- tests/fixtures/branch.md > artifacts/branch_output.json
         echo "Examples executed successfully"
+    
+    - name: Upload dump artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: dump-outputs
+        path: artifacts/*.json
+        retention-days: 7
 
   additional_tests:
     name: Additional Tests (Non-blocking)
     runs-on: ubuntu-latest
     continue-on-error: true
+    permissions:
+      contents: read
     steps:
     - uses: actions/checkout@v4
     
@@ -65,7 +78,7 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
     
     - name: Cache cargo
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/registry

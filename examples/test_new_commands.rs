@@ -39,10 +39,12 @@ fn main() {
                                 execution_log.push("User input: Enter pressed".to_string());
                             }
                             NextAction::WaitBranch => {
-                                // Handle branch selection  
-                                if let Some(tsumugai::Directive::Branch { choices }) = 
-                                    step_result.directives.iter().find(|d| matches!(d, tsumugai::Directive::Branch { .. })) {
-                                    
+                                // Handle branch selection
+                                if let Some(tsumugai::Directive::Branch { choices }) = step_result
+                                    .directives
+                                    .iter()
+                                    .find(|d| matches!(d, tsumugai::Directive::Branch { .. }))
+                                {
                                     println!("Choose from the following options:");
                                     for (i, choice) in choices.iter().enumerate() {
                                         println!("{}. {}", i + 1, choice);
@@ -56,7 +58,10 @@ fn main() {
                                     if let Ok(choice_num) = input.trim().parse::<usize>() {
                                         if choice_num > 0 && choice_num <= choices.len() {
                                             let choice_index = choice_num - 1;
-                                            execution_log.push(format!("User choice: {}", choices[choice_index]));
+                                            execution_log.push(format!(
+                                                "User choice: {}",
+                                                choices[choice_index]
+                                            ));
                                             if let Err(e) = engine.choose(choice_index) {
                                                 println!("Error making choice: {}", e);
                                                 break;

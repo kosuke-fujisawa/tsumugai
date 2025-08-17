@@ -17,7 +17,7 @@ mod application_tests {
             Arc::new(MockScenarioRepository::new()),
             Arc::new(MockResourceResolver::new()),
         );
-        
+
         // Test passes if we can construct the use case
         assert!(true, "ScenarioPlaybackUseCase is now implemented");
     }
@@ -40,15 +40,14 @@ mod application_tests {
     #[test]
     fn test_save_load_use_case() {
         // This should now work - we implemented SaveGameUseCase and LoadGameUseCase
-        let _save_use_case = SaveGameUseCase::new(
-            Arc::new(MockSaveRepository::new()),
-        );
+        let _save_use_case = SaveGameUseCase::new(Arc::new(MockSaveRepository::new()));
 
-        let _load_use_case = LoadGameUseCase::new(
-            Arc::new(MockSaveRepository::new()),
-        );
+        let _load_use_case = LoadGameUseCase::new(Arc::new(MockSaveRepository::new()));
 
-        assert!(true, "SaveGameUseCase and LoadGameUseCase are now implemented");
+        assert!(
+            true,
+            "SaveGameUseCase and LoadGameUseCase are now implemented"
+        );
     }
 
     /// Test: Application layer should coordinate domain services
@@ -71,12 +70,17 @@ mod application_tests {
     fn test_dependency_injection() {
         let container = DependencyContainer::new()
             .register_scenario_repository(Arc::new(MockScenarioRepository::new()))
-            .register_execution_service(Arc::new(tsumugai::domain::services::StoryExecutionService::new()))
+            .register_execution_service(Arc::new(
+                tsumugai::domain::services::StoryExecutionService::new(),
+            ))
             .register_resource_resolver(Arc::new(MockResourceResolver::new()));
 
         // Test that we can get use cases from the container
         let use_case = container.get_scenario_playback_use_case();
-        assert!(use_case.is_some(), "Should be able to resolve ScenarioPlaybackUseCase");
+        assert!(
+            use_case.is_some(),
+            "Should be able to resolve ScenarioPlaybackUseCase"
+        );
 
         assert!(true, "DI Container is now implemented");
     }
@@ -94,15 +98,23 @@ struct MockSaveRepository;
 // Implement traits for mock types
 #[async_trait::async_trait]
 impl ScenarioRepositoryTrait for MockScenarioRepository {
-    async fn load_scenario(&self, _id: &tsumugai::domain::value_objects::ScenarioId) -> Result<tsumugai::domain::entities::Scenario, RepositoryError> {
+    async fn load_scenario(
+        &self,
+        _id: &tsumugai::domain::value_objects::ScenarioId,
+    ) -> Result<tsumugai::domain::entities::Scenario, RepositoryError> {
         Err(RepositoryError::not_found("mock"))
     }
 
-    async fn save_scenario(&self, _scenario: &tsumugai::domain::entities::Scenario) -> Result<(), RepositoryError> {
+    async fn save_scenario(
+        &self,
+        _scenario: &tsumugai::domain::entities::Scenario,
+    ) -> Result<(), RepositoryError> {
         Ok(())
     }
 
-    async fn list_scenarios(&self) -> Result<Vec<tsumugai::domain::value_objects::ScenarioId>, RepositoryError> {
+    async fn list_scenarios(
+        &self,
+    ) -> Result<Vec<tsumugai::domain::value_objects::ScenarioId>, RepositoryError> {
         Ok(vec![])
     }
 }
@@ -141,9 +153,15 @@ impl FileRepositoryTrait for MockFileSystemRepository {
 }
 
 impl MarkdownParserTrait for MockMarkdownParser {
-    fn parse_scenario(&self, _content: &str) -> Result<tsumugai::domain::entities::Scenario, InfrastructureError> {
-        use tsumugai::domain::{entities::Scenario, value_objects::{ScenarioId, StoryCommand, SpeakerName}};
-        
+    fn parse_scenario(
+        &self,
+        _content: &str,
+    ) -> Result<tsumugai::domain::entities::Scenario, InfrastructureError> {
+        use tsumugai::domain::{
+            entities::Scenario,
+            value_objects::{ScenarioId, SpeakerName, StoryCommand},
+        };
+
         let scenario = Scenario::new(
             ScenarioId::new("mock".to_string()),
             "Mock Scenario".to_string(),
@@ -158,13 +176,20 @@ impl MarkdownParserTrait for MockMarkdownParser {
 
 #[async_trait::async_trait]
 impl SaveRepositoryTrait for MockSaveRepository {
-    async fn save_snapshot(&self, _id: &str, _snapshot: tsumugai::domain::entities::ExecutionSnapshot) -> Result<(), InfrastructureError> {
+    async fn save_snapshot(
+        &self,
+        _id: &str,
+        _snapshot: tsumugai::domain::entities::ExecutionSnapshot,
+    ) -> Result<(), InfrastructureError> {
         Ok(())
     }
 
-    async fn load_snapshot(&self, _id: &str) -> Result<tsumugai::domain::entities::ExecutionSnapshot, InfrastructureError> {
-        use tsumugai::domain::{entities::*, value_objects::*};
-        
+    async fn load_snapshot(
+        &self,
+        _id: &str,
+    ) -> Result<tsumugai::domain::entities::ExecutionSnapshot, InfrastructureError> {
+        use tsumugai::domain::entities::*;
+
         Ok(ExecutionSnapshot {
             program_counter: 0,
             variables: std::collections::BTreeMap::new(),
@@ -178,21 +203,31 @@ impl SaveRepositoryTrait for MockSaveRepository {
 }
 
 impl MockScenarioRepository {
-    fn new() -> Self { Self }
+    fn new() -> Self {
+        Self
+    }
 }
 
 impl MockResourceResolver {
-    fn new() -> Self { Self }
+    fn new() -> Self {
+        Self
+    }
 }
 
 impl MockFileSystemRepository {
-    fn new() -> Self { Self }
+    fn new() -> Self {
+        Self
+    }
 }
 
 impl MockMarkdownParser {
-    fn new() -> Self { Self }
+    fn new() -> Self {
+        Self
+    }
 }
 
 impl MockSaveRepository {
-    fn new() -> Self { Self }
+    fn new() -> Self {
+        Self
+    }
 }

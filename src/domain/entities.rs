@@ -1,7 +1,7 @@
 //! Domain entities - Core business objects with identity and lifecycle
 
-use crate::domain::value_objects::*;
 use crate::domain::errors::*;
+use crate::domain::value_objects::*;
 use serde::{Deserialize, Serialize};
 
 /// Scenario represents a complete visual novel scenario with commands and metadata
@@ -40,12 +40,18 @@ impl Scenario {
     }
 
     pub fn get_command(&self, index: usize) -> Result<&StoryCommand, DomainError> {
-        self.commands.get(index)
-            .ok_or(DomainError::InvalidCommandIndex { index, max: self.commands.len() })
+        self.commands
+            .get(index)
+            .ok_or(DomainError::InvalidCommandIndex {
+                index,
+                max: self.commands.len(),
+            })
     }
 
     pub fn find_label(&self, label: &LabelName) -> Option<usize> {
-        self.commands.iter().enumerate()
+        self.commands
+            .iter()
+            .enumerate()
             .find_map(|(idx, cmd)| match cmd {
                 StoryCommand::Label { name } if name == label => Some(idx),
                 _ => None,
@@ -61,9 +67,9 @@ impl Scenario {
             match command {
                 StoryCommand::Label { name } => {
                     if !defined_labels.insert(name.clone()) {
-                        return Err(DomainError::DuplicateLabel { 
-                            label: name.clone(), 
-                            line: idx + 1 
+                        return Err(DomainError::DuplicateLabel {
+                            label: name.clone(),
+                            line: idx + 1,
                         });
                     }
                 }
@@ -104,7 +110,7 @@ impl StoryExecution {
     pub fn new(scenario: Scenario) -> Result<Self, DomainError> {
         // Validate scenario before creating execution
         scenario.validate_labels()?;
-        
+
         Ok(Self {
             scenario,
             state: ExecutionState::new(),
@@ -129,9 +135,9 @@ impl StoryExecution {
 
     pub fn advance_to(&mut self, position: usize) -> Result<(), DomainError> {
         if position > self.scenario.command_count() {
-            return Err(DomainError::InvalidCommandIndex { 
-                index: position, 
-                max: self.scenario.command_count() 
+            return Err(DomainError::InvalidCommandIndex {
+                index: position,
+                max: self.scenario.command_count(),
             });
         }
         self.state.set_program_counter(position);
@@ -139,11 +145,13 @@ impl StoryExecution {
     }
 
     pub fn jump_to_label(&mut self, label: &LabelName) -> Result<(), DomainError> {
-        let position = self.scenario.find_label(label)
-            .ok_or_else(|| DomainError::UndefinedLabel { 
-                label: label.clone(), 
-                line: self.state.program_counter() + 1 
-            })?;
+        let position =
+            self.scenario
+                .find_label(label)
+                .ok_or_else(|| DomainError::UndefinedLabel {
+                    label: label.clone(),
+                    line: self.state.program_counter() + 1,
+                })?;
         self.advance_to(position)
     }
 
@@ -159,11 +167,14 @@ impl StoryExecution {
         }
     }
 
-    pub fn restore_from_snapshot(&mut self, snapshot: ExecutionSnapshot) -> Result<(), DomainError> {
+    pub fn restore_from_snapshot(
+        &mut self,
+        snapshot: ExecutionSnapshot,
+    ) -> Result<(), DomainError> {
         if snapshot.program_counter > self.scenario.command_count() {
-            return Err(DomainError::InvalidCommandIndex { 
-                index: snapshot.program_counter, 
-                max: self.scenario.command_count() 
+            return Err(DomainError::InvalidCommandIndex {
+                index: snapshot.program_counter,
+                max: self.scenario.command_count(),
             });
         }
 

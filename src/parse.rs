@@ -22,17 +22,22 @@ pub enum ParseError {
     DuplicateLabel { label: String, line: usize },
     #[error("Invalid command syntax at line {line}: {content}")]
     InvalidSyntax { line: usize, content: String },
+    #[error("Internal error: {message}")]
+    Internal { message: String },
 }
 
 pub fn parse(markdown: &str) -> Result<Program, ParseError> {
-    // Use async runtime to call the new async implementation
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|_| ParseError::InvalidSyntax { 
-            line: 0, 
-            content: "Failed to create async runtime".to_string() 
-        })?;
-    
-    rt.block_on(crate::legacy_adapter::parse_legacy(markdown))
+    // Try to use current runtime first, fall back to creating new one
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) => handle.block_on(crate::legacy_adapter::parse_legacy(markdown)),
+        Err(_) => {
+            // Create new runtime if not in an async context
+            let rt = tokio::runtime::Runtime::new().map_err(|e| ParseError::Internal {
+                message: format!("Failed to create async runtime: {e}"),
+            })?;
+            rt.block_on(crate::legacy_adapter::parse_legacy(markdown))
+        }
+    }
 }
 
 // Legacy Parser implementation has been moved to infrastructure/parsing.rs

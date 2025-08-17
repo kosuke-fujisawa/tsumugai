@@ -2,10 +2,8 @@
 //! Tests the minimum flow from UseCase to Engine to Directive conversion
 
 use std::sync::Arc;
-use tsumugai::application::{
-    engine::Engine,
-    api::{Directive, NextAction},
-    use_cases::{ScenarioPlaybackUseCase, RepositoryError, ScenarioRepositoryTrait, ResourceResolverTrait},
+use tsumugai::application::use_cases::{
+    RepositoryError, ResourceResolverTrait, ScenarioPlaybackUseCase, ScenarioRepositoryTrait,
 };
 use tsumugai::domain::{entities::Scenario, value_objects::ScenarioId};
 
@@ -28,11 +26,13 @@ impl ScenarioRepositoryTrait for MinimalScenarioRepository {
                     choices: vec![
                         tsumugai::domain::value_objects::Choice::new(
                             "Yes".to_string(),
-                            tsumugai::domain::value_objects::LabelName::new("yes_label".to_string())
+                            tsumugai::domain::value_objects::LabelName::new(
+                                "yes_label".to_string(),
+                            ),
                         ),
                         tsumugai::domain::value_objects::Choice::new(
                             "No".to_string(),
-                            tsumugai::domain::value_objects::LabelName::new("no_label".to_string())
+                            tsumugai::domain::value_objects::LabelName::new("no_label".to_string()),
                         ),
                     ],
                 },
@@ -50,7 +50,7 @@ impl ScenarioRepositoryTrait for MinimalScenarioRepository {
                     speaker: tsumugai::domain::value_objects::SpeakerName::new("Alice".to_string()),
                     text: "You chose no!".to_string(),
                 },
-            ]
+            ],
         );
         Ok(scenario)
     }
@@ -71,15 +71,15 @@ impl ResourceResolverTrait for MinimalResourceResolver {
     fn resolve_bgm(&self, _: &str) -> Option<std::path::PathBuf> {
         None
     }
-    
+
     fn resolve_se(&self, _: &str) -> Option<std::path::PathBuf> {
         None
     }
-    
+
     fn resolve_image(&self, _: &str) -> Option<std::path::PathBuf> {
         None
     }
-    
+
     fn resolve_movie(&self, _: &str) -> Option<std::path::PathBuf> {
         None
     }
@@ -91,20 +91,20 @@ async fn test_application_min_flow() {
     let repository = Arc::new(MinimalScenarioRepository);
     let resolver = Arc::new(MinimalResourceResolver);
     let use_case = ScenarioPlaybackUseCase::new(repository, resolver);
-    
+
     let scenario_id = ScenarioId::new("test".to_string());
     let mut execution = use_case.start_scenario(&scenario_id).await.unwrap();
-    
+
     // Execute next step should return a Say directive
     let result = use_case.execute_next_step(&mut execution).unwrap();
     match result {
-        tsumugai::domain::services::ExecutionResult::WaitForUser(_) |
-        tsumugai::domain::services::ExecutionResult::Continue(_) => {
+        tsumugai::domain::services::ExecutionResult::WaitForUser(_)
+        | tsumugai::domain::services::ExecutionResult::Continue(_) => {
             // Either WaitForUser or Continue is acceptable for Say directive
         }
         _ => panic!("Expected Continue or WaitForUser result, got {:?}", result),
     }
-    
+
     // Next step should be a branch
     let result = use_case.execute_next_step(&mut execution).unwrap();
     match result {
@@ -115,11 +115,11 @@ async fn test_application_min_flow() {
         }
         _ => panic!("Expected WaitForBranchSelection result, got {:?}", result),
     }
-    
+
     // Select choice
     let target_label = use_case.select_choice(&mut execution, 0).unwrap();
     assert_eq!(target_label.as_str(), "yes_label");
-    
+
     // Next step should reach the label and continue to the next say
     let result = use_case.execute_next_step(&mut execution).unwrap();
     match result {

@@ -1,8 +1,8 @@
 //! Infrastructure for resource resolution and asset management
 
 use crate::domain::value_objects::ResourceId;
-use std::path::{Path, PathBuf};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 /// Trait for resolving logical resource IDs to physical paths
 pub trait ResourceResolver: Send + Sync {
@@ -67,16 +67,21 @@ impl FileSystemResourceResolver {
         }
     }
 
-    fn find_file_with_extensions(&self, subdir: &str, name: &str, extensions: &[String]) -> Option<PathBuf> {
+    fn find_file_with_extensions(
+        &self,
+        subdir: &str,
+        name: &str,
+        extensions: &[String],
+    ) -> Option<PathBuf> {
         let dir_path = self.base_path.join(subdir);
-        
+
         for ext in extensions {
-            let file_path = dir_path.join(format!("{}.{}", name, ext));
+            let file_path = dir_path.join(format!("{name}.{ext}"));
             if file_path.exists() {
                 return Some(file_path);
             }
         }
-        
+
         None
     }
 
@@ -88,7 +93,8 @@ impl FileSystemResourceResolver {
             for entry in entries.flatten() {
                 if let Some(file_name) = entry.file_name().to_str() {
                     if let Some(stem) = Path::new(file_name).file_stem().and_then(|s| s.to_str()) {
-                        if let Some(ext) = Path::new(file_name).extension().and_then(|e| e.to_str()) {
+                        if let Some(ext) = Path::new(file_name).extension().and_then(|e| e.to_str())
+                        {
                             if extensions.iter().any(|allowed_ext| allowed_ext == ext) {
                                 resources.push(ResourceId::from(stem));
                             }

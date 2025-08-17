@@ -9,29 +9,41 @@
 //! ## Quick Start
 //!
 //! ```rust
-//! use tsumugai::StoryEngine;
+//! use tsumugai::application::{engine::Engine, api::{NextAction, Directive}};
 //!
-//! # #[tokio::main]
-//! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Simple usage - load and execute a scenario
-//! let mut engine = StoryEngine::from_file("scenarios/my_story.md").await?;
-//! 
+//! let markdown = r#"
+//! [SAY speaker=Hero]
+//! Hello, world!
+//! "#;
+//! let mut engine = Engine::from_markdown(markdown)?;
+//!
 //! loop {
-//!     match engine.step().await? {
-//!         tsumugai::StepResult::Continue(directive) => {
-//!             // Handle directive (play audio, show text, etc.)
-//!             println!("Execute: {:?}", directive);
+//!     let result = engine.step()?;
+//!     
+//!     // Handle directives
+//!     for directive in &result.directives {
+//!         match directive {
+//!             Directive::Say { speaker, text } => {
+//!                 println!("{}: {}", speaker, text);
+//!             }
+//!             _ => println!("Other directive: {:?}", directive),
 //!         }
-//!         tsumugai::StepResult::WaitForUser(directive) => {
-//!             println!("Show: {:?}", directive);
+//!     }
+//!     
+//!     // Handle next action
+//!     match result.next {
+//!         NextAction::Next => continue,
+//!         NextAction::WaitUser => {
 //!             // Wait for user input, then continue
+//!             break; // For demo
 //!         }
-//!         tsumugai::StepResult::WaitForChoice(choices) => {
-//!             println!("Choose from: {:?}", choices);
+//!         NextAction::WaitBranch => {
 //!             // Present choices to user, then call engine.choose(index)
-//!             engine.choose(0).await?;
+//!             engine.choose(0)?;
 //!         }
-//!         tsumugai::StepResult::Finished => break,
+//!         NextAction::Halt => break,
 //!     }
 //! }
 //! # Ok(())
@@ -41,34 +53,36 @@
 //! ## Advanced Usage with Domain Layer
 //!
 //! ```rust
-//! use tsumugai::{domain, infrastructure};
+//! use tsumugai::infrastructure::parsing::{MarkdownScenarioParser, ScenarioParser};
+//! use tsumugai::domain::{entities::StoryExecution, services::StoryExecutionService};
 //!
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Use domain services directly for more control
-//! let parser = infrastructure::MarkdownScenarioParser::with_default_id_generator();
-//! let scenario = parser.parse("# My Story\n[SAY speaker=Hero]\nHello!").await?;
+//! let parser = MarkdownScenarioParser::with_default_id_generator();
+//! let scenario = parser.parse("[SAY speaker=Hero]\nHello!").await?;
 //!
-//! let mut execution = domain::StoryExecution::new(scenario)?;
-//! let execution_service = domain::StoryExecutionService::new();
+//! let mut execution = StoryExecution::new(scenario)?;
+//! let execution_service = StoryExecutionService::new();
 //!
 //! let result = execution_service.execute_next_command(&mut execution)?;
+//! println!("Execution result: {:?}", result);
 //! # Ok(())
 //! # }
 //! ```
 
+pub mod application;
 pub mod contracts;
 pub mod domain;
-pub mod application;
-pub mod infrastructure;
-pub mod legacy_adapter;
 pub mod engine;
+pub mod infrastructure;
 pub mod ir;
+pub mod legacy_adapter;
 pub mod parse;
 pub mod resolve;
 
 // Stable public contracts - the main API for library users
-pub use application::api::{StepResult, Directive, NextAction, ApiError};
+pub use application::api::{ApiError, Directive, NextAction, StepResult};
 pub use application::engine::Engine;
 
 // Legacy contracts for backward compatibility
@@ -80,14 +94,17 @@ pub use story_engine::StoryEngine;
 // Domain layer exports for advanced usage
 // Note: Users can access domain and infrastructure modules directly
 
-// Legacy API exports for backward compatibility  
+// Legacy API exports for backward compatibility
 #[deprecated(since = "0.2.0", note = "Use `application::api::Directive` instead")]
 pub use engine::{Directive as LegacyDirective, ResId};
 #[deprecated(since = "0.2.0", note = "Use `application::engine::Engine` instead")]
 pub use engine::{Engine as LegacyEngine, Step, WaitKind};
-#[deprecated(since = "0.2.0", note = "Use `application::engine::Engine::from_markdown()` instead")]
-pub use parse::{ParseError, parse};
 pub use ir::*;
+#[deprecated(
+    since = "0.2.0",
+    note = "Use `application::engine::Engine::from_markdown()` instead"
+)]
+pub use parse::{ParseError, parse};
 pub use resolve::*;
 
 // High-level story engine implementation
@@ -107,12 +124,12 @@ Hello, world!
 "#;
 
         let mut engine = Engine::from_markdown(markdown).unwrap();
-        
+
         // First step: SAY command
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::WaitUser);
         assert_eq!(step_result.directives.len(), 1);
-        
+
         match &step_result.directives[0] {
             Directive::Say { speaker, text } => {
                 assert_eq!(speaker, "Ayumi");
@@ -125,7 +142,7 @@ Hello, world!
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::Next);
         assert_eq!(step_result.directives.len(), 1);
-        
+
         match &step_result.directives[0] {
             Directive::PlayBgm { path } => {
                 assert_eq!(path, &None); // No resolver
@@ -149,12 +166,12 @@ You went right.
 "#;
 
         let mut engine = Engine::from_markdown(markdown).unwrap();
-        
+
         // First step: BRANCH command
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::WaitBranch);
         assert_eq!(step_result.directives.len(), 1);
-        
+
         match &step_result.directives[0] {
             Directive::Branch { choices } => {
                 assert_eq!(choices.len(), 2);
@@ -166,11 +183,11 @@ You went right.
 
         // Choose first option (left)
         engine.choose(0).unwrap();
-        
+
         // Should now be at left label
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::Next);
-        
+
         // Next should be the SAY after left label
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::WaitUser);
@@ -236,11 +253,12 @@ Target reached!
 
         let mut engine = Engine::from_markdown(markdown).unwrap();
 
-        // First step: JUMP command (automatically handled by step())
+        // First step: JUMP command
         let step_result = engine.step().unwrap();
-        // Jump should be automatically processed, so we should land at the label
-        
-        // Should now be at the LABEL
+        assert_eq!(step_result.next, NextAction::Next);
+
+        // Next step: should land at the LABEL
+        let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::Next);
 
         // Next should be the SAY after the label
@@ -286,10 +304,12 @@ Score is correct!
         // Check variable value
         assert_eq!(engine.get_var("score"), Some("15".to_string()));
 
-        // JUMP_IF command should jump (automatically processed)
+        // JUMP_IF command should execute
         let step_result = engine.step().unwrap();
-        
+        assert_eq!(step_result.next, NextAction::Next);
+
         // Should now be at the LABEL
+        let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::Next);
 
         // Next should be the success SAY
@@ -325,7 +345,7 @@ Current score: 10
         // Continue execution
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::WaitUser);
-        
+
         // Variable should still be accessible
         assert_eq!(engine.get_var("score"), Some("10".to_string()));
     }
@@ -350,7 +370,8 @@ Current score: 10
 [PLAY_BGM name=missing]
 "#;
 
-        let mut engine = Engine::from_markdown_with_resolver(markdown, Box::new(TestResolver)).unwrap();
+        let mut engine =
+            Engine::from_markdown_with_resolver(markdown, Box::new(TestResolver)).unwrap();
 
         // First BGM should resolve
         let step_result = engine.step().unwrap();
@@ -409,11 +430,11 @@ stop
 
         // 選択決定
         eng.choose(0).unwrap(); // Choose "Go"
-        
+
         // LABELに到達
         let step_result = eng.step().unwrap();
         assert_eq!(step_result.next, NextAction::Next);
-        
+
         // go の SAY に到達
         let step_result = eng.step().unwrap();
         assert_eq!(step_result.next, NextAction::WaitUser);
@@ -486,13 +507,17 @@ Done
 "#;
 
         match Engine::from_markdown(markdown_with_undefined_label) {
-            Err(ApiError::Parse { line, column: _, message }) => {
+            Err(ApiError::Parse {
+                line,
+                column: _,
+                message,
+            }) => {
                 assert!(message.contains("undefined_label"));
                 assert!(message.contains("Undefined label"));
                 assert!(line > 0, "Line number should be provided");
             }
             Err(other_error) => {
-                panic!("Expected Parse error, got: {:?}", other_error);
+                panic!("Expected Parse error, got: {other_error:?}");
             }
             Ok(_) => {
                 panic!("Expected parse error for undefined label, but parsing succeeded");
@@ -515,13 +540,17 @@ Done
 "#;
 
         match Engine::from_markdown(markdown_with_undefined_branch_label) {
-            Err(ApiError::Parse { line, column: _, message }) => {
+            Err(ApiError::Parse {
+                line,
+                column: _,
+                message,
+            }) => {
                 assert!(message.contains("undefined_target"));
                 assert!(message.contains("Undefined label"));
                 assert!(line > 0, "Line number should be provided");
             }
             Err(other_error) => {
-                panic!("Expected Parse error, got: {:?}", other_error);
+                panic!("Expected Parse error, got: {other_error:?}");
             }
             Ok(_) => {
                 panic!("Expected parse error for undefined branch label, but parsing succeeded");

@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match engine.step() {
             Ok(step_result) => {
                 handle_directives(&step_result.directives);
-                
+
                 match step_result.next {
                     NextAction::Next => {
                         // Continue immediately
@@ -35,9 +35,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     NextAction::WaitBranch => {
                         // Branch choices are in the directives
-                        if let Some(Directive::Branch { choices }) = step_result.directives.iter()
-                            .find(|d| matches!(d, Directive::Branch { .. })) {
-                            
+                        if let Some(Directive::Branch { choices }) = step_result
+                            .directives
+                            .iter()
+                            .find(|d| matches!(d, Directive::Branch { .. }))
+                        {
                             println!("\n選択してください:");
                             for (i, choice) in choices.iter().enumerate() {
                                 println!("{}. {}", i + 1, choice);

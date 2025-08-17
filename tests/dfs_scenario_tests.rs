@@ -1,8 +1,8 @@
 //! DFS scenario coverage tests
 //! Ensures all branching paths are explored with depth limits to prevent infinite loops
 
-use tsumugai::{parse};
 use std::collections::{HashMap, HashSet};
+use tsumugai::parse;
 
 #[cfg(test)]
 mod dfs_tests {
@@ -43,24 +43,28 @@ Beginning
 "#;
 
         let program = parse(scenario).expect("Should parse successfully");
-        
+
         let mut path_coverage = DfsPathExplorer::new();
         path_coverage.explore_all_paths(&program, 50); // Max depth 50
-        
+
         // Verify all expected paths were covered
         let paths = path_coverage.get_discovered_paths();
-        
+
         // Should have at least 4 distinct paths:
         // 1. Start -> path1 -> sub1a -> end
-        // 2. Start -> path1 -> sub1b -> end  
+        // 2. Start -> path1 -> sub1b -> end
         // 3. Start -> path2 -> end
         // 4. Start -> path3 -> end
-        assert!(paths.len() >= 4, "Should discover at least 4 distinct paths, found {}", paths.len());
-        
+        assert!(
+            paths.len() >= 4,
+            "Should discover at least 4 distinct paths, found {}",
+            paths.len()
+        );
+
         // Verify specific labels were reached
         let reached_labels = path_coverage.get_reached_labels();
         let expected_labels = ["path1", "path2", "path3", "sub1a", "sub1b", "end"];
-        
+
         for label in expected_labels.iter() {
             assert!(
                 reached_labels.contains(*label),
@@ -82,17 +86,21 @@ Beginning
 "#;
 
         let program = parse(scenario).expect("Should parse successfully");
-        
+
         let mut path_coverage = DfsPathExplorer::new();
         path_coverage.explore_all_paths(&program, 10); // Small depth limit
-        
+
         // Should detect the loop and stop
         let paths = path_coverage.get_discovered_paths();
         assert!(paths.len() > 0, "Should discover at least one path");
-        
+
         // Should not exceed depth limit
         let max_path_length = paths.iter().map(|p| p.len()).max().unwrap_or(0);
-        assert!(max_path_length <= 15, "Path length should be bounded, got {}", max_path_length);
+        assert!(
+            max_path_length <= 15,
+            "Path length should be bounded, got {}",
+            max_path_length
+        );
     }
 
     /// DFS test: Conditional branching
@@ -119,22 +127,19 @@ Beginning
 "#;
 
         let program = parse(scenario).expect("Should parse successfully");
-        
+
         let mut path_coverage = DfsPathExplorer::new();
         path_coverage.explore_all_paths(&program, 20);
-        
+
         let reached_labels = path_coverage.get_reached_labels();
-        
+
         // Should reach high_score label (since score becomes 10)
         assert!(
             reached_labels.contains("high_score"),
             "Should reach high_score label with score=10"
         );
-        
-        assert!(
-            reached_labels.contains("end"),
-            "Should reach end label"
-        );
+
+        assert!(reached_labels.contains("end"), "Should reach end label");
     }
 
     /// DFS test: Dead code detection
@@ -153,23 +158,23 @@ Beginning
 "#;
 
         let program = parse(scenario).expect("Should parse successfully");
-        
+
         let mut path_coverage = DfsPathExplorer::new();
         path_coverage.explore_all_paths(&program, 20);
-        
+
         let reached_labels = path_coverage.get_reached_labels();
-        
+
         // Should reach 'reachable' but not 'unreachable_label'
         assert!(
             reached_labels.contains("reachable"),
             "Should reach reachable label"
         );
-        
+
         assert!(
             !reached_labels.contains("unreachable_label"),
             "Should NOT reach unreachable_label"
         );
-        
+
         // Verify dead code detection
         let dead_code = path_coverage.find_dead_code(&program);
         assert!(dead_code.len() > 0, "Should detect dead code");
@@ -180,7 +185,7 @@ Beginning
 struct DfsPathExplorer {
     discovered_paths: Vec<Vec<usize>>,
     reached_labels: HashSet<String>,
-    visited_states: HashSet<String>,
+    _visited_states: HashSet<String>,
 }
 
 impl DfsPathExplorer {
@@ -188,7 +193,7 @@ impl DfsPathExplorer {
         Self {
             discovered_paths: Vec::new(),
             reached_labels: HashSet::new(),
-            visited_states: HashSet::new(),
+            _visited_states: HashSet::new(),
         }
     }
 
@@ -227,41 +232,85 @@ impl DfsPathExplorer {
         let cmd = &program.cmds[pc];
         match cmd {
             tsumugai::Command::Say { .. } => {
-                self.dfs_explore(program, pc + 1, variables, current_path, remaining_depth - 1);
+                self.dfs_explore(
+                    program,
+                    pc + 1,
+                    variables,
+                    current_path,
+                    remaining_depth - 1,
+                );
             }
             tsumugai::Command::Wait { .. } => {
-                self.dfs_explore(program, pc + 1, variables, current_path, remaining_depth - 1);
+                self.dfs_explore(
+                    program,
+                    pc + 1,
+                    variables,
+                    current_path,
+                    remaining_depth - 1,
+                );
             }
-            tsumugai::Command::PlayBgm { .. } |
-            tsumugai::Command::PlaySe { .. } |
-            tsumugai::Command::ShowImage { .. } |
-            tsumugai::Command::PlayMovie { .. } => {
-                self.dfs_explore(program, pc + 1, variables, current_path, remaining_depth - 1);
+            tsumugai::Command::PlayBgm { .. }
+            | tsumugai::Command::PlaySe { .. }
+            | tsumugai::Command::ShowImage { .. }
+            | tsumugai::Command::PlayMovie { .. } => {
+                self.dfs_explore(
+                    program,
+                    pc + 1,
+                    variables,
+                    current_path,
+                    remaining_depth - 1,
+                );
             }
             tsumugai::Command::Label { name } => {
                 self.reached_labels.insert(name.clone());
-                self.dfs_explore(program, pc + 1, variables, current_path, remaining_depth - 1);
+                self.dfs_explore(
+                    program,
+                    pc + 1,
+                    variables,
+                    current_path,
+                    remaining_depth - 1,
+                );
             }
             tsumugai::Command::Jump { label } => {
                 if let Some(target_pc) = self.find_label_pc(program, label) {
-                    self.dfs_explore(program, target_pc, variables, current_path, remaining_depth - 1);
+                    self.dfs_explore(
+                        program,
+                        target_pc,
+                        variables,
+                        current_path,
+                        remaining_depth - 1,
+                    );
                 }
             }
             tsumugai::Command::Branch { choices } => {
                 // Explore each branch choice
                 for choice in choices {
                     if let Some(target_pc) = self.find_label_pc(program, &choice.label) {
-                        self.dfs_explore(program, target_pc, variables.clone(), current_path.clone(), remaining_depth - 1);
+                        self.dfs_explore(
+                            program,
+                            target_pc,
+                            variables.clone(),
+                            current_path.clone(),
+                            remaining_depth - 1,
+                        );
                     }
                 }
             }
             tsumugai::Command::Set { name, value } => {
                 variables.insert(name.clone(), value.clone());
-                self.dfs_explore(program, pc + 1, variables, current_path, remaining_depth - 1);
+                self.dfs_explore(
+                    program,
+                    pc + 1,
+                    variables,
+                    current_path,
+                    remaining_depth - 1,
+                );
             }
             tsumugai::Command::Modify { name, op, value } => {
                 if let Some(current_val) = variables.get(name) {
-                    if let (tsumugai::Value::Int(current), tsumugai::Value::Int(modify)) = (current_val, value) {
+                    if let (tsumugai::Value::Int(current), tsumugai::Value::Int(modify)) =
+                        (current_val, value)
+                    {
                         let new_val = match op {
                             tsumugai::Op::Add => current + modify,
                             tsumugai::Op::Sub => current - modify,
@@ -269,9 +318,20 @@ impl DfsPathExplorer {
                         variables.insert(name.clone(), tsumugai::Value::Int(new_val));
                     }
                 }
-                self.dfs_explore(program, pc + 1, variables, current_path, remaining_depth - 1);
+                self.dfs_explore(
+                    program,
+                    pc + 1,
+                    variables,
+                    current_path,
+                    remaining_depth - 1,
+                );
             }
-            tsumugai::Command::JumpIf { var, cmp, value, label } => {
+            tsumugai::Command::JumpIf {
+                var,
+                cmp,
+                value,
+                label,
+            } => {
                 let should_jump = if let Some(var_value) = variables.get(var) {
                     self.evaluate_condition(var_value, cmp, value)
                 } else {
@@ -280,10 +340,22 @@ impl DfsPathExplorer {
 
                 if should_jump {
                     if let Some(target_pc) = self.find_label_pc(program, label) {
-                        self.dfs_explore(program, target_pc, variables, current_path, remaining_depth - 1);
+                        self.dfs_explore(
+                            program,
+                            target_pc,
+                            variables,
+                            current_path,
+                            remaining_depth - 1,
+                        );
                     }
                 } else {
-                    self.dfs_explore(program, pc + 1, variables, current_path, remaining_depth - 1);
+                    self.dfs_explore(
+                        program,
+                        pc + 1,
+                        variables,
+                        current_path,
+                        remaining_depth - 1,
+                    );
                 }
             }
         }
@@ -300,7 +372,12 @@ impl DfsPathExplorer {
         None
     }
 
-    fn evaluate_condition(&self, var_value: &tsumugai::Value, cmp: &tsumugai::Cmp, value: &tsumugai::Value) -> bool {
+    fn evaluate_condition(
+        &self,
+        var_value: &tsumugai::Value,
+        cmp: &tsumugai::Cmp,
+        value: &tsumugai::Value,
+    ) -> bool {
         match (var_value, value) {
             (tsumugai::Value::Int(a), tsumugai::Value::Int(b)) => match cmp {
                 tsumugai::Cmp::Eq => a == b,
@@ -334,7 +411,7 @@ impl DfsPathExplorer {
 
     fn find_dead_code(&self, program: &tsumugai::Program) -> Vec<usize> {
         let mut reachable_pcs: HashSet<usize> = HashSet::new();
-        
+
         for path in &self.discovered_paths {
             for &pc in path {
                 reachable_pcs.insert(pc);

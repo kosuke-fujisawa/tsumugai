@@ -1,8 +1,8 @@
 //! Infrastructure for parsing scenarios from various formats
 
 use crate::domain::entities::Scenario;
-use crate::domain::value_objects::*;
 use crate::domain::errors::DomainError;
+use crate::domain::value_objects::*;
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
 
@@ -36,16 +36,17 @@ impl ScenarioParser for MarkdownScenarioParser {
     async fn parse(&self, content: &str) -> Result<Scenario, ParseError> {
         let parser = MarkdownParser::new(content);
         let (commands, title) = parser.parse()?;
-        
+
         let id = self.id_generator.generate_id(&title);
         let scenario = Scenario::new(id, title, commands);
-        
+
         // Validate the scenario using domain rules
-        scenario.validate_labels()
-            .map_err(|e| ParseError::ValidationError { 
-                message: e.to_string() 
+        scenario
+            .validate_labels()
+            .map_err(|e| ParseError::ValidationError {
+                message: e.to_string(),
             })?;
-        
+
         Ok(scenario)
     }
 
@@ -99,7 +100,7 @@ impl MarkdownParser {
 
     fn parse(mut self) -> Result<(Vec<StoryCommand>, String), ParseError> {
         let title = self.extract_title();
-        
+
         while self.current_line < self.lines.len() {
             self.parse_line()?;
             self.current_line += 1;
@@ -112,8 +113,8 @@ impl MarkdownParser {
         // Look for a title in the first few lines
         for line in self.lines.iter().take(5) {
             let line = line.trim();
-            if line.starts_with("# ") {
-                return line[2..].trim().to_string();
+            if let Some(stripped) = line.strip_prefix("# ") {
+                return stripped.trim().to_string();
             }
         }
         "Untitled Scenario".to_string()
@@ -233,7 +234,8 @@ impl MarkdownParser {
             }
             "SET" => {
                 let name = self.require_param(&params, "name", command_name)?;
-                let value = self.parse_value(&self.require_param(&params, "value", command_name)?)?;
+                let value =
+                    self.parse_value(&self.require_param(&params, "value", command_name)?)?;
                 Ok(StoryCommand::SetVariable {
                     name: VariableName::from(name),
                     value,
@@ -242,7 +244,8 @@ impl MarkdownParser {
             "MODIFY" => {
                 let name = self.require_param(&params, "name", command_name)?;
                 let op = self.parse_op(&self.require_param(&params, "op", command_name)?)?;
-                let value = self.parse_value(&self.require_param(&params, "value", command_name)?)?;
+                let value =
+                    self.parse_value(&self.require_param(&params, "value", command_name)?)?;
                 Ok(StoryCommand::ModifyVariable {
                     name: VariableName::from(name),
                     operation: op,
@@ -252,7 +255,8 @@ impl MarkdownParser {
             "JUMP_IF" => {
                 let var = self.require_param(&params, "var", command_name)?;
                 let cmp = self.parse_cmp(&self.require_param(&params, "cmp", command_name)?)?;
-                let value = self.parse_value(&self.require_param(&params, "value", command_name)?)?;
+                let value =
+                    self.parse_value(&self.require_param(&params, "value", command_name)?)?;
                 let label = self.require_param(&params, "label", command_name)?;
                 Ok(StoryCommand::JumpIf {
                     variable: VariableName::from(var),

@@ -77,6 +77,8 @@ tsumugai = { git = "https://github.com/yourname/tsumugai", tag = "v0.1.0" }
 ```
 使用例：
 
+**注意**: `Engine::from_markdown` は現在プレースホルダー実装です。完全な統合は将来のバージョンで提供予定です。
+
 ```rust
 use tsumugai::{Engine, NextAction};
 

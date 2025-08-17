@@ -1,5 +1,5 @@
 //! Infrastructure layer - External dependencies and adapters
-//! 
+//!
 //! This layer contains implementations that deal with external concerns
 //! like file systems, parsing, serialization, and other I/O operations.
 

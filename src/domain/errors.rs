@@ -62,8 +62,6 @@ impl DomainError {
     }
 
     pub fn business_rule_violation(rule: impl Into<String>) -> Self {
-        Self::BusinessRuleViolation {
-            rule: rule.into(),
-        }
+        Self::BusinessRuleViolation { rule: rule.into() }
     }
 }

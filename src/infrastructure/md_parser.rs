@@ -2,8 +2,8 @@
 //!
 //! This module handles the conversion from markdown text to intermediate representation.
 
-use crate::ir::{Command, Program, Value, Choice};
 use crate::application::api::ApiError;
+use crate::ir::{Choice, Command, Program, Value};
 use std::collections::{BTreeMap, HashMap};
 
 /// Parse markdown content into a Program
@@ -57,12 +57,12 @@ impl MarkdownParser {
         // Check for command syntax
         if let Some(cmd_content) = self.extract_command(trimmed) {
             let command = self.parse_command(&cmd_content)?;
-            
+
             // If it's a label, record its position
             if let Command::Label { name } = &command {
                 self.labels.insert(name.clone(), self.commands.len());
             }
-            
+
             self.commands.push(command);
         }
 
@@ -82,9 +82,9 @@ impl MarkdownParser {
         let parts: Vec<&str> = cmd_str.split_whitespace().collect();
         if parts.is_empty() {
             return Err(ApiError::parse(
-                self.current_line + 1, 
-                1, 
-                format!("Empty command: {}", cmd_str)
+                self.current_line + 1,
+                1,
+                format!("Empty command: {cmd_str}"),
             ));
         }
 
@@ -131,26 +131,34 @@ impl MarkdownParser {
             }
             "SET" => {
                 let name = self.require_param(&params, "name", command_name)?;
-                let value = self.parse_value(&self.require_param(&params, "value", command_name)?)?;
+                let value =
+                    self.parse_value(&self.require_param(&params, "value", command_name)?)?;
                 Ok(Command::Set { name, value })
             }
             "MODIFY" => {
                 let name = self.require_param(&params, "name", command_name)?;
                 let op = self.parse_op(&self.require_param(&params, "op", command_name)?)?;
-                let value = self.parse_value(&self.require_param(&params, "value", command_name)?)?;
+                let value =
+                    self.parse_value(&self.require_param(&params, "value", command_name)?)?;
                 Ok(Command::Modify { name, op, value })
             }
             "JUMP_IF" => {
                 let var = self.require_param(&params, "var", command_name)?;
                 let cmp = self.parse_cmp(&self.require_param(&params, "cmp", command_name)?)?;
-                let value = self.parse_value(&self.require_param(&params, "value", command_name)?)?;
+                let value =
+                    self.parse_value(&self.require_param(&params, "value", command_name)?)?;
                 let label = self.require_param(&params, "label", command_name)?;
-                Ok(Command::JumpIf { var, cmp, value, label })
+                Ok(Command::JumpIf {
+                    var,
+                    cmp,
+                    value,
+                    label,
+                })
             }
             _ => Err(ApiError::parse(
                 self.current_line + 1,
                 1,
-                format!("Unknown command: {}", command_name)
+                format!("Unknown command: {command_name}"),
             )),
         }
     }
@@ -173,7 +181,11 @@ impl MarkdownParser {
         Ok(params)
     }
 
-    fn parse_single_param(&self, part: &str, params: &mut HashMap<String, String>) -> Result<(), ApiError> {
+    fn parse_single_param(
+        &self,
+        part: &str,
+        params: &mut HashMap<String, String>,
+    ) -> Result<(), ApiError> {
         if let Some(eq_pos) = part.find('=') {
             let key = part[..eq_pos].trim().to_string();
             let value = part[eq_pos + 1..].trim().to_string();
@@ -187,12 +199,17 @@ impl MarkdownParser {
         Ok(())
     }
 
-    fn require_param(&self, params: &HashMap<String, String>, param: &str, command: &str) -> Result<String, ApiError> {
+    fn require_param(
+        &self,
+        params: &HashMap<String, String>,
+        param: &str,
+        command: &str,
+    ) -> Result<String, ApiError> {
         params.get(param).cloned().ok_or_else(|| {
             ApiError::parse(
                 self.current_line + 1,
                 1,
-                format!("Missing required parameter '{}' for command '{}'", param, command)
+                format!("Missing required parameter '{param}' for command '{command}'"),
             )
         })
     }
@@ -220,13 +237,17 @@ impl MarkdownParser {
         Ok(String::new())
     }
 
-    fn parse_wait_duration(&self, parts: &[&str], params: &HashMap<String, String>) -> Result<f32, ApiError> {
+    fn parse_wait_duration(
+        &self,
+        parts: &[&str],
+        params: &HashMap<String, String>,
+    ) -> Result<f32, ApiError> {
         if let Some(secs_str) = params.get("secs") {
             self.parse_float(secs_str)
         } else if parts.len() > 1 {
             let time_str = parts[1];
-            let clean_str = if time_str.ends_with('s') {
-                &time_str[..time_str.len() - 1]
+            let clean_str = if let Some(stripped) = time_str.strip_suffix('s') {
+                stripped
             } else {
                 time_str
             };
@@ -235,7 +256,7 @@ impl MarkdownParser {
             Err(ApiError::parse(
                 self.current_line + 1,
                 1,
-                "Missing duration for WAIT command"
+                "Missing duration for WAIT command",
             ))
         }
     }
@@ -243,27 +264,34 @@ impl MarkdownParser {
     fn parse_branch_choices(&mut self) -> Result<Vec<Choice>, ApiError> {
         let mut choices = Vec::new();
         let current_line_content = &self.lines[self.current_line];
-        
+
         if let Some(bracket_start) = current_line_content.find('[') {
             if let Some(bracket_end) = current_line_content.find(']') {
                 let command_content = &current_line_content[bracket_start + 1..bracket_end];
                 let parts: Vec<&str> = command_content.split_whitespace().collect();
-                
+
                 if parts.len() > 1 && parts[0] == "BRANCH" {
                     let params_str = parts[1..].join(" ");
-                    let param_pairs: Vec<&str> = params_str.split(',').collect();
+                    let param_pairs = self.tokenize_quoted_params(&params_str);
 
                     for pair in param_pairs {
                         let pair = pair.trim();
-                        let key_value_pairs: Vec<&str> = pair.split_whitespace().collect();
-
                         let mut current_choice: Option<String> = None;
                         let mut current_label: Option<String> = None;
 
-                        for kv in key_value_pairs {
-                            if let Some(eq_pos) = kv.find('=') {
-                                let key = kv[..eq_pos].trim();
-                                let value = kv[eq_pos + 1..].trim();
+                        // Parse key=value pairs with quote support
+                        let tokens = self.tokenize_key_values(pair);
+                        for token in tokens {
+                            if let Some(eq_pos) = token.find('=') {
+                                let key = token[..eq_pos].trim();
+                                let mut value = token[eq_pos + 1..].trim();
+
+                                // Remove quotes if present
+                                if (value.starts_with('"') && value.ends_with('"'))
+                                    || (value.starts_with('\'') && value.ends_with('\''))
+                                {
+                                    value = &value[1..value.len() - 1];
+                                }
 
                                 match key {
                                     "choice" => current_choice = Some(value.to_string()),
@@ -285,11 +313,56 @@ impl MarkdownParser {
             return Err(ApiError::parse(
                 self.current_line + 1,
                 1,
-                "BRANCH command requires at least one choice"
+                "BRANCH command requires at least one choice",
             ));
         }
 
         Ok(choices)
+    }
+
+    /// Tokenize comma-separated parameters, respecting quotes
+    fn tokenize_quoted_params(&self, input: &str) -> Vec<String> {
+        let mut result = Vec::new();
+        let mut current = String::new();
+        let mut in_quotes = false;
+        let mut quote_char = '"';
+        let chars = input.chars();
+
+        for c in chars {
+            match c {
+                '"' | '\'' if !in_quotes => {
+                    in_quotes = true;
+                    quote_char = c;
+                    current.push(c);
+                }
+                c if c == quote_char && in_quotes => {
+                    in_quotes = false;
+                    current.push(c);
+                }
+                ',' if !in_quotes => {
+                    if !current.trim().is_empty() {
+                        result.push(current.trim().to_string());
+                    }
+                    current.clear();
+                }
+                _ => {
+                    current.push(c);
+                }
+            }
+        }
+
+        if !current.trim().is_empty() {
+            result.push(current.trim().to_string());
+        }
+
+        result
+    }
+
+    /// Tokenize key=value pairs within a single parameter group
+    fn tokenize_key_values(&self, input: &str) -> Vec<String> {
+        // For now, simple space-based split since key=value shouldn't contain spaces
+        // unless quoted values, which are handled at the parse level
+        input.split_whitespace().map(|s| s.to_string()).collect()
     }
 
     fn parse_value(&self, s: &str) -> Result<Value, ApiError> {
@@ -309,7 +382,7 @@ impl MarkdownParser {
             _ => Err(ApiError::parse(
                 self.current_line + 1,
                 1,
-                format!("Invalid operation: {}", s)
+                format!("Invalid operation: {s}"),
             )),
         }
     }
@@ -325,7 +398,7 @@ impl MarkdownParser {
             _ => Err(ApiError::parse(
                 self.current_line + 1,
                 1,
-                format!("Invalid comparison: {}", s)
+                format!("Invalid comparison: {s}"),
             )),
         }
     }
@@ -335,7 +408,7 @@ impl MarkdownParser {
             ApiError::parse(
                 self.current_line + 1,
                 1,
-                format!("Invalid float value: {}", s)
+                format!("Invalid float value: {s}"),
             )
         })
     }
@@ -349,9 +422,11 @@ impl MarkdownParser {
                         return Err(ApiError::parse(
                             index + 1,
                             1,
-                            format!("Undefined label '{}'. Available labels: {:?}", 
-                                label, 
-                                self.labels.keys().collect::<Vec<_>>())
+                            format!(
+                                "Undefined label '{}'. Available labels: {:?}",
+                                label,
+                                self.labels.keys().collect::<Vec<_>>()
+                            ),
                         ));
                     }
                 }
@@ -360,9 +435,11 @@ impl MarkdownParser {
                         return Err(ApiError::parse(
                             index + 1,
                             1,
-                            format!("Undefined label '{}'. Available labels: {:?}", 
-                                label, 
-                                self.labels.keys().collect::<Vec<_>>())
+                            format!(
+                                "Undefined label '{}'. Available labels: {:?}",
+                                label,
+                                self.labels.keys().collect::<Vec<_>>()
+                            ),
                         ));
                     }
                 }
@@ -372,10 +449,12 @@ impl MarkdownParser {
                             return Err(ApiError::parse(
                                 index + 1,
                                 1,
-                                format!("Undefined label '{}' in branch choice '{}'. Available labels: {:?}", 
-                                    choice.label, 
+                                format!(
+                                    "Undefined label '{}' in branch choice '{}'. Available labels: {:?}",
+                                    choice.label,
                                     choice.choice,
-                                    self.labels.keys().collect::<Vec<_>>())
+                                    self.labels.keys().collect::<Vec<_>>()
+                                ),
                             ));
                         }
                     }

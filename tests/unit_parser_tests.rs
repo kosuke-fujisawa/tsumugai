@@ -1,7 +1,7 @@
 //! Unit tests for parser - TDD Red-Green-Refactor cycle
 //! Tests individual parser components in isolation
 
-use tsumugai::{parse, ParseError, Command};
+use tsumugai::{Command, ParseError, parse};
 
 #[cfg(test)]
 mod parser_unit_tests {
@@ -12,10 +12,10 @@ mod parser_unit_tests {
     #[test]
     fn test_single_say_command_parsing() {
         let input = "[SAY speaker=Hero]\nHello world!";
-        
+
         let result = parse(input).expect("Should parse successfully");
         assert_eq!(result.cmds.len(), 1);
-        
+
         match &result.cmds[0] {
             Command::Say { speaker, text } => {
                 assert_eq!(speaker, "Hero");
@@ -48,10 +48,10 @@ mod parser_unit_tests {
     #[test]
     fn test_invalid_command_format() {
         let input = "[INVALID_COMMAND without_proper_format]";
-        
+
         let result = parse(input);
         assert!(result.is_err(), "Invalid command should fail to parse");
-        
+
         // Verify error contains helpful information
         let error = result.unwrap_err();
         let error_msg = format!("{}", error);
@@ -69,10 +69,10 @@ mod parser_unit_tests {
 [LABEL name=go_right]  
 [LABEL name=stay_here]
 "#;
-        
+
         let result = parse(input).expect("BRANCH should parse successfully");
         assert_eq!(result.cmds.len(), 4); // 1 BRANCH + 3 LABELs
-        
+
         match &result.cmds[0] {
             Command::Branch { choices } => {
                 assert_eq!(choices.len(), 3);
@@ -97,14 +97,18 @@ mod parser_unit_tests {
             ("[WAIT 0.1s]", 0.1),
             ("[WAIT 10s]", 10.0),
         ];
-        
+
         for (input, expected_duration) in test_cases {
             let result = parse(input).expect(&format!("Should parse: {}", input));
             assert_eq!(result.cmds.len(), 1);
-            
+
             match &result.cmds[0] {
                 Command::Wait { secs } => {
-                    assert_eq!(*secs, expected_duration, "Duration mismatch for input: {}", input);
+                    assert_eq!(
+                        *secs, expected_duration,
+                        "Duration mismatch for input: {}",
+                        input
+                    );
                 }
                 _ => panic!("Expected Wait command for input: {}", input),
             }
@@ -116,15 +120,27 @@ mod parser_unit_tests {
     #[test]
     fn test_set_command_value_types() {
         let test_cases = vec![
-            ("[SET name=score value=100]", "score", tsumugai::Value::Int(100)),
-            ("[SET name=flag value=true]", "flag", tsumugai::Value::Bool(true)),
-            ("[SET name=message value=hello]", "message", tsumugai::Value::Str("hello".to_string())),
+            (
+                "[SET name=score value=100]",
+                "score",
+                tsumugai::Value::Int(100),
+            ),
+            (
+                "[SET name=flag value=true]",
+                "flag",
+                tsumugai::Value::Bool(true),
+            ),
+            (
+                "[SET name=message value=hello]",
+                "message",
+                tsumugai::Value::Str("hello".to_string()),
+            ),
         ];
-        
+
         for (input, expected_name, expected_value) in test_cases {
             let result = parse(input).expect(&format!("Should parse: {}", input));
             assert_eq!(result.cmds.len(), 1);
-            
+
             match &result.cmds[0] {
                 Command::Set { name, value } => {
                     assert_eq!(name, expected_name);
@@ -150,7 +166,7 @@ First line
 [SAY speaker=A]
 Done
 "#;
-        
+
         let result = parse(input);
         match result {
             Err(ParseError::UndefinedLabel { label, line }) => {
@@ -170,7 +186,7 @@ Done
 [JUMP label=second_undefined]
 [LABEL name=valid_label]
 "#;
-        
+
         let result = parse(input);
         match result {
             Err(ParseError::UndefinedLabel { label, .. }) => {
@@ -213,22 +229,32 @@ Skipping to main story...
 [SAY speaker=Hero]
 Here we are!
 "#;
-        
+
         let result = parse(input).expect("Complex scenario should parse successfully");
-        
+
         // Verify command count
         assert_eq!(result.cmds.len(), 12); // Updated count
-        
+
         // Verify command types in order
         let expected_types = vec![
-            "Set", "PlayBgm", "Say", "ShowImage", "Branch", 
-            "Label", "Say", "Jump", "Label", "Say", "Label", "Say"
+            "Set",
+            "PlayBgm",
+            "Say",
+            "ShowImage",
+            "Branch",
+            "Label",
+            "Say",
+            "Jump",
+            "Label",
+            "Say",
+            "Label",
+            "Say",
         ];
-        
+
         for (i, cmd) in result.cmds.iter().enumerate() {
             let cmd_type = match cmd {
                 Command::Set { .. } => "Set",
-                Command::PlayBgm { .. } => "PlayBgm", 
+                Command::PlayBgm { .. } => "PlayBgm",
                 Command::Say { .. } => "Say",
                 Command::ShowImage { .. } => "ShowImage",
                 Command::Branch { .. } => "Branch",
@@ -236,7 +262,7 @@ Here we are!
                 Command::Jump { .. } => "Jump",
                 _ => "Other",
             };
-            
+
             if i < expected_types.len() {
                 assert_eq!(cmd_type, expected_types[i], "Command {} type mismatch", i);
             }

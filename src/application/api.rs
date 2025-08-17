@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 /// Next action that the host should take after processing directives
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "snake_case")]
 pub enum NextAction {
     /// Continue to next step immediately
     Next,
@@ -49,6 +50,7 @@ pub enum Directive {
 
 /// Result of a single step execution
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct StepResult {
     /// What action the host should take next
     pub next: NextAction,

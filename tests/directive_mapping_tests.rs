@@ -1,7 +1,7 @@
 //! Directive mapping accuracy tests
 //! Validates that Core directives are correctly mapped to API directives
 
-use tsumugai::application::{engine::Engine, api::Directive};
+use tsumugai::application::{api::Directive, engine::Engine};
 
 #[test]
 fn test_directive_mapping_accuracy() {
@@ -9,10 +9,10 @@ fn test_directive_mapping_accuracy() {
     let markdown = r#"
 [PLAY_SE name=test.wav]
 "#;
-    
+
     let mut engine = Engine::from_markdown(markdown).expect("Failed to create engine");
     let result = engine.step().expect("Failed to step");
-    
+
     // Check that we get the correct directive
     assert_eq!(result.directives.len(), 1);
     match &result.directives[0] {
@@ -20,7 +20,7 @@ fn test_directive_mapping_accuracy() {
             // Path might be None if not resolved
             assert!(path.is_none() || path.as_ref().unwrap().contains("test.wav"));
         }
-        other => panic!("Expected PlaySe directive, got {:?}", other),
+        other => panic!("Expected PlaySe directive, got {other:?}"),
     }
 }
 
@@ -30,16 +30,16 @@ fn test_play_movie_mapping() {
     let markdown = r#"
 [PLAY_MOVIE file=test.mp4]
 "#;
-    
+
     let mut engine = Engine::from_markdown(markdown).expect("Failed to create engine");
     let result = engine.step().expect("Failed to step");
-    
+
     assert_eq!(result.directives.len(), 1);
     match &result.directives[0] {
         Directive::PlayMovie { path } => {
             assert!(path.is_none() || path.as_ref().unwrap().contains("test.mp4"));
         }
-        other => panic!("Expected PlayMovie directive, got {:?}", other),
+        other => panic!("Expected PlayMovie directive, got {other:?}"),
     }
 }
 
@@ -51,10 +51,10 @@ fn test_reached_label_mapping() {
 [SAY speaker=Narrator]
 Hello world
 "#;
-    
+
     let mut engine = Engine::from_markdown(markdown).expect("Failed to create engine");
     let result = engine.step().expect("Failed to step");
-    
+
     // Should have both Label and Say directives
     let mut found_label = false;
     for directive in &result.directives {
@@ -71,7 +71,7 @@ Hello world
             }
         }
     }
-    
+
     if !found_label {
         // If no ReachedLabel directive, that's also OK for this test
         // as long as we're not getting JumpTo for labels
@@ -95,10 +95,10 @@ fn test_jump_to_mapping() {
 [SAY speaker=Narrator]
 Done
 "#;
-    
+
     let mut engine = Engine::from_markdown(markdown).expect("Failed to create engine");
     let result = engine.step().expect("Failed to step");
-    
+
     // The step should have caused a jump, so we should be at the start label
     // The exact behavior depends on how jumps are handled, but we shouldn't
     // see JumpTo in the directives since jumps are processed immediately

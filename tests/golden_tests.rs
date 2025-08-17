@@ -1,8 +1,8 @@
 //! Golden tests for deterministic execution validation
 //! Compares --dump output with pre-recorded JSON files
 
-use std::process::Command;
 use std::path::Path;
+use std::process::Command;
 
 #[cfg(test)]
 mod golden_tests {
@@ -60,19 +60,19 @@ mod golden_tests {
         }
 
         // Get the actual output
-        let actual_output = String::from_utf8(output.stdout)
-            .expect("Dump output was not valid UTF-8");
+        let actual_output =
+            String::from_utf8(output.stdout).expect("Dump output was not valid UTF-8");
 
         // Read the expected golden file
         let expected_output = std::fs::read_to_string(&golden_path)
             .expect(&format!("Failed to read golden file: {}", golden_path));
 
         // Parse both as JSON to ensure they're valid and for normalized comparison
-        let actual_json: serde_json::Value = serde_json::from_str(&actual_output)
-            .expect("Actual output was not valid JSON");
+        let actual_json: serde_json::Value =
+            serde_json::from_str(&actual_output).expect("Actual output was not valid JSON");
 
-        let expected_json: serde_json::Value = serde_json::from_str(&expected_output)
-            .expect("Golden file was not valid JSON");
+        let expected_json: serde_json::Value =
+            serde_json::from_str(&expected_output).expect("Golden file was not valid JSON");
 
         // Compare the parsed JSON structures
         if actual_json != expected_json {
@@ -85,11 +85,7 @@ mod golden_tests {
             panic!(
                 "Golden test failed for {}!\n\nExpected:\n{}\n\nActual:\n{}\n\n\
                  To update the golden file, run:\ncargo run --example dump -- {} > {}",
-                test_name,
-                expected_pretty,
-                actual_pretty,
-                fixture_path,
-                golden_path
+                test_name, expected_pretty, actual_pretty, fixture_path, golden_path
             );
         }
     }
@@ -136,14 +132,18 @@ mod golden_tests {
         assert!(output2.status.success());
 
         // Parse both outputs
-        let json1: serde_json::Value = serde_json::from_slice(&output1.stdout)
-            .expect("First output not valid JSON");
-        let json2: serde_json::Value = serde_json::from_slice(&output2.stdout)
-            .expect("Second output not valid JSON");
+        let json1: serde_json::Value =
+            serde_json::from_slice(&output1.stdout).expect("First output not valid JSON");
+        let json2: serde_json::Value =
+            serde_json::from_slice(&output2.stdout).expect("Second output not valid JSON");
 
         // Hashes should be identical
-        let hash1 = json1["input_hash"].as_str().expect("Missing input_hash in first output");
-        let hash2 = json2["input_hash"].as_str().expect("Missing input_hash in second output");
+        let hash1 = json1["input_hash"]
+            .as_str()
+            .expect("Missing input_hash in first output");
+        let hash2 = json2["input_hash"]
+            .as_str()
+            .expect("Missing input_hash in second output");
 
         assert_eq!(
             hash1, hash2,
@@ -151,9 +151,6 @@ mod golden_tests {
         );
 
         // Full outputs should be identical (deterministic)
-        assert_eq!(
-            json1, json2,
-            "Full dump output should be deterministic"
-        );
+        assert_eq!(json1, json2, "Full dump output should be deterministic");
     }
 }

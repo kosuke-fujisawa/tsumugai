@@ -18,7 +18,7 @@ impl Engine {
     /// Create engine from markdown source
     pub fn from_markdown(src: &str) -> Result<Self, ApiError> {
         let program = parse_markdown(src)?;
-        
+
         let core = CoreEngine::new(program);
         Ok(Self {
             core,
@@ -28,9 +28,12 @@ impl Engine {
     }
 
     /// Create engine from markdown with resolver
-    pub fn from_markdown_with_resolver(src: &str, resolver: Box<dyn Resolver>) -> Result<Self, ApiError> {
+    pub fn from_markdown_with_resolver(
+        src: &str,
+        resolver: Box<dyn Resolver>,
+    ) -> Result<Self, ApiError> {
         let program = parse_markdown(src)?;
-        
+
         let core = CoreEngine::with_resolver(program, resolver);
         Ok(Self {
             core,
@@ -43,8 +46,9 @@ impl Engine {
     pub fn step(&mut self) -> Result<StepResult, ApiError> {
         let step = self.core.step();
         let directives = self.core.take_emitted();
-        
-        let api_directives = directives.into_iter()
+
+        let api_directives = directives
+            .into_iter()
             .map(|d| self.convert_directive(d))
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -58,25 +62,30 @@ impl Engine {
                 directives: api_directives,
             }),
             Step::Wait(WaitKind::Branch(choices)) => {
-                let choice_texts: Vec<String> = choices.iter()
-                    .map(|c| c.choice.clone())
-                    .collect();
+                let choice_texts: Vec<String> = choices.iter().map(|c| c.choice.clone()).collect();
                 self.current_choices = Some(choice_texts.clone());
                 self.last_branch_choices = Some(choices); // Cache for choose()
                 Ok(StepResult {
                     next: NextAction::WaitBranch,
-                    directives: vec![Directive::Branch { choices: choice_texts }],
+                    directives: vec![Directive::Branch {
+                        choices: choice_texts,
+                    }],
                 })
-            },
+            }
             Step::Wait(WaitKind::Timer(secs)) => Ok(StepResult {
                 next: NextAction::WaitUser,
                 directives: vec![Directive::Wait { seconds: secs }],
             }),
             Step::Jump(label) => {
-                self.core.jump_to(&label).map_err(|e| ApiError::engine(format!("{:?}", e)))?;
-                // Continue immediately after jump
-                self.step()
-            },
+                self.core
+                    .jump_to(&label)
+                    .map_err(|e| ApiError::engine(e.to_string()))?;
+                // Return immediately without recursion, preserving collected directives
+                Ok(StepResult {
+                    next: NextAction::Next,
+                    directives: api_directives,
+                })
+            }
             Step::Halt => Ok(StepResult {
                 next: NextAction::Halt,
                 directives: api_directives,
@@ -94,14 +103,16 @@ impl Engine {
         if let Some(ref branch_choices) = self.last_branch_choices {
             if index >= branch_choices.len() {
                 return Err(ApiError::invalid(format!(
-                    "Choice index {} out of range (0-{})", 
-                    index, 
-                    branch_choices.len() - 1
+                    "Choice index {} out of range (0-{})",
+                    index,
+                    branch_choices.len().saturating_sub(1)
                 )));
             }
-            
+
             let label = &branch_choices[index].label;
-            self.core.jump_to(label).map_err(|e| ApiError::engine(format!("{:?}", e)))?;
+            self.core
+                .jump_to(label)
+                .map_err(|e| ApiError::engine(format!("{e:?}")))?;
             self.current_choices = None;
             self.last_branch_choices = None; // Clear cache after use
             Ok(())
@@ -127,37 +138,45 @@ impl Engine {
         // This would need proper Value parsing in a real implementation
         use crate::ir::Value;
         if let Ok(int_val) = value.parse::<i32>() {
-            self.core.vars_mut().insert(name.to_string(), Value::Int(int_val));
+            self.core
+                .vars_mut()
+                .insert(name.to_string(), Value::Int(int_val));
         } else if let Ok(bool_val) = value.parse::<bool>() {
-            self.core.vars_mut().insert(name.to_string(), Value::Bool(bool_val));
+            self.core
+                .vars_mut()
+                .insert(name.to_string(), Value::Bool(bool_val));
         } else {
-            self.core.vars_mut().insert(name.to_string(), Value::Str(value.to_string()));
+            self.core
+                .vars_mut()
+                .insert(name.to_string(), Value::Str(value.to_string()));
         }
     }
 
     fn convert_directive(&self, dir: crate::engine::Directive) -> Result<Directive, ApiError> {
         use crate::engine::Directive as CoreDirective;
-        
+
         match dir {
             CoreDirective::Say { speaker, text } => Ok(Directive::Say { speaker, text }),
-            CoreDirective::PlayBgm { res } => Ok(Directive::PlayBgm { 
-                path: res.resolved.map(|p| p.to_string_lossy().to_string()) 
+            CoreDirective::PlayBgm { res } => Ok(Directive::PlayBgm {
+                path: res.resolved.map(|p| p.to_string_lossy().to_string()),
             }),
-            CoreDirective::PlaySe { res } => Ok(Directive::PlaySe { 
-                path: res.resolved.map(|p| p.to_string_lossy().to_string()) 
+            CoreDirective::PlaySe { res } => Ok(Directive::PlaySe {
+                path: res.resolved.map(|p| p.to_string_lossy().to_string()),
             }),
-            CoreDirective::ShowImage { res } => Ok(Directive::ShowImage { 
+            CoreDirective::ShowImage { res } => Ok(Directive::ShowImage {
                 layer: "main".to_string(), // Default layer
-                path: res.resolved.map(|p| p.to_string_lossy().to_string()) 
+                path: res.resolved.map(|p| p.to_string_lossy().to_string()),
             }),
-            CoreDirective::PlayMovie { res } => Ok(Directive::PlayMovie { 
-                path: res.resolved.map(|p| p.to_string_lossy().to_string()) 
+            CoreDirective::PlayMovie { res } => Ok(Directive::PlayMovie {
+                path: res.resolved.map(|p| p.to_string_lossy().to_string()),
             }),
             CoreDirective::Wait { secs } => Ok(Directive::Wait { seconds: secs }),
             CoreDirective::Branch { choices } => {
                 let choice_texts = choices.iter().map(|c| c.choice.clone()).collect();
-                Ok(Directive::Branch { choices: choice_texts })
-            },
+                Ok(Directive::Branch {
+                    choices: choice_texts,
+                })
+            }
             CoreDirective::Jump { label } => Ok(Directive::JumpTo { label }),
             CoreDirective::Label { name } => Ok(Directive::ReachedLabel { label: name }),
         }

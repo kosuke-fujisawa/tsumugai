@@ -1,12 +1,12 @@
 //! Infrastructure implementations of repository traits
 
-use crate::domain::entities::{Scenario, ExecutionSnapshot};
+use crate::domain::entities::{ExecutionSnapshot, Scenario};
+use crate::domain::repositories::{RepositoryError, SaveDataRepository, ScenarioRepository};
 use crate::domain::value_objects::ScenarioId;
-use crate::domain::repositories::{ScenarioRepository, SaveDataRepository, RepositoryError};
-use crate::infrastructure::parsing::{ScenarioParser, MarkdownScenarioParser};
+use crate::infrastructure::parsing::{MarkdownScenarioParser, ScenarioParser};
 use async_trait::async_trait;
-use std::path::PathBuf;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 /// File system implementation of ScenarioRepository
 pub struct FileSystemScenarioRepository {
@@ -49,22 +49,23 @@ impl FileSystemScenarioRepository {
 impl ScenarioRepository for FileSystemScenarioRepository {
     async fn load_scenario(&self, id: &ScenarioId) -> Result<Scenario, RepositoryError> {
         let path = self.get_scenario_path(id);
-        
+
         if !path.exists() {
-            return Err(RepositoryError::ScenarioNotFound { id: id.clone() });
+            return Err(RepositoryError::not_found(id.clone()));
         }
 
-        let content = tokio::fs::read_to_string(&path)
-            .await
-            .map_err(|e| RepositoryError::IoError {
-                message: format!("Failed to read scenario file {}: {}", path.display(), e),
-            })?;
+        let content =
+            tokio::fs::read_to_string(&path)
+                .await
+                .map_err(|e| RepositoryError::IoError {
+                    message: format!("Failed to read scenario file {}: {}", path.display(), e),
+                })?;
 
         self.parser
             .parse(&content)
             .await
             .map_err(|e| RepositoryError::InvalidFormat {
-                message: format!("Failed to parse scenario: {}", e),
+                message: format!("Failed to parse scenario: {e}"),
             })
     }
 
@@ -85,15 +86,25 @@ impl ScenarioRepository for FileSystemScenarioRepository {
         let mut scenarios = Vec::new();
         let extensions = self.parser.supported_extensions();
 
-        let mut entries = tokio::fs::read_dir(&self.base_path)
-            .await
-            .map_err(|e| RepositoryError::IoError {
-                message: format!("Failed to read directory {}: {}", self.base_path.display(), e),
-            })?;
+        let mut entries =
+            tokio::fs::read_dir(&self.base_path)
+                .await
+                .map_err(|e| RepositoryError::IoError {
+                    message: format!(
+                        "Failed to read directory {}: {}",
+                        self.base_path.display(),
+                        e
+                    ),
+                })?;
 
-        while let Some(entry) = entries.next_entry().await.map_err(|e| RepositoryError::IoError {
-            message: format!("Failed to read directory entry: {}", e),
-        })? {
+        while let Some(entry) =
+            entries
+                .next_entry()
+                .await
+                .map_err(|e| RepositoryError::IoError {
+                    message: format!("Failed to read directory entry: {e}"),
+                })?
+        {
             let path = entry.path();
             if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
                 if extensions.contains(&extension) {
@@ -109,9 +120,9 @@ impl ScenarioRepository for FileSystemScenarioRepository {
 
     async fn delete_scenario(&self, id: &ScenarioId) -> Result<(), RepositoryError> {
         let path = self.get_scenario_path(id);
-        
+
         if !path.exists() {
-            return Err(RepositoryError::ScenarioNotFound { id: id.clone() });
+            return Err(RepositoryError::not_found(id.clone()));
         }
 
         tokio::fs::remove_file(&path)
@@ -152,7 +163,7 @@ impl ScenarioRepository for InMemoryScenarioRepository {
         self.scenarios
             .get(id)
             .cloned()
-            .ok_or(RepositoryError::ScenarioNotFound { id: id.clone() })
+            .ok_or_else(|| RepositoryError::not_found(id.clone()))
     }
 
     async fn save_scenario(&self, _scenario: &Scenario) -> Result<(), RepositoryError> {
@@ -190,7 +201,8 @@ impl JsonSaveDataRepository {
     }
 
     fn get_save_path(&self, scenario_id: &ScenarioId) -> PathBuf {
-        self.base_path.join(format!("{}.save.json", scenario_id.as_str()))
+        self.base_path
+            .join(format!("{}.save.json", scenario_id.as_str()))
     }
 }
 
@@ -202,20 +214,21 @@ impl SaveDataRepository for JsonSaveDataRepository {
         snapshot: &ExecutionSnapshot,
     ) -> Result<(), RepositoryError> {
         let path = self.get_save_path(scenario_id);
-        
+
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
             tokio::fs::create_dir_all(parent)
                 .await
                 .map_err(|e| RepositoryError::IoError {
-                    message: format!("Failed to create save directory: {}", e),
+                    message: format!("Failed to create save directory: {e}"),
                 })?;
         }
 
-        let json = serde_json::to_string_pretty(snapshot)
-            .map_err(|e| RepositoryError::SerializationError {
-                message: format!("Failed to serialize snapshot: {}", e),
-            })?;
+        let json = serde_json::to_string_pretty(snapshot).map_err(|e| {
+            RepositoryError::SerializationError {
+                message: format!("Failed to serialize snapshot: {e}"),
+            }
+        })?;
 
         tokio::fs::write(&path, json)
             .await
@@ -229,20 +242,21 @@ impl SaveDataRepository for JsonSaveDataRepository {
         scenario_id: &ScenarioId,
     ) -> Result<Option<ExecutionSnapshot>, RepositoryError> {
         let path = self.get_save_path(scenario_id);
-        
+
         if !path.exists() {
             return Ok(None);
         }
 
-        let content = tokio::fs::read_to_string(&path)
-            .await
-            .map_err(|e| RepositoryError::IoError {
-                message: format!("Failed to read save file {}: {}", path.display(), e),
-            })?;
+        let content =
+            tokio::fs::read_to_string(&path)
+                .await
+                .map_err(|e| RepositoryError::IoError {
+                    message: format!("Failed to read save file {}: {}", path.display(), e),
+                })?;
 
-        let snapshot = serde_json::from_str(&content)
-            .map_err(|e| RepositoryError::SerializationError {
-                message: format!("Failed to deserialize snapshot: {}", e),
+        let snapshot =
+            serde_json::from_str(&content).map_err(|e| RepositoryError::SerializationError {
+                message: format!("Failed to deserialize snapshot: {e}"),
             })?;
 
         Ok(Some(snapshot))
@@ -261,7 +275,7 @@ impl SaveDataRepository for JsonSaveDataRepository {
 
     async fn delete_snapshot(&self, scenario_id: &ScenarioId) -> Result<(), RepositoryError> {
         let path = self.get_save_path(scenario_id);
-        
+
         if !path.exists() {
             return Err(RepositoryError::SaveDataNotFound {
                 id: scenario_id.clone(),

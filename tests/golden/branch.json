@@ -34,7 +34,7 @@
       "next_action": "Next",
       "directives": [
         {
-          "type": "JumpTo",
+          "type": "ReachedLabel",
           "args": {
             "label": "go_left"
           }
@@ -59,7 +59,7 @@
       "next_action": "Next",
       "directives": [
         {
-          "type": "JumpTo",
+          "type": "ReachedLabel",
           "args": {
             "label": "go_right"
           }

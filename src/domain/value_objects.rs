@@ -11,13 +11,13 @@ macro_rules! impl_string_wrapper {
                 Self(s)
             }
         }
-        
+
         impl From<&str> for $type {
             fn from(s: &str) -> Self {
                 Self(s.to_string())
             }
         }
-        
+
         impl std::fmt::Display for $type {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(f, "{}", self.0)
@@ -320,7 +320,10 @@ pub struct BranchState {
 
 impl BranchState {
     pub fn new(choices: Vec<Choice>) -> Self {
-        Self { choices, emitted: false }
+        Self {
+            choices,
+            emitted: false,
+        }
     }
 
     pub fn choices(&self) -> &[Choice] {

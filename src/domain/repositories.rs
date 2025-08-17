@@ -1,12 +1,12 @@
 //! Domain repository traits - Abstractions for data persistence
 
-use crate::domain::entities::{Scenario, ExecutionSnapshot};
-use crate::domain::value_objects::ScenarioId;
+use crate::domain::entities::{ExecutionSnapshot, Scenario};
 use crate::domain::errors::DomainError;
+use crate::domain::value_objects::ScenarioId;
 use async_trait::async_trait;
 
 /// Repository for scenario persistence
-/// 
+///
 /// This trait defines the contract for scenario storage and retrieval,
 /// without specifying implementation details (file system, database, etc.)
 #[async_trait]
@@ -54,10 +54,14 @@ pub trait SaveDataRepository: Send + Sync {
 }
 
 /// Repository errors
-#[derive(Debug, thiserror::Error, Clone, PartialEq)]
+#[derive(Debug, thiserror::Error)]
 pub enum RepositoryError {
     #[error("Scenario not found: {id}")]
-    ScenarioNotFound { id: ScenarioId },
+    ScenarioNotFound {
+        id: ScenarioId,
+        #[source]
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    },
 
     #[error("Save data not found for scenario: {id}")]
     SaveDataNotFound { id: ScenarioId },
@@ -81,10 +85,23 @@ pub enum RepositoryError {
     Unavailable { reason: String },
 }
 
+impl RepositoryError {
+    /// Create a not found error with an optional source
+    pub fn not_found(id: impl Into<ScenarioId>) -> Self {
+        Self::ScenarioNotFound {
+            id: id.into(),
+            source: Some(Box::new(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Scenario not found",
+            ))),
+        }
+    }
+}
+
 impl From<RepositoryError> for DomainError {
     fn from(error: RepositoryError) -> Self {
         match error {
-            RepositoryError::ScenarioNotFound { id } => {
+            RepositoryError::ScenarioNotFound { id, .. } => {
                 DomainError::invalid_scenario(format!("Scenario not found: {}", id.as_str()))
             }
             RepositoryError::SaveDataNotFound { id } => {

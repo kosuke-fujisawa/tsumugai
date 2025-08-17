@@ -1,14 +1,14 @@
 //! Domain services - Complex business logic that doesn't naturally fit in entities
 
-use crate::domain::entities::{StoryExecution, ExecutionSnapshot};
-use crate::domain::value_objects::{
-    StoryCommand, ExecutionState, Choice, LabelName, VariableName, StoryValue,
-    VariableOperation, ComparisonOperation, BranchState
-};
+use crate::domain::entities::{ExecutionSnapshot, StoryExecution};
 use crate::domain::errors::DomainError;
+use crate::domain::value_objects::{
+    BranchState, Choice, ComparisonOperation, ExecutionState, LabelName, StoryCommand, StoryValue,
+    VariableName, VariableOperation,
+};
 
 /// Core domain service for story execution logic
-/// 
+///
 /// This service encapsulates the business rules for executing story commands
 /// and managing execution state transitions.
 pub struct StoryExecutionService;
@@ -31,7 +31,10 @@ impl StoryExecutionService {
         let result = self.execute_command(execution, &command)?;
 
         // Advance program counter for most commands
-        if !matches!(result, ExecutionResult::WaitForBranchSelection(_) | ExecutionResult::Jump(_)) {
+        if !matches!(
+            result,
+            ExecutionResult::WaitForBranchSelection(_) | ExecutionResult::Jump(_)
+        ) {
             execution.state_mut().increment_program_counter();
         }
 
@@ -70,24 +73,22 @@ impl StoryExecutionService {
                 }))
             }
 
-            StoryCommand::PlayMovie { resource } => {
-                Ok(ExecutionResult::WaitForUser(ExecutionDirective::PlayMovie {
+            StoryCommand::PlayMovie { resource } => Ok(ExecutionResult::WaitForUser(
+                ExecutionDirective::PlayMovie {
                     resource: resource.clone(),
-                }))
-            }
+                },
+            )),
 
-            StoryCommand::Wait { duration_seconds } => {
-                Ok(ExecutionResult::WaitForTimer {
+            StoryCommand::Wait { duration_seconds } => Ok(ExecutionResult::WaitForTimer {
+                duration_seconds: *duration_seconds,
+                directive: ExecutionDirective::Wait {
                     duration_seconds: *duration_seconds,
-                    directive: ExecutionDirective::Wait {
-                        duration_seconds: *duration_seconds,
-                    },
-                })
-            }
+                },
+            }),
 
             StoryCommand::Branch { choices } => {
                 let state = execution.state_mut();
-                
+
                 // Check if we already emitted this branch
                 if let Some(branch_state) = state.branch_state() {
                     if branch_state.is_emitted() {
@@ -114,30 +115,47 @@ impl StoryExecutionService {
             }
 
             StoryCommand::SetVariable { name, value } => {
-                execution.state_mut().set_variable(name.clone(), value.clone());
-                Ok(ExecutionResult::Continue(ExecutionDirective::VariableChanged {
-                    name: name.clone(),
-                    value: value.clone(),
-                }))
+                execution
+                    .state_mut()
+                    .set_variable(name.clone(), value.clone());
+                Ok(ExecutionResult::Continue(
+                    ExecutionDirective::VariableChanged {
+                        name: name.clone(),
+                        value: value.clone(),
+                    },
+                ))
             }
 
-            StoryCommand::ModifyVariable { name, operation, value } => {
+            StoryCommand::ModifyVariable {
+                name,
+                operation,
+                value,
+            } => {
                 self.modify_variable(execution.state_mut(), name, operation, value)?;
-                Ok(ExecutionResult::Continue(ExecutionDirective::VariableChanged {
-                    name: name.clone(),
-                    value: execution.state().get_variable(name).unwrap().clone(),
-                }))
+                Ok(ExecutionResult::Continue(
+                    ExecutionDirective::VariableChanged {
+                        name: name.clone(),
+                        value: execution.state().get_variable(name).unwrap().clone(),
+                    },
+                ))
             }
 
-            StoryCommand::JumpIf { variable, comparison, value, label } => {
+            StoryCommand::JumpIf {
+                variable,
+                comparison,
+                value,
+                label,
+            } => {
                 if self.evaluate_condition(execution.state(), variable, comparison, value)? {
                     execution.jump_to_label(label)?;
                     Ok(ExecutionResult::Jump(label.clone()))
                 } else {
-                    Ok(ExecutionResult::Continue(ExecutionDirective::ConditionEvaluated {
-                        variable: variable.clone(),
-                        result: false,
-                    }))
+                    Ok(ExecutionResult::Continue(
+                        ExecutionDirective::ConditionEvaluated {
+                            variable: variable.clone(),
+                            result: false,
+                        },
+                    ))
                 }
             }
         }
@@ -149,16 +167,18 @@ impl StoryExecutionService {
         execution: &mut StoryExecution,
         choice_index: usize,
     ) -> Result<LabelName, DomainError> {
-        let branch_state = execution.state()
+        let branch_state = execution
+            .state()
             .branch_state()
             .ok_or_else(|| DomainError::execution_state_error("No active branch"))?;
 
-        let choice = branch_state.choices()
+        let choice = branch_state
+            .choices()
             .get(choice_index)
             .ok_or_else(|| DomainError::execution_state_error("Invalid choice index"))?;
 
         let target_label = choice.target_label().clone();
-        
+
         // Clear branch state and jump to target
         execution.state_mut().set_branch_state(None);
         execution.jump_to_label(&target_label)?;
@@ -174,7 +194,8 @@ impl StoryExecutionService {
         operation: &VariableOperation,
         value: &StoryValue,
     ) -> Result<(), DomainError> {
-        let current_value = state.get_variable(name)
+        let current_value = state
+            .get_variable(name)
             .ok_or_else(|| DomainError::variable_not_found(name.clone()))?;
 
         let new_value = match (current_value, value, operation) {
@@ -188,7 +209,7 @@ impl StoryExecutionService {
                 return Err(DomainError::VariableTypeMismatch {
                     variable: name.clone(),
                     expected: "Integer".to_string(),
-                    actual: format!("{:?}", current_value),
+                    actual: format!("{current_value:?}"),
                 });
             }
         };
@@ -205,34 +226,29 @@ impl StoryExecutionService {
         comparison: &ComparisonOperation,
         expected_value: &StoryValue,
     ) -> Result<bool, DomainError> {
-        let actual_value = state.get_variable(variable)
+        let actual_value = state
+            .get_variable(variable)
             .ok_or_else(|| DomainError::variable_not_found(variable.clone()))?;
 
         let result = match (actual_value, expected_value) {
-            (StoryValue::Integer(a), StoryValue::Integer(b)) => {
-                match comparison {
-                    ComparisonOperation::Equal => a == b,
-                    ComparisonOperation::NotEqual => a != b,
-                    ComparisonOperation::LessThan => a < b,
-                    ComparisonOperation::LessThanOrEqual => a <= b,
-                    ComparisonOperation::GreaterThan => a > b,
-                    ComparisonOperation::GreaterThanOrEqual => a >= b,
-                }
-            }
-            (StoryValue::Boolean(a), StoryValue::Boolean(b)) => {
-                match comparison {
-                    ComparisonOperation::Equal => a == b,
-                    ComparisonOperation::NotEqual => a != b,
-                    _ => false,
-                }
-            }
-            (StoryValue::Text(a), StoryValue::Text(b)) => {
-                match comparison {
-                    ComparisonOperation::Equal => a == b,
-                    ComparisonOperation::NotEqual => a != b,
-                    _ => false,
-                }
-            }
+            (StoryValue::Integer(a), StoryValue::Integer(b)) => match comparison {
+                ComparisonOperation::Equal => a == b,
+                ComparisonOperation::NotEqual => a != b,
+                ComparisonOperation::LessThan => a < b,
+                ComparisonOperation::LessThanOrEqual => a <= b,
+                ComparisonOperation::GreaterThan => a > b,
+                ComparisonOperation::GreaterThanOrEqual => a >= b,
+            },
+            (StoryValue::Boolean(a), StoryValue::Boolean(b)) => match comparison {
+                ComparisonOperation::Equal => a == b,
+                ComparisonOperation::NotEqual => a != b,
+                _ => false,
+            },
+            (StoryValue::Text(a), StoryValue::Text(b)) => match comparison {
+                ComparisonOperation::Equal => a == b,
+                ComparisonOperation::NotEqual => a != b,
+                _ => false,
+            },
             _ => false,
         };
 

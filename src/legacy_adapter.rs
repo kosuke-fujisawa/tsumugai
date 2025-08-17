@@ -28,8 +28,10 @@
 //! ```
 
 use crate::domain::value_objects::*;
-use crate::infrastructure::parsing::{MarkdownScenarioParser, ScenarioParser, ParseError as InfraParseError};
-use crate::ir::{Command, Program, Value, Choice as LegacyChoice, Op, Cmp};
+use crate::infrastructure::parsing::{
+    MarkdownScenarioParser, ParseError as InfraParseError, ScenarioParser,
+};
+use crate::ir::{Choice as LegacyChoice, Cmp, Command, Op, Program, Value};
 
 /// Trait for converting domain objects to legacy format
 trait ToLegacy<T> {
@@ -37,12 +39,9 @@ trait ToLegacy<T> {
 }
 
 /// Helper function for converting resource commands
-fn convert_resource_command<T, F>(
-    resource: &ResourceId, 
-    constructor: F
-) -> T 
-where 
-    F: FnOnce(String) -> T
+fn convert_resource_command<T, F>(resource: &ResourceId, constructor: F) -> T
+where
+    F: FnOnce(String) -> T,
 {
     constructor(resource.as_str().to_string())
 }
@@ -50,12 +49,11 @@ where
 /// Legacy parse function that maintains backward compatibility
 pub async fn parse_legacy(markdown: &str) -> Result<Program, crate::ParseError> {
     let parser = MarkdownScenarioParser::with_default_id_generator();
-    let scenario = parser.parse(markdown)
-        .await
-        .map_err(convert_parse_error)?;
+    let scenario = parser.parse(markdown).await.map_err(convert_parse_error)?;
 
     // Convert domain scenario to legacy Program
-    let legacy_commands = scenario.commands()
+    let legacy_commands = scenario
+        .commands()
         .iter()
         .map(convert_domain_command_to_legacy)
         .collect();
@@ -76,10 +74,18 @@ fn convert_domain_command_to_legacy(cmd: &StoryCommand) -> Command {
             speaker: speaker.as_str().to_string(),
             text: text.clone(),
         },
-        StoryCommand::PlayBgm { resource } => convert_resource_command(resource, |name| Command::PlayBgm { name }),
-        StoryCommand::PlaySe { resource } => convert_resource_command(resource, |name| Command::PlaySe { name }),
-        StoryCommand::ShowImage { resource } => convert_resource_command(resource, |name| Command::ShowImage { file: name }),
-        StoryCommand::PlayMovie { resource } => convert_resource_command(resource, |name| Command::PlayMovie { file: name }),
+        StoryCommand::PlayBgm { resource } => {
+            convert_resource_command(resource, |name| Command::PlayBgm { name })
+        }
+        StoryCommand::PlaySe { resource } => {
+            convert_resource_command(resource, |name| Command::PlaySe { name })
+        }
+        StoryCommand::ShowImage { resource } => {
+            convert_resource_command(resource, |name| Command::ShowImage { file: name })
+        }
+        StoryCommand::PlayMovie { resource } => {
+            convert_resource_command(resource, |name| Command::PlayMovie { file: name })
+        }
         StoryCommand::Wait { duration_seconds } => Command::Wait {
             secs: *duration_seconds,
         },
@@ -90,12 +96,21 @@ fn convert_domain_command_to_legacy(cmd: &StoryCommand) -> Command {
             name: name.as_str().to_string(),
             value: convert_story_value_to_legacy(value),
         },
-        StoryCommand::ModifyVariable { name, operation, value } => Command::Modify {
+        StoryCommand::ModifyVariable {
+            name,
+            operation,
+            value,
+        } => Command::Modify {
             name: name.as_str().to_string(),
             op: convert_operation_to_legacy(operation),
             value: convert_story_value_to_legacy(value),
         },
-        StoryCommand::JumpIf { variable, comparison, value, label } => Command::JumpIf {
+        StoryCommand::JumpIf {
+            variable,
+            comparison,
+            value,
+            label,
+        } => Command::JumpIf {
             var: variable.as_str().to_string(),
             cmp: convert_comparison_to_legacy(comparison),
             value: convert_story_value_to_legacy(value),
@@ -155,34 +170,35 @@ fn convert_comparison_to_legacy(cmp: &ComparisonOperation) -> Cmp {
     cmp.to_legacy()
 }
 
-
 fn convert_parse_error(err: InfraParseError) -> crate::ParseError {
     match err {
-        InfraParseError::MissingParameter { command, param, line } => {
-            crate::ParseError::MissingParameter { command, param, line }
-        }
+        InfraParseError::MissingParameter {
+            command,
+            param,
+            line,
+        } => crate::ParseError::MissingParameter {
+            command,
+            param,
+            line,
+        },
         InfraParseError::InvalidValue { param, value, line } => {
             crate::ParseError::InvalidValue { param, value, line }
         }
-        InfraParseError::UndefinedLabel { label, line } => {
-            crate::ParseError::UndefinedLabel { 
-                label: label.as_str().to_string(), 
-                line 
-            }
-        }
-        InfraParseError::DuplicateLabel { label, line } => {
-            crate::ParseError::DuplicateLabel { 
-                label: label.as_str().to_string(), 
-                line 
-            }
-        }
+        InfraParseError::UndefinedLabel { label, line } => crate::ParseError::UndefinedLabel {
+            label: label.as_str().to_string(),
+            line,
+        },
+        InfraParseError::DuplicateLabel { label, line } => crate::ParseError::DuplicateLabel {
+            label: label.as_str().to_string(),
+            line,
+        },
         InfraParseError::InvalidSyntax { line, content } => {
             crate::ParseError::InvalidSyntax { line, content }
         }
         InfraParseError::ValidationError { message } => {
             // TODO: Replace string parsing with structured error types for better reliability
-            log::debug!("Parsing ValidationError message: {}", message);
-            
+            log::debug!("Parsing ValidationError message: {message}");
+
             // Check if this is an undefined label error
             if message.contains("Undefined label") {
                 // Extract label name and line from the message
@@ -191,7 +207,7 @@ fn convert_parse_error(err: InfraParseError) -> crate::ParseError {
                     if let Some(end) = message.rfind("'") {
                         if start < end {
                             let label = message[start + 1..end].to_string();
-                            // Extract line number 
+                            // Extract line number
                             if let Some(line_start) = message.find("line ") {
                                 let line_part = &message[line_start + 5..];
                                 if let Some(line_num) = line_part.split_whitespace().next() {
@@ -203,11 +219,13 @@ fn convert_parse_error(err: InfraParseError) -> crate::ParseError {
                         }
                     }
                 }
-                log::trace!("Failed to parse undefined label from ValidationError, falling back to InvalidSyntax");
+                log::trace!(
+                    "Failed to parse undefined label from ValidationError, falling back to InvalidSyntax"
+                );
             }
-            crate::ParseError::InvalidSyntax { 
-                line: 0, 
-                content: message 
+            crate::ParseError::InvalidSyntax {
+                line: 0,
+                content: message,
             }
         }
     }

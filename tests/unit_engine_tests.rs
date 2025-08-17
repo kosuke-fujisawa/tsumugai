@@ -1,7 +1,7 @@
 //! Unit tests for Engine - Individual step execution behavior
 //! Tests the "1行の解釈→StepResult" behavior in isolation
 
-use tsumugai::{Engine, NextAction, Directive};
+use tsumugai::{Directive, Engine, NextAction};
 
 // Note: This test file contains both new API tests and legacy tests
 // that demonstrate the old Program-based API is still functional.
@@ -19,13 +19,13 @@ mod engine_unit_tests {
 [SAY speaker=Test]
 Hello
 "#;
-        
+
         let mut engine = Engine::from_markdown(markdown).unwrap();
-        
+
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::WaitUser);
         assert_eq!(step_result.directives.len(), 1);
-        
+
         match &step_result.directives[0] {
             Directive::Say { speaker, text } => {
                 assert_eq!(speaker, "Test");
@@ -42,13 +42,13 @@ Hello
         let markdown = r#"
 [WAIT 2.5s]
 "#;
-        
+
         let mut engine = Engine::from_markdown(markdown).unwrap();
-        
+
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::WaitUser);
         assert_eq!(step_result.directives.len(), 1);
-        
+
         match &step_result.directives[0] {
             Directive::Wait { seconds } => {
                 assert_eq!(*seconds, 2.5);
@@ -64,19 +64,19 @@ Hello
         let markdown = r#"
 [LABEL name=test_label]
 "#;
-        
+
         let mut engine = Engine::from_markdown(markdown).unwrap();
-        
+
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::Next);
-        // Labels emit JumpTo directives in the new API
+        // Labels emit ReachedLabel directives in the new API
         assert_eq!(step_result.directives.len(), 1);
-        
+
         match &step_result.directives[0] {
-            Directive::JumpTo { label } => {
+            Directive::ReachedLabel { label } => {
                 assert_eq!(label, "test_label");
             }
-            _ => panic!("Expected JumpTo directive"),
+            _ => panic!("Expected ReachedLabel directive"),
         }
     }
 
@@ -95,17 +95,21 @@ This should be skipped.
 [SAY speaker=Test]
 Target reached!
 "#;
-        
+
         let mut engine = Engine::from_markdown(markdown).unwrap();
-        
-        // First step should skip to the target and execute the SAY
+
+        // First step: JUMP command
         let step_result = engine.step().unwrap();
-        assert_eq!(step_result.next, NextAction::Next); // LABEL
-        
+        assert_eq!(step_result.next, NextAction::Next);
+
+        // Next step: LABEL
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::Next);
+
         // Next step should be the SAY after the label
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::WaitUser);
-        
+
         match &step_result.directives[0] {
             Directive::Say { speaker, text } => {
                 assert_eq!(speaker, "Test");
@@ -130,13 +134,13 @@ Chose A
 [SAY speaker=Test]
 Chose B
 "#;
-        
+
         let mut engine = Engine::from_markdown(markdown).unwrap();
-        
+
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::WaitBranch);
         assert_eq!(step_result.directives.len(), 1);
-        
+
         match &step_result.directives[0] {
             Directive::Branch { choices } => {
                 assert_eq!(choices.len(), 2);
@@ -145,18 +149,18 @@ Chose B
             }
             _ => panic!("Expected Branch directive"),
         }
-        
+
         // Test choosing first option
         engine.choose(0).unwrap();
-        
+
         // Should now be at choice_a label
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::Next); // LABEL
-        
+
         // Next should be the SAY after label
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::WaitUser);
-        
+
         match &step_result.directives[0] {
             Directive::Say { speaker, text } => {
                 assert_eq!(speaker, "Test");
@@ -173,37 +177,36 @@ Chose B
         let markdown = r#"
 [SET name=score value=100]
 "#;
-        
+
         let mut engine = Engine::from_markdown(markdown).unwrap();
-        
+
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::Next);
-        
+
         // Verify variable was set
         assert_eq!(engine.get_var("score"), Some("100".to_string()));
     }
 
     /// Unit test: MODIFY command execution
     /// Metric: MODIFY should update existing variables correctly
-    #[test]  
+    #[test]
     fn test_modify_execution() {
         let markdown = r#"
 [SET name=score value=50]
 [MODIFY name=score op=add value=25]
 "#;
-        
+
         let mut engine = Engine::from_markdown(markdown).unwrap();
-        
+
         // Execute SET
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::Next);
         assert_eq!(engine.get_var("score"), Some("50".to_string()));
-        
+
         // Execute MODIFY
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::Next);
         assert_eq!(engine.get_var("score"), Some("75".to_string()));
-        
     }
 
     /// Unit test: JUMP_IF condition evaluation
@@ -222,21 +225,25 @@ This should be skipped
 [SAY speaker=Test]
 Success!
 "#;
-        
+
         let mut engine = Engine::from_markdown(markdown).unwrap();
-        
+
         // Execute SET
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::Next);
-        
-        // Execute JUMP_IF - should automatically jump to success label
+
+        // Execute JUMP_IF - should jump
         let step_result = engine.step().unwrap();
-        assert_eq!(step_result.next, NextAction::Next); // at LABEL
-        
+        assert_eq!(step_result.next, NextAction::Next);
+
+        // Next step: at LABEL
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::Next);
+
         // Next should be the SAY after success label
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::WaitUser);
-        
+
         match &step_result.directives[0] {
             Directive::Say { speaker, text } => {
                 assert_eq!(speaker, "Test");
@@ -255,23 +262,23 @@ Success!
 [SET name=var2 value=2]
 [SET name=var3 value=3]
 "#;
-        
+
         let mut engine = Engine::from_markdown(markdown).unwrap();
-        
+
         // Execute all SET commands
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::Next);
-        
+
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::Next);
-        
+
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::Next);
-        
+
         // Should halt at end
         let step_result = engine.step().unwrap();
         assert_eq!(step_result.next, NextAction::Halt);
-        
+
         // Verify all variables were set
         assert_eq!(engine.get_var("var1"), Some("1".to_string()));
         assert_eq!(engine.get_var("var2"), Some("2".to_string()));

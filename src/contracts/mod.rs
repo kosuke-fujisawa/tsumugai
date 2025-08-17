@@ -1,5 +1,5 @@
 //! Public contracts - Stable interfaces for external consumers
-//! 
+//!
 //! This module defines the contracts that external users of the library
 //! depend on. These should remain stable across versions.
 
@@ -109,26 +109,59 @@ pub enum StoryEngineError {
 impl StoryEngineError {
     /// Create a domain error
     pub fn domain(message: impl Into<String>) -> Self {
-        Self::Domain { message: message.into() }
+        Self::Domain {
+            message: message.into(),
+        }
     }
 
     /// Create a repository error
     pub fn repository(message: impl Into<String>) -> Self {
-        Self::Repository { message: message.into() }
+        Self::Repository {
+            message: message.into(),
+        }
     }
 
     /// Create a parsing error
     pub fn parsing(message: impl Into<String>) -> Self {
-        Self::Parsing { message: message.into() }
+        Self::Parsing {
+            message: message.into(),
+        }
     }
 
     /// Create an IO error
     pub fn io(message: impl Into<String>) -> Self {
-        Self::Io { message: message.into() }
+        Self::Io {
+            message: message.into(),
+        }
     }
 
     /// Create a configuration error
     pub fn configuration(message: impl Into<String>) -> Self {
-        Self::Configuration { message: message.into() }
+        Self::Configuration {
+            message: message.into(),
+        }
+    }
+}
+
+// Conversion from application::api to contracts
+impl From<crate::application::api::NextAction> for NextAction {
+    fn from(action: crate::application::api::NextAction) -> Self {
+        match action {
+            crate::application::api::NextAction::Next => NextAction::Continue,
+            crate::application::api::NextAction::WaitUser => NextAction::WaitForUser,
+            crate::application::api::NextAction::WaitBranch => NextAction::WaitForChoice,
+            crate::application::api::NextAction::Halt => NextAction::Finished,
+        }
+    }
+}
+
+impl From<NextAction> for crate::application::api::NextAction {
+    fn from(action: NextAction) -> Self {
+        match action {
+            NextAction::Continue => crate::application::api::NextAction::Next,
+            NextAction::WaitForUser => crate::application::api::NextAction::WaitUser,
+            NextAction::WaitForChoice => crate::application::api::NextAction::WaitBranch,
+            NextAction::Finished => crate::application::api::NextAction::Halt,
+        }
     }
 }

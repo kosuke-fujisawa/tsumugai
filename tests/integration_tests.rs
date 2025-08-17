@@ -33,7 +33,7 @@ You went right.
     let step_result = engine.step().unwrap();
     assert_eq!(step_result.next, NextAction::WaitBranch);
     assert_eq!(step_result.directives.len(), 1);
-    
+
     match &step_result.directives[0] {
         tsumugai::Directive::Branch { choices } => {
             assert_eq!(choices.len(), 2);
@@ -50,12 +50,18 @@ You went right.
     // Simulate invalid input 1 (out of range choice)
     input_attempts += 1;
     let invalid_result = engine.choose(5); // Invalid index
-    assert!(invalid_result.is_err(), "Invalid choice should return error");
+    assert!(
+        invalid_result.is_err(),
+        "Invalid choice should return error"
+    );
 
     // Simulate invalid input 2 (another out of range choice)
     input_attempts += 1;
     let invalid_result2 = engine.choose(10); // Another invalid index
-    assert!(invalid_result2.is_err(), "Invalid choice should return error");
+    assert!(
+        invalid_result2.is_err(),
+        "Invalid choice should return error"
+    );
 
     // Simulate successful choice
     input_attempts += 1;
@@ -76,7 +82,7 @@ You went right.
     let step_result = engine.step().unwrap();
     assert_eq!(step_result.next, NextAction::WaitUser);
     assert_eq!(step_result.directives.len(), 1);
-    
+
     match &step_result.directives[0] {
         tsumugai::Directive::Say { speaker, text } => {
             assert_eq!(speaker, "Guide");

@@ -4,8 +4,7 @@
 use std::env;
 use std::fs;
 use std::process;
-use serde_json;
-use tsumugai::{Engine, NextAction, Directive};
+use tsumugai::{Directive, Engine, NextAction};
 
 #[derive(serde::Serialize)]
 struct StepDump {
@@ -56,7 +55,7 @@ fn main() {
             Ok(result) => result,
             Err(err) => {
                 eprintln!("Step error: {}", err);
-                break;
+                process::exit(1);
             }
         };
 
@@ -87,7 +86,7 @@ fn main() {
                 // For dump purposes, take the first choice (index 0)
                 if let Err(err) = engine.choose(0) {
                     eprintln!("Choice error: {}", err);
-                    break;
+                    process::exit(1);
                 }
                 continue;
             }

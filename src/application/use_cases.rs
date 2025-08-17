@@ -1,7 +1,7 @@
 //! Application use cases - High-level business operations
 
-use std::sync::Arc;
 use crate::domain::{entities::*, services::*, value_objects::*};
+use std::sync::Arc;
 
 /// Use case for playing back scenarios
 pub struct ScenarioPlaybackUseCase {
@@ -23,25 +23,35 @@ impl ScenarioPlaybackUseCase {
         }
     }
 
-    pub async fn start_scenario(&self, scenario_id: &ScenarioId) -> Result<StoryExecution, ApplicationError> {
-        let scenario = self.scenario_repository
+    pub async fn start_scenario(
+        &self,
+        scenario_id: &ScenarioId,
+    ) -> Result<StoryExecution, ApplicationError> {
+        let scenario = self
+            .scenario_repository
             .load_scenario(scenario_id)
             .await
             .map_err(ApplicationError::Repository)?;
 
-        let execution = StoryExecution::new(scenario)
-            .map_err(ApplicationError::Domain)?;
+        let execution = StoryExecution::new(scenario).map_err(ApplicationError::Domain)?;
 
         Ok(execution)
     }
 
-    pub fn execute_next_step(&self, execution: &mut StoryExecution) -> Result<ExecutionResult, ApplicationError> {
+    pub fn execute_next_step(
+        &self,
+        execution: &mut StoryExecution,
+    ) -> Result<ExecutionResult, ApplicationError> {
         self.execution_service
             .execute_next_command(execution)
             .map_err(ApplicationError::Domain)
     }
 
-    pub fn select_choice(&self, execution: &mut StoryExecution, choice_index: usize) -> Result<LabelName, ApplicationError> {
+    pub fn select_choice(
+        &self,
+        execution: &mut StoryExecution,
+        choice_index: usize,
+    ) -> Result<LabelName, ApplicationError> {
         self.execution_service
             .select_branch_choice(execution, choice_index)
             .map_err(ApplicationError::Domain)
@@ -57,7 +67,7 @@ pub struct ScenarioLoadingUseCase {
 impl ScenarioLoadingUseCase {
     pub fn new(
         file_repository: Arc<dyn FileRepositoryTrait>,
-        markdown_parser: Arc<dyn MarkdownParserTrait>
+        markdown_parser: Arc<dyn MarkdownParserTrait>,
     ) -> Self {
         Self {
             file_repository,
@@ -66,12 +76,14 @@ impl ScenarioLoadingUseCase {
     }
 
     pub async fn load_from_file(&self, file_path: &str) -> Result<Scenario, ApplicationError> {
-        let content = self.file_repository
+        let content = self
+            .file_repository
             .read_file(file_path)
             .await
             .map_err(ApplicationError::Infrastructure)?;
 
-        let scenario = self.markdown_parser
+        let scenario = self
+            .markdown_parser
             .parse_scenario(&content)
             .map_err(ApplicationError::Infrastructure)?;
 
@@ -89,7 +101,11 @@ impl SaveGameUseCase {
         Self { save_repository }
     }
 
-    pub async fn save_game(&self, save_id: &str, snapshot: ExecutionSnapshot) -> Result<(), ApplicationError> {
+    pub async fn save_game(
+        &self,
+        save_id: &str,
+        snapshot: ExecutionSnapshot,
+    ) -> Result<(), ApplicationError> {
         self.save_repository
             .save_snapshot(save_id, snapshot)
             .await
@@ -129,10 +145,10 @@ pub enum ApplicationError {
 #[derive(Debug, thiserror::Error)]
 pub enum RepositoryError {
     #[error("Scenario not found: {id}")]
-    ScenarioNotFound { 
-        id: String, 
-        #[source] 
-        source: Box<dyn std::error::Error + Send + Sync> 
+    ScenarioNotFound {
+        id: String,
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
     },
     #[error("Access denied: {message}")]
     AccessDenied { message: String },
@@ -142,7 +158,10 @@ impl RepositoryError {
     pub fn not_found(id: impl Into<String>) -> Self {
         Self::ScenarioNotFound {
             id: id.into(),
-            source: Box::new(std::io::Error::new(std::io::ErrorKind::NotFound, "Scenario not found")),
+            source: Box::new(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Scenario not found",
+            )),
         }
     }
 }
@@ -174,7 +193,11 @@ pub trait FileRepositoryTrait: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait SaveRepositoryTrait: Send + Sync {
-    async fn save_snapshot(&self, id: &str, snapshot: ExecutionSnapshot) -> Result<(), InfrastructureError>;
+    async fn save_snapshot(
+        &self,
+        id: &str,
+        snapshot: ExecutionSnapshot,
+    ) -> Result<(), InfrastructureError>;
     async fn load_snapshot(&self, id: &str) -> Result<ExecutionSnapshot, InfrastructureError>;
     async fn list_saves(&self) -> Result<Vec<String>, InfrastructureError>;
 }
