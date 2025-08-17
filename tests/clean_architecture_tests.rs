@@ -183,7 +183,6 @@ impl MockScenarioRepository {
     }
 }
 
-
 impl FailingScenarioRepository {
     fn new() -> Self {
         Self
@@ -224,4 +223,3 @@ impl DependencyContainer {
         None
     }
 }
-
