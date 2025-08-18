@@ -3,8 +3,8 @@
 use crate::domain::entities::{ExecutionSnapshot, StoryExecution};
 use crate::domain::errors::DomainError;
 use crate::domain::value_objects::{
-    BranchState, Choice, ComparisonOperation, ExecutionState, LabelName, StoryCommand, StoryValue,
-    VariableName, VariableOperation,
+    BranchState, Choice, ComparisonOperation, ExecutionState, LabelName, ResourceId, SpeakerName,
+    StoryCommand, StoryValue, VariableName, VariableOperation,
 };
 
 /// Core domain service for story execution logic
@@ -90,10 +90,12 @@ impl StoryExecutionService {
                 let state = execution.state_mut();
 
                 // Check if we already emitted this branch
-                if let Some(branch_state) = state.branch_state()
-                    && branch_state.is_emitted()
-                {
-                    return Ok(ExecutionResult::WaitForBranchSelection(choices.clone()));
+                if let Some(branch_state) = state.branch_state() {
+                    if branch_state.is_emitted() {
+                        return Ok(ExecutionResult::WaitForBranchSelection(
+                            branch_state.choices().to_vec(),
+                        ));
+                    }
                 }
 
                 // Set up branch state and emit directive
@@ -135,7 +137,11 @@ impl StoryExecutionService {
                 Ok(ExecutionResult::Continue(
                     ExecutionDirective::VariableChanged {
                         name: name.clone(),
-                        value: execution.state().get_variable(name).unwrap().clone(),
+                        value: execution
+                            .state()
+                            .get_variable(name)
+                            .expect("variable must exist after successful modify_variable")
+                            .clone(),
                     },
                 ))
             }
@@ -172,10 +178,12 @@ impl StoryExecutionService {
             .branch_state()
             .ok_or_else(|| DomainError::execution_state_error("No active branch"))?;
 
-        let choice = branch_state
-            .choices()
-            .get(choice_index)
-            .ok_or_else(|| DomainError::execution_state_error("Invalid choice index"))?;
+        let choice = branch_state.choices().get(choice_index).ok_or_else(|| {
+            DomainError::execution_state_error(format!(
+                "Invalid choice index: {choice_index}, total choices: {}",
+                branch_state.choices().len()
+            ))
+        })?;
 
         let target_label = choice.target_label().clone();
 
@@ -290,7 +298,7 @@ pub enum ExecutionResult {
     },
     /// Wait for branch selection from user
     WaitForBranchSelection(Vec<Choice>),
-    /// Jump to another location (with directive emitted)
+    /// Jump to another location
     Jump(LabelName),
     /// Story execution finished
     Finished,
@@ -300,20 +308,20 @@ pub enum ExecutionResult {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExecutionDirective {
     Say {
-        speaker: crate::domain::value_objects::SpeakerName,
+        speaker: SpeakerName,
         text: String,
     },
     PlayBgm {
-        resource: crate::domain::value_objects::ResourceId,
+        resource: ResourceId,
     },
     PlaySe {
-        resource: crate::domain::value_objects::ResourceId,
+        resource: ResourceId,
     },
     ShowImage {
-        resource: crate::domain::value_objects::ResourceId,
+        resource: ResourceId,
     },
     PlayMovie {
-        resource: crate::domain::value_objects::ResourceId,
+        resource: ResourceId,
     },
     Wait {
         duration_seconds: f32,

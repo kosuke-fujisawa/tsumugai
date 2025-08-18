@@ -33,9 +33,11 @@ fn main() {
                             }
                             NextAction::WaitUser => {
                                 print!("Press Enter to continue...");
-                                io::stdout().flush().unwrap();
+                                io::stdout().flush().expect("Failed to flush stdout");
                                 let mut input = String::new();
-                                io::stdin().read_line(&mut input).unwrap();
+                                io::stdin()
+                                    .read_line(&mut input)
+                                    .expect("Failed to read input");
                                 execution_log.push("User input: Enter pressed".to_string());
                             }
                             NextAction::WaitBranch => {
@@ -51,22 +53,34 @@ fn main() {
                                     }
 
                                     print!("Enter choice number: ");
-                                    io::stdout().flush().unwrap();
+                                    io::stdout().flush().expect("Failed to flush stdout");
                                     let mut input = String::new();
-                                    io::stdin().read_line(&mut input).unwrap();
+                                    io::stdin()
+                                        .read_line(&mut input)
+                                        .expect("Failed to read input");
 
                                     if let Ok(choice_num) = input.trim().parse::<usize>() {
-                                        if choice_num > 0 && choice_num <= choices.len() {
+                                        if (1..=choices.len()).contains(&choice_num) {
                                             let choice_index = choice_num - 1;
                                             execution_log.push(format!(
                                                 "User choice: {}",
                                                 choices[choice_index]
                                             ));
                                             if let Err(e) = engine.choose(choice_index) {
-                                                println!("Error making choice: {e}");
+                                                eprintln!("Error making choice: {e}");
                                                 break;
                                             }
+                                        } else {
+                                            eprintln!(
+                                                "Choice number out of range (1..{}).",
+                                                choices.len()
+                                            );
                                         }
+                                    } else {
+                                        eprintln!(
+                                            "Invalid number. Please enter 1..{}.",
+                                            choices.len()
+                                        );
                                     }
                                 }
                             }
