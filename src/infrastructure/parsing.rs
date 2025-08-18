@@ -356,8 +356,8 @@ impl MarkdownParser {
 
         // Parse from the original command string
         let current_line_content = &self.lines[self.current_line];
-        if let Some(bracket_start) = current_line_content.find('[') {
-            if let Some(bracket_end) = current_line_content.find(']') {
+        if let Some(bracket_start) = current_line_content.find('[')
+            && let Some(bracket_end) = current_line_content.find(']') {
                 let command_content = &current_line_content[bracket_start + 1..bracket_end];
                 let parts: Vec<&str> = command_content.split_whitespace().collect();
                 if parts.len() > 1 && parts[0] == "BRANCH" {
@@ -390,7 +390,6 @@ impl MarkdownParser {
                     }
                 }
             }
-        }
 
         if choices.is_empty() {
             return Err(ParseError::MissingParameter {

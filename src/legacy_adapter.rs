@@ -210,11 +210,10 @@ fn convert_parse_error(err: InfraParseError) -> crate::ParseError {
                             // Extract line number
                             if let Some(line_start) = message.find("line ") {
                                 let line_part = &message[line_start + 5..];
-                                if let Some(line_num) = line_part.split_whitespace().next() {
-                                    if let Ok(line) = line_num.parse::<usize>() {
+                                if let Some(line_num) = line_part.split_whitespace().next()
+                                    && let Ok(line) = line_num.parse::<usize>() {
                                         return crate::ParseError::UndefinedLabel { label, line };
                                     }
-                                }
                             }
                         }
                     }
