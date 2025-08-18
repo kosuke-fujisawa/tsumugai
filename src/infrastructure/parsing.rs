@@ -357,39 +357,40 @@ impl MarkdownParser {
         // Parse from the original command string
         let current_line_content = &self.lines[self.current_line];
         if let Some(bracket_start) = current_line_content.find('[')
-            && let Some(bracket_end) = current_line_content.find(']') {
-                let command_content = &current_line_content[bracket_start + 1..bracket_end];
-                let parts: Vec<&str> = command_content.split_whitespace().collect();
-                if parts.len() > 1 && parts[0] == "BRANCH" {
-                    let params_str = parts[1..].join(" ");
-                    let param_pairs: Vec<&str> = params_str.split(',').collect();
+            && let Some(bracket_end) = current_line_content.find(']')
+        {
+            let command_content = &current_line_content[bracket_start + 1..bracket_end];
+            let parts: Vec<&str> = command_content.split_whitespace().collect();
+            if parts.len() > 1 && parts[0] == "BRANCH" {
+                let params_str = parts[1..].join(" ");
+                let param_pairs: Vec<&str> = params_str.split(',').collect();
 
-                    for pair in param_pairs {
-                        let pair = pair.trim();
-                        let key_value_pairs: Vec<&str> = pair.split_whitespace().collect();
+                for pair in param_pairs {
+                    let pair = pair.trim();
+                    let key_value_pairs: Vec<&str> = pair.split_whitespace().collect();
 
-                        let mut current_choice: Option<String> = None;
-                        let mut current_label: Option<String> = None;
+                    let mut current_choice: Option<String> = None;
+                    let mut current_label: Option<String> = None;
 
-                        for kv in key_value_pairs {
-                            if let Some(eq_pos) = kv.find('=') {
-                                let key = kv[..eq_pos].trim();
-                                let value = kv[eq_pos + 1..].trim();
+                    for kv in key_value_pairs {
+                        if let Some(eq_pos) = kv.find('=') {
+                            let key = kv[..eq_pos].trim();
+                            let value = kv[eq_pos + 1..].trim();
 
-                                if key == "choice" {
-                                    current_choice = Some(value.to_string());
-                                } else if key == "label" {
-                                    current_label = Some(value.to_string());
-                                }
+                            if key == "choice" {
+                                current_choice = Some(value.to_string());
+                            } else if key == "label" {
+                                current_label = Some(value.to_string());
                             }
                         }
+                    }
 
-                        if let (Some(choice), Some(label)) = (current_choice, current_label) {
-                            choices.push(Choice::new(choice, LabelName::from(label)));
-                        }
+                    if let (Some(choice), Some(label)) = (current_choice, current_label) {
+                        choices.push(Choice::new(choice, LabelName::from(label)));
                     }
                 }
             }
+        }
 
         if choices.is_empty() {
             return Err(ParseError::MissingParameter {

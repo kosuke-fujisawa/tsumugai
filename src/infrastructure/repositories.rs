@@ -108,9 +108,10 @@ impl ScenarioRepository for FileSystemScenarioRepository {
             let path = entry.path();
             if let Some(extension) = path.extension().and_then(|ext| ext.to_str())
                 && extensions.contains(&extension)
-                && let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                    scenarios.push(ScenarioId::from(stem));
-                }
+                && let Some(stem) = path.file_stem().and_then(|s| s.to_str())
+            {
+                scenarios.push(ScenarioId::from(stem));
+            }
         }
 
         Ok(scenarios)
