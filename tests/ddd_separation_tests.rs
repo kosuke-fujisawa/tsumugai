@@ -50,7 +50,7 @@ mod ddd_tests {
         // Should get a proper domain error
         match execution_result {
             Err(domain_error) => {
-                let error_string = format!("{}", domain_error);
+                let error_string = format!("{domain_error}");
                 assert!(
                     error_string.contains("undefined"),
                     "Error should mention undefined label"

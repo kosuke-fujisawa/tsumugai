@@ -137,9 +137,9 @@ pub enum ApplicationError {
     #[error("Domain error: {0}")]
     Domain(#[from] crate::domain::errors::DomainError),
     #[error("Repository error: {0}")]
-    Repository(RepositoryError),
+    Repository(#[from] RepositoryError),
     #[error("Infrastructure error: {0}")]
-    Infrastructure(InfrastructureError),
+    Infrastructure(#[from] InfrastructureError),
 }
 
 #[derive(Debug, thiserror::Error)]

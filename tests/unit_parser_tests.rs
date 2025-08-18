@@ -54,8 +54,8 @@ mod parser_unit_tests {
 
         // Verify error contains helpful information
         let error = result.unwrap_err();
-        let error_msg = format!("{}", error);
-        assert!(error_msg.contains("INVALID_COMMAND") || error_msg.len() > 0);
+        let error_msg = format!("{error}");
+        assert!(error_msg.contains("INVALID_COMMAND") || !error_msg.is_empty());
     }
 
     /// Unit test: BRANCH command with multiple choices
@@ -99,18 +99,17 @@ mod parser_unit_tests {
         ];
 
         for (input, expected_duration) in test_cases {
-            let result = parse(input).expect(&format!("Should parse: {}", input));
+            let result = parse(input).unwrap_or_else(|_| panic!("Should parse: {input}"));
             assert_eq!(result.cmds.len(), 1);
 
             match &result.cmds[0] {
                 Command::Wait { secs } => {
                     assert_eq!(
                         *secs, expected_duration,
-                        "Duration mismatch for input: {}",
-                        input
+                        "Duration mismatch for input: {input}"
                     );
                 }
-                _ => panic!("Expected Wait command for input: {}", input),
+                _ => panic!("Expected Wait command for input: {input}"),
             }
         }
     }
@@ -138,7 +137,7 @@ mod parser_unit_tests {
         ];
 
         for (input, expected_name, expected_value) in test_cases {
-            let result = parse(input).expect(&format!("Should parse: {}", input));
+            let result = parse(input).unwrap_or_else(|_| panic!("Should parse: {input}"));
             assert_eq!(result.cmds.len(), 1);
 
             match &result.cmds[0] {
@@ -146,7 +145,7 @@ mod parser_unit_tests {
                     assert_eq!(name, expected_name);
                     assert_eq!(value, &expected_value);
                 }
-                _ => panic!("Expected Set command for input: {}", input),
+                _ => panic!("Expected Set command for input: {input}"),
             }
         }
     }
@@ -236,7 +235,7 @@ Here we are!
         assert_eq!(result.cmds.len(), 12); // Updated count
 
         // Verify command types in order
-        let expected_types = vec![
+        let expected_types = [
             "Set",
             "PlayBgm",
             "Say",
@@ -264,7 +263,7 @@ Here we are!
             };
 
             if i < expected_types.len() {
-                assert_eq!(cmd_type, expected_types[i], "Command {} type mismatch", i);
+                assert_eq!(cmd_type, expected_types[i], "Command {i} type mismatch");
             }
         }
     }

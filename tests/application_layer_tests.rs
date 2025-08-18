@@ -4,88 +4,6 @@
 use std::sync::Arc;
 use tsumugai::application::*;
 
-#[cfg(test)]
-mod application_tests {
-    use super::*;
-
-    /// Test: Scenario Playback Use Case should exist  
-    /// Now this test should PASS since we implemented the application layer
-    #[test]
-    fn test_scenario_playback_use_case() {
-        // This should now work - we implemented ScenarioPlaybackUseCase
-        let _use_case = ScenarioPlaybackUseCase::new(
-            Arc::new(MockScenarioRepository::new()),
-            Arc::new(MockResourceResolver::new()),
-        );
-
-        // Test passes if we can construct the use case
-        assert!(true, "ScenarioPlaybackUseCase is now implemented");
-    }
-
-    /// Test: Scenario Loading Use Case should handle file operations
-    /// Now this test should PASS since we implemented the application layer
-    #[test]
-    fn test_scenario_loading_use_case() {
-        // This should now work - we implemented ScenarioLoadingUseCase
-        let _use_case = ScenarioLoadingUseCase::new(
-            Arc::new(MockFileSystemRepository::new()),
-            Arc::new(MockMarkdownParser::new()),
-        );
-
-        assert!(true, "ScenarioLoadingUseCase is now implemented");
-    }
-
-    /// Test: Save/Load Game Use Case should manage persistence
-    /// Now this test should PASS since we implemented the application layer
-    #[test]
-    fn test_save_load_use_case() {
-        // This should now work - we implemented SaveGameUseCase and LoadGameUseCase
-        let _save_use_case = SaveGameUseCase::new(Arc::new(MockSaveRepository::new()));
-
-        let _load_use_case = LoadGameUseCase::new(Arc::new(MockSaveRepository::new()));
-
-        assert!(
-            true,
-            "SaveGameUseCase and LoadGameUseCase are now implemented"
-        );
-    }
-
-    /// Test: Application layer should coordinate domain services
-    /// Now this test should PASS since we implemented proper coordination
-    #[test]
-    fn test_application_coordination() {
-        // Application layer should orchestrate multiple domain services
-        let _coordinator = ApplicationCoordinator::new(
-            Arc::new(tsumugai::domain::services::StoryExecutionService::new()),
-            Arc::new(MockScenarioRepository::new()),
-            Arc::new(MockResourceResolver::new()),
-        );
-
-        assert!(true, "Application coordination is now implemented");
-    }
-
-    /// Test: Dependency Injection Container should exist
-    /// Now this test should PASS since we implemented DI container
-    #[test]
-    fn test_dependency_injection() {
-        let container = DependencyContainer::new()
-            .register_scenario_repository(Arc::new(MockScenarioRepository::new()))
-            .register_execution_service(Arc::new(
-                tsumugai::domain::services::StoryExecutionService::new(),
-            ))
-            .register_resource_resolver(Arc::new(MockResourceResolver::new()));
-
-        // Test that we can get use cases from the container
-        let use_case = container.get_scenario_playback_use_case();
-        assert!(
-            use_case.is_some(),
-            "Should be able to resolve ScenarioPlaybackUseCase"
-        );
-
-        assert!(true, "DI Container is now implemented");
-    }
-}
-
 // Mock types now implement the traits from application layer
 
 // Mock types for testing
@@ -229,5 +147,84 @@ impl MockMarkdownParser {
 impl MockSaveRepository {
     fn new() -> Self {
         Self
+    }
+}
+
+#[cfg(test)]
+mod application_tests {
+    use super::*;
+
+    /// Test: Scenario Playback Use Case should exist  
+    /// Now this test should PASS since we implemented the application layer
+    #[test]
+    fn test_scenario_playback_use_case() {
+        // This should now work - we implemented ScenarioPlaybackUseCase
+        let _use_case = ScenarioPlaybackUseCase::new(
+            Arc::new(MockScenarioRepository::new()),
+            Arc::new(MockResourceResolver::new()),
+        );
+
+        // Test passes if we can construct the use case
+        // ScenarioPlaybackUseCase is now implemented
+    }
+
+    /// Test: Scenario Loading Use Case should handle file operations
+    /// Now this test should PASS since we implemented the application layer
+    #[test]
+    fn test_scenario_loading_use_case() {
+        // This should now work - we implemented ScenarioLoadingUseCase
+        let _use_case = ScenarioLoadingUseCase::new(
+            Arc::new(MockFileSystemRepository::new()),
+            Arc::new(MockMarkdownParser::new()),
+        );
+
+        // ScenarioLoadingUseCase is now implemented
+    }
+
+    /// Test: Save/Load Game Use Case should manage persistence
+    /// Now this test should PASS since we implemented the application layer
+    #[test]
+    fn test_save_load_use_case() {
+        // This should now work - we implemented SaveGameUseCase and LoadGameUseCase
+        let _save_use_case = SaveGameUseCase::new(Arc::new(MockSaveRepository::new()));
+
+        let _load_use_case = LoadGameUseCase::new(Arc::new(MockSaveRepository::new()));
+
+        // SaveGameUseCase and LoadGameUseCase are now implemented
+    }
+
+    /// Test: Application layer should coordinate domain services
+    /// Now this test should PASS since we implemented proper coordination
+    #[test]
+    fn test_application_coordination() {
+        // Application layer should orchestrate multiple domain services
+        let _coordinator = ApplicationCoordinator::new(
+            Arc::new(tsumugai::domain::services::StoryExecutionService::new()),
+            Arc::new(MockScenarioRepository::new()),
+            Arc::new(MockResourceResolver::new()),
+        );
+
+        // Application coordination is now implemented
+    }
+
+    /// Test: Dependency Injection Container should exist
+    /// Now this test should PASS since we implemented DI container
+    #[test]
+    fn test_dependency_injection() {
+        let container = DependencyContainer::new()
+            .register_scenario_repository(Arc::new(MockScenarioRepository::new()))
+            .register_execution_service(Arc::new(
+                tsumugai::domain::services::StoryExecutionService::new(),
+            ))
+            .register_resource_resolver(Arc::new(MockResourceResolver::new()));
+
+        // Test that we can get use cases from the container
+        let use_case = container.get_scenario_playback_use_case();
+        assert!(
+            use_case.is_some(),
+            "Should be able to resolve ScenarioPlaybackUseCase"
+        );
+
+        // DI Container is now implemented
     }
 }

@@ -8,7 +8,7 @@ fn main() {
     let markdown = fs::read_to_string("test_commands.md").expect("Failed to read test file");
 
     println!("=== Raw markdown content ===");
-    println!("{}", markdown);
+    println!("{markdown}");
     println!("================================\n");
 
     match Engine::from_markdown(&markdown) {
@@ -22,8 +22,8 @@ fn main() {
                     Ok(step_result) => {
                         // Log all directives
                         for directive in &step_result.directives {
-                            execution_log.push(format!("Emitted: {:?}", directive));
-                            println!("  {:?}", directive);
+                            execution_log.push(format!("Emitted: {directive:?}"));
+                            println!("  {directive:?}");
                         }
 
                         match step_result.next {
@@ -63,7 +63,7 @@ fn main() {
                                                 choices[choice_index]
                                             ));
                                             if let Err(e) = engine.choose(choice_index) {
-                                                println!("Error making choice: {}", e);
+                                                println!("Error making choice: {e}");
                                                 break;
                                             }
                                         }
@@ -77,7 +77,7 @@ fn main() {
                         }
                     }
                     Err(e) => {
-                        println!("Error during execution: {}", e);
+                        println!("Error during execution: {e}");
                         break;
                     }
                 }
@@ -89,7 +89,7 @@ fn main() {
             }
         }
         Err(e) => {
-            println!("Failed to parse markdown: {}", e);
+            println!("Failed to parse markdown: {e}");
         }
     }
 }

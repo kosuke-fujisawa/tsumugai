@@ -70,10 +70,10 @@ impl MarkdownParser {
     }
 
     fn extract_command(&self, line: &str) -> Option<String> {
-        if line.starts_with('[') {
-            if let Some(end) = line.find(']') {
-                return Some(line[1..end].to_string());
-            }
+        if line.starts_with('[')
+            && let Some(end) = line.find(']')
+        {
+            return Some(line[1..end].to_string());
         }
         None
     }
@@ -265,45 +265,45 @@ impl MarkdownParser {
         let mut choices = Vec::new();
         let current_line_content = &self.lines[self.current_line];
 
-        if let Some(bracket_start) = current_line_content.find('[') {
-            if let Some(bracket_end) = current_line_content.find(']') {
-                let command_content = &current_line_content[bracket_start + 1..bracket_end];
-                let parts: Vec<&str> = command_content.split_whitespace().collect();
+        if let Some(bracket_start) = current_line_content.find('[')
+            && let Some(bracket_end) = current_line_content.find(']')
+        {
+            let command_content = &current_line_content[bracket_start + 1..bracket_end];
+            let parts: Vec<&str> = command_content.split_whitespace().collect();
 
-                if parts.len() > 1 && parts[0] == "BRANCH" {
-                    let params_str = parts[1..].join(" ");
-                    let param_pairs = self.tokenize_quoted_params(&params_str);
+            if parts.len() > 1 && parts[0] == "BRANCH" {
+                let params_str = parts[1..].join(" ");
+                let param_pairs = self.tokenize_quoted_params(&params_str);
 
-                    for pair in param_pairs {
-                        let pair = pair.trim();
-                        let mut current_choice: Option<String> = None;
-                        let mut current_label: Option<String> = None;
+                for pair in param_pairs {
+                    let pair = pair.trim();
+                    let mut current_choice: Option<String> = None;
+                    let mut current_label: Option<String> = None;
 
-                        // Parse key=value pairs with quote support
-                        let tokens = self.tokenize_key_values(pair);
-                        for token in tokens {
-                            if let Some(eq_pos) = token.find('=') {
-                                let key = token[..eq_pos].trim();
-                                let mut value = token[eq_pos + 1..].trim();
+                    // Parse key=value pairs with quote support
+                    let tokens = self.tokenize_key_values(pair);
+                    for token in tokens {
+                        if let Some(eq_pos) = token.find('=') {
+                            let key = token[..eq_pos].trim();
+                            let mut value = token[eq_pos + 1..].trim();
 
-                                // Remove quotes if present
-                                if (value.starts_with('"') && value.ends_with('"'))
-                                    || (value.starts_with('\'') && value.ends_with('\''))
-                                {
-                                    value = &value[1..value.len() - 1];
-                                }
+                            // Remove quotes if present
+                            if (value.starts_with('"') && value.ends_with('"'))
+                                || (value.starts_with('\'') && value.ends_with('\''))
+                            {
+                                value = &value[1..value.len() - 1];
+                            }
 
-                                match key {
-                                    "choice" => current_choice = Some(value.to_string()),
-                                    "label" => current_label = Some(value.to_string()),
-                                    _ => {}
-                                }
+                            match key {
+                                "choice" => current_choice = Some(value.to_string()),
+                                "label" => current_label = Some(value.to_string()),
+                                _ => {}
                             }
                         }
+                    }
 
-                        if let (Some(choice), Some(label)) = (current_choice, current_label) {
-                            choices.push(Choice { choice, label });
-                        }
+                    if let (Some(choice), Some(label)) = (current_choice, current_label) {
+                        choices.push(Choice { choice, label });
                     }
                 }
             }

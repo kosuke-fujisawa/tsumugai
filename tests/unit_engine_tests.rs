@@ -285,6 +285,69 @@ Success!
         assert_eq!(engine.get_var("var3"), Some("3".to_string()));
     }
 
+    /// Unit test: Wait seconds with approximate comparison
+    /// Expectation: Floating point wait durations should use approximate comparison
+    /// Metric: abs(actual-expected) < 1e-6, execution time <10ms
+    #[test]
+    fn wait_seconds_approx() {
+        let start_time = std::time::Instant::now();
+
+        let markdown = r#"
+[WAIT 1.5s]
+"#;
+
+        let mut engine = Engine::from_markdown(markdown).unwrap();
+        let step_result = engine.step().unwrap();
+
+        match &step_result.directives[0] {
+            Directive::Wait { seconds } => {
+                let expected = 1.5f32;
+                let actual = *seconds;
+                let diff = (actual - expected).abs();
+                assert!(
+                    diff < 1e-6,
+                    "Wait seconds should be approximately equal: expected {expected}, actual {actual}, diff {diff}"
+                );
+            }
+            _ => panic!("Expected Wait directive"),
+        }
+
+        let execution_time = start_time.elapsed();
+        assert!(
+            execution_time.as_millis() < 10,
+            "Wait test should complete in <10ms"
+        );
+    }
+
+    /// Test: Floating point precision handling  
+    #[test]
+    fn test_wait_floating_precision() {
+        let test_cases = vec![
+            ("0.1s", 0.1f32),
+            ("2.75s", 2.75f32),
+            ("10.0s", 10.0f32),
+            ("0.001s", 0.001f32),
+        ];
+
+        for (wait_str, expected) in test_cases {
+            let markdown = format!("[WAIT {wait_str}]");
+            let mut engine = Engine::from_markdown(&markdown).unwrap();
+            let step_result = engine.step().unwrap();
+
+            match &step_result.directives[0] {
+                Directive::Wait { seconds } => {
+                    let diff = (*seconds - expected).abs();
+                    assert!(
+                        diff < 1e-6,
+                        "Wait duration mismatch for {wait_str}: expected {expected}, actual {}",
+                        *seconds
+                    );
+                }
+                _ => panic!("Expected Wait directive for {wait_str}"),
+            }
+        }
+    }
+
     // Note: Low-level jump functionality is tested through JUMP commands
     // in the integration tests. The new API doesn't expose internal jump_to methods.
 

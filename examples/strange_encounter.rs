@@ -67,7 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             Err(e) => {
-                eprintln!("Error: {}", e);
+                eprintln!("Error: {e}");
                 break;
             }
         }
@@ -80,56 +80,56 @@ fn handle_directives(directives: &[Directive]) {
     for directive in directives {
         match directive {
             Directive::Say { speaker, text } => {
-                println!("{}: {}", speaker, text);
+                println!("{speaker}: {text}");
             }
             Directive::PlayBgm { path } => {
                 if let Some(path) = path {
-                    println!("[BGM] Playing: {}", path);
+                    println!("[BGM] Playing: {path}");
                 } else {
                     println!("[BGM] Playing: (not resolved)");
                 }
             }
             Directive::ShowImage { layer, path } => {
                 if let Some(path) = path {
-                    println!("[IMAGE] Showing on {}: {}", layer, path);
+                    println!("[IMAGE] Showing on {layer}: {path}");
                 } else {
-                    println!("[IMAGE] Showing on {}: (not resolved)", layer);
+                    println!("[IMAGE] Showing on {layer}: (not resolved)");
                 }
             }
             Directive::Wait { seconds } => {
-                println!("[WAIT] Waiting for {} seconds", seconds);
+                println!("[WAIT] Waiting for {seconds} seconds");
             }
             Directive::SetVar { name, value } => {
-                println!("[SET] {} = {}", name, value);
+                println!("[SET] {name} = {value}");
             }
             Directive::JumpTo { label } => {
-                println!("[JUMP] Jumping to: {}", label);
+                println!("[JUMP] Jumping to: {label}");
             }
             Directive::ClearLayer { layer } => {
-                println!("[CLEAR] Clearing layer: {}", layer);
+                println!("[CLEAR] Clearing layer: {layer}");
             }
             Directive::Branch { choices: _ } => {
                 // Handled in the main loop
             }
             Directive::PlaySe { path } => {
                 if let Some(path) = path {
-                    println!("[SE] Playing: {}", path);
+                    println!("[SE] Playing: {path}");
                 } else {
                     println!("[SE] Playing: (not resolved)");
                 }
             }
             Directive::PlayMovie { path } => {
                 if let Some(path) = path {
-                    println!("[MOVIE] Playing: {}", path);
+                    println!("[MOVIE] Playing: {path}");
                 } else {
                     println!("[MOVIE] Playing: (not resolved)");
                 }
             }
             Directive::ReachedLabel { label } => {
-                println!("[LABEL] Reached: {}", label);
+                println!("[LABEL] Reached: {label}");
             }
             _ => {
-                println!("[UNKNOWN] Unhandled directive: {:?}", directive);
+                println!("[UNKNOWN] Unhandled directive: {directive:?}");
             }
         }
     }

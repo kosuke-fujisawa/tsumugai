@@ -20,14 +20,11 @@ mod contract_tests {
 
         for file_path in domain_files {
             let content = std::fs::read_to_string(file_path)
-                .expect(&format!("Should be able to read {}", file_path));
+                .unwrap_or_else(|_| panic!("Should be able to read {file_path}"));
 
             // Domain should not import infrastructure
             if content.contains("crate::infrastructure") {
-                panic!(
-                    "Domain should not import infrastructure: found in {}",
-                    file_path
-                );
+                panic!("Domain should not import infrastructure: found in {file_path}");
             }
         }
 
@@ -63,14 +60,10 @@ mod contract_tests {
         // StepResult should only be defined in contracts module
         if stepresult_locations.len() == 1 && stepresult_locations[0] == "src/contracts/mod.rs" {
             // Expected behavior - test passes
-            assert!(
-                true,
-                "StepResult contract is properly centralized in contracts module"
-            );
+            // StepResult contract is properly centralized in contracts module
         } else {
             panic!(
-                "StepResult should be defined only in contracts module, found in: {:?}",
-                stepresult_locations
+                "StepResult should be defined only in contracts module, found in: {stepresult_locations:?}"
             );
         }
     }
@@ -94,7 +87,7 @@ mod contract_tests {
 
         for export in problematic_exports {
             if lib_content.contains(export) {
-                panic!("Public API exposes internal types: {}", export);
+                panic!("Public API exposes internal types: {export}");
             }
         }
 
@@ -117,10 +110,7 @@ mod contract_tests {
             if let Ok(content) = std::fs::read_to_string(file_path) {
                 // Infrastructure should use domain traits, not application layer
                 if content.contains("crate::application") {
-                    panic!(
-                        "Infrastructure should not depend on application layer: {}",
-                        file_path
-                    );
+                    panic!("Infrastructure should not depend on application layer: {file_path}");
                 }
             }
         }

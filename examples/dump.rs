@@ -31,7 +31,7 @@ fn main() {
     let input_content = match fs::read_to_string(input_file) {
         Ok(content) => content,
         Err(err) => {
-            eprintln!("Error reading file {}: {}", input_file, err);
+            eprintln!("Error reading file {input_file}: {err}");
             process::exit(1);
         }
     };
@@ -40,7 +40,7 @@ fn main() {
     let mut engine = match Engine::from_markdown(&input_content) {
         Ok(engine) => engine,
         Err(err) => {
-            eprintln!("Parse error: {}", err);
+            eprintln!("Parse error: {err}");
             process::exit(1);
         }
     };
@@ -54,7 +54,7 @@ fn main() {
         let step_result = match engine.step() {
             Ok(result) => result,
             Err(err) => {
-                eprintln!("Step error: {}", err);
+                eprintln!("Step error: {err}");
                 process::exit(1);
             }
         };
@@ -85,7 +85,7 @@ fn main() {
             NextAction::WaitBranch => {
                 // For dump purposes, take the first choice (index 0)
                 if let Err(err) = engine.choose(0) {
-                    eprintln!("Choice error: {}", err);
+                    eprintln!("Choice error: {err}");
                     process::exit(1);
                 }
                 continue;
@@ -101,9 +101,9 @@ fn main() {
     };
 
     match serde_json::to_string_pretty(&scenario_dump) {
-        Ok(json) => println!("{}", json),
+        Ok(json) => println!("{json}"),
         Err(err) => {
-            eprintln!("JSON serialization error: {}", err);
+            eprintln!("JSON serialization error: {err}");
             process::exit(1);
         }
     }

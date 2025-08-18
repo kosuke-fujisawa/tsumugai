@@ -25,30 +25,33 @@ mod golden_tests {
     /// Helper function to run golden tests
     /// Executes dump command and compares output with expected golden file
     fn run_golden_test(test_name: &str) {
-        let fixture_path = format!("tests/fixtures/{}.md", test_name);
-        let golden_path = format!("tests/golden/{}.json", test_name);
+        let fixture_path = format!("tests/fixtures/{test_name}.md");
+        let golden_path = format!("tests/golden/{test_name}.json");
 
         // Verify fixture file exists
         assert!(
             Path::new(&fixture_path).exists(),
-            "Fixture file not found: {}",
-            fixture_path
+            "Fixture file not found: {fixture_path}"
         );
 
         // Verify golden file exists
         assert!(
             Path::new(&golden_path).exists(),
-            "Golden file not found: {}. Generate it with: cargo run --example dump -- {} > {}",
-            golden_path,
-            fixture_path,
-            golden_path
+            "Golden file not found: {golden_path}. Generate it with: cargo run --example dump -- {fixture_path} > {golden_path}"
         );
 
-        // Run dump command
-        let output = Command::new("cargo")
-            .args(&["run", "--example", "dump", "--", &fixture_path])
-            .output()
-            .expect("Failed to execute dump command");
+        // Run dump command - prefer CARGO_BIN_EXE_dump if available, fallback to cargo run
+        let output = if let Ok(dump_exe) = std::env::var("CARGO_BIN_EXE_dump") {
+            Command::new(dump_exe)
+                .arg(&fixture_path)
+                .output()
+                .expect("Failed to execute dump executable")
+        } else {
+            Command::new("cargo")
+                .args(["run", "--example", "dump", "--", &fixture_path])
+                .output()
+                .expect("Failed to execute dump command")
+        };
 
         // Check that command succeeded
         if !output.status.success() {
@@ -65,7 +68,7 @@ mod golden_tests {
 
         // Read the expected golden file
         let expected_output = std::fs::read_to_string(&golden_path)
-            .expect(&format!("Failed to read golden file: {}", golden_path));
+            .unwrap_or_else(|_| panic!("Failed to read golden file: {golden_path}"));
 
         // Parse both as JSON to ensure they're valid and for normalized comparison
         let actual_json: serde_json::Value =
@@ -83,9 +86,8 @@ mod golden_tests {
                 .expect("Failed to pretty-print expected JSON");
 
             panic!(
-                "Golden test failed for {}!\n\nExpected:\n{}\n\nActual:\n{}\n\n\
-                 To update the golden file, run:\ncargo run --example dump -- {} > {}",
-                test_name, expected_pretty, actual_pretty, fixture_path, golden_path
+                "Golden test failed for {test_name}!\n\nExpected:\n{expected_pretty}\n\nActual:\n{actual_pretty}\n\n\
+                 To update the golden file, run:\ncargo run --example dump -- {fixture_path} > {golden_path}"
             );
         }
     }
@@ -104,7 +106,7 @@ mod golden_tests {
 
         // Test that dump command is available
         let output = Command::new("cargo")
-            .args(&["run", "--example", "dump", "--", "--help"])
+            .args(["run", "--example", "dump", "--", "--help"])
             .output();
 
         // The command should exist (even if --help isn't implemented)
@@ -118,15 +120,29 @@ mod golden_tests {
         let fixture_path = "tests/fixtures/simple.md";
 
         // Run dump twice
-        let output1 = Command::new("cargo")
-            .args(&["run", "--example", "dump", "--", fixture_path])
-            .output()
-            .expect("First dump run failed");
+        let output1 = if let Ok(dump_exe) = std::env::var("CARGO_BIN_EXE_dump") {
+            Command::new(&dump_exe)
+                .arg(fixture_path)
+                .output()
+                .expect("First dump run failed")
+        } else {
+            Command::new("cargo")
+                .args(["run", "--example", "dump", "--", fixture_path])
+                .output()
+                .expect("First dump run failed")
+        };
 
-        let output2 = Command::new("cargo")
-            .args(&["run", "--example", "dump", "--", fixture_path])
-            .output()
-            .expect("Second dump run failed");
+        let output2 = if let Ok(dump_exe) = std::env::var("CARGO_BIN_EXE_dump") {
+            Command::new(&dump_exe)
+                .arg(fixture_path)
+                .output()
+                .expect("Second dump run failed")
+        } else {
+            Command::new("cargo")
+                .args(["run", "--example", "dump", "--", fixture_path])
+                .output()
+                .expect("Second dump run failed")
+        };
 
         assert!(output1.status.success());
         assert!(output2.status.success());

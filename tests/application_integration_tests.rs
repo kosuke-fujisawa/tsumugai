@@ -102,7 +102,7 @@ async fn test_application_min_flow() {
         | tsumugai::domain::services::ExecutionResult::Continue(_) => {
             // Either WaitForUser or Continue is acceptable for Say directive
         }
-        _ => panic!("Expected Continue or WaitForUser result, got {:?}", result),
+        _ => panic!("Expected Continue or WaitForUser result, got {result:?}"),
     }
 
     // Next step should be a branch
@@ -113,7 +113,7 @@ async fn test_application_min_flow() {
             assert_eq!(choices[0].text(), "Yes");
             assert_eq!(choices[1].text(), "No");
         }
-        _ => panic!("Expected WaitForBranchSelection result, got {:?}", result),
+        _ => panic!("Expected WaitForBranchSelection result, got {result:?}"),
     }
 
     // Select choice
@@ -128,11 +128,8 @@ async fn test_application_min_flow() {
         }
         _ => {
             // If not Jump, it might be Continue with a Label directive
-            match result {
-                tsumugai::domain::services::ExecutionResult::Continue(_) => {
-                    // Label directive validation
-                }
-                _ => {}
+            if let tsumugai::domain::services::ExecutionResult::Continue(_) = result {
+                // Label directive validation
             }
         }
     }

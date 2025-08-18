@@ -160,14 +160,14 @@ impl Engine {
                 Step::Next
             }
             Command::Modify { name, op, value } => {
-                if let Some(current) = self.vars.get(name).cloned() {
-                    if let (Value::Int(current_val), Value::Int(modify_val)) = (current, value) {
-                        let new_val = match op {
-                            Op::Add => current_val + modify_val,
-                            Op::Sub => current_val - modify_val,
-                        };
-                        self.vars.insert(name.clone(), Value::Int(new_val));
-                    }
+                if let Some(current) = self.vars.get(name).cloned()
+                    && let (Value::Int(current_val), Value::Int(modify_val)) = (current, value)
+                {
+                    let new_val = match op {
+                        Op::Add => current_val + modify_val,
+                        Op::Sub => current_val - modify_val,
+                    };
+                    self.vars.insert(name.clone(), Value::Int(new_val));
                 }
                 self.pc += 1;
                 Step::Next

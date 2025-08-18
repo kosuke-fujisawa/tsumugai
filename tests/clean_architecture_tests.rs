@@ -13,14 +13,14 @@ mod domain_layer_tests {
     fn test_story_execution_domain_service() {
         // Test: StoryExecutionService should handle execution logic
         // without depending on parsing or infrastructure
-        let _commands = vec![Command::Say {
+        let _commands = [Command::Say {
             speaker: "Test".to_string(),
             text: "Hello".to_string(),
         }];
 
         // This interface doesn't exist yet - TDD RED phase
         // For now, just test that this compiles and we can define the desired interface
-        assert!(true, "Domain service interface needs to be implemented");
+        // Domain service interface needs to be implemented
     }
 
     #[test]

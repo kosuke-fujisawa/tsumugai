@@ -4,183 +4,6 @@
 use std::collections::{HashMap, HashSet};
 use tsumugai::parse;
 
-#[cfg(test)]
-mod dfs_tests {
-    use super::*;
-
-    /// DFS test: Complex branching scenario
-    /// Metric: All branches should be reachable and explored
-    #[test]
-    fn test_complex_branching_dfs() {
-        let scenario = r#"
-[SAY speaker=Start]
-Beginning
-
-[BRANCH choice=Path1 label=path1, choice=Path2 label=path2, choice=Path3 label=path3]
-
-[LABEL name=path1]
-[SAY speaker=A] Path 1
-[BRANCH choice=Sub1A label=sub1a, choice=Sub1B label=sub1b]
-
-[LABEL name=sub1a]
-[SAY speaker=A] Sub 1A
-[JUMP label=end]
-
-[LABEL name=sub1b]  
-[SAY speaker=A] Sub 1B
-[JUMP label=end]
-
-[LABEL name=path2]
-[SAY speaker=B] Path 2
-[JUMP label=end]
-
-[LABEL name=path3]
-[SAY speaker=C] Path 3
-[JUMP label=end]
-
-[LABEL name=end]
-[SAY speaker=End] The End
-"#;
-
-        let program = parse(scenario).expect("Should parse successfully");
-
-        let mut path_coverage = DfsPathExplorer::new();
-        path_coverage.explore_all_paths(&program, 50); // Max depth 50
-
-        // Verify all expected paths were covered
-        let paths = path_coverage.get_discovered_paths();
-
-        // Should have at least 4 distinct paths:
-        // 1. Start -> path1 -> sub1a -> end
-        // 2. Start -> path1 -> sub1b -> end
-        // 3. Start -> path2 -> end
-        // 4. Start -> path3 -> end
-        assert!(
-            paths.len() >= 4,
-            "Should discover at least 4 distinct paths, found {}",
-            paths.len()
-        );
-
-        // Verify specific labels were reached
-        let reached_labels = path_coverage.get_reached_labels();
-        let expected_labels = ["path1", "path2", "path3", "sub1a", "sub1b", "end"];
-
-        for label in expected_labels.iter() {
-            assert!(
-                reached_labels.contains(*label),
-                "Label '{}' should be reachable, reached labels: {:?}",
-                label,
-                reached_labels
-            );
-        }
-    }
-
-    /// DFS test: Loop prevention
-    /// Metric: Infinite loops should be detected and prevented
-    #[test]
-    fn test_loop_prevention() {
-        let scenario = r#"
-[LABEL name=loop_start]
-[SAY speaker=A] In loop
-[JUMP label=loop_start]
-"#;
-
-        let program = parse(scenario).expect("Should parse successfully");
-
-        let mut path_coverage = DfsPathExplorer::new();
-        path_coverage.explore_all_paths(&program, 10); // Small depth limit
-
-        // Should detect the loop and stop
-        let paths = path_coverage.get_discovered_paths();
-        assert!(paths.len() > 0, "Should discover at least one path");
-
-        // Should not exceed depth limit
-        let max_path_length = paths.iter().map(|p| p.len()).max().unwrap_or(0);
-        assert!(
-            max_path_length <= 15,
-            "Path length should be bounded, got {}",
-            max_path_length
-        );
-    }
-
-    /// DFS test: Conditional branching
-    /// Metric: Variable-dependent branches should be explored
-    #[test]
-    fn test_conditional_branching() {
-        let scenario = r#"
-[SET name=score value=0]
-
-[SAY speaker=A] Start
-
-[MODIFY name=score op=add value=10]
-
-[JUMP_IF var=score cmp=ge value=10 label=high_score]
-
-[SAY speaker=A] Low score path
-[JUMP label=end]
-
-[LABEL name=high_score]
-[SAY speaker=A] High score path
-
-[LABEL name=end]
-[SAY speaker=A] End
-"#;
-
-        let program = parse(scenario).expect("Should parse successfully");
-
-        let mut path_coverage = DfsPathExplorer::new();
-        path_coverage.explore_all_paths(&program, 20);
-
-        let reached_labels = path_coverage.get_reached_labels();
-
-        // Should reach high_score label (since score becomes 10)
-        assert!(
-            reached_labels.contains("high_score"),
-            "Should reach high_score label with score=10"
-        );
-
-        assert!(reached_labels.contains("end"), "Should reach end label");
-    }
-
-    /// DFS test: Dead code detection
-    /// Metric: Unreachable code should be identified
-    #[test]
-    fn test_dead_code_detection() {
-        let scenario = r#"
-[SAY speaker=A] Start
-[JUMP label=reachable]
-
-[SAY speaker=B] This is unreachable
-[LABEL name=unreachable_label]
-
-[LABEL name=reachable]
-[SAY speaker=A] End
-"#;
-
-        let program = parse(scenario).expect("Should parse successfully");
-
-        let mut path_coverage = DfsPathExplorer::new();
-        path_coverage.explore_all_paths(&program, 20);
-
-        let reached_labels = path_coverage.get_reached_labels();
-
-        // Should reach 'reachable' but not 'unreachable_label'
-        assert!(
-            reached_labels.contains("reachable"),
-            "Should reach reachable label"
-        );
-
-        assert!(
-            !reached_labels.contains("unreachable_label"),
-            "Should NOT reach unreachable_label"
-        );
-
-        // Verify dead code detection
-        let dead_code = path_coverage.find_dead_code(&program);
-        assert!(dead_code.len() > 0, "Should detect dead code");
-    }
-}
-
 /// Path explorer using DFS to discover all reachable execution paths
 struct DfsPathExplorer {
     discovered_paths: Vec<Vec<usize>>,
@@ -426,5 +249,179 @@ impl DfsPathExplorer {
         }
 
         dead_code
+    }
+}
+
+#[cfg(test)]
+mod dfs_tests {
+    use super::*;
+
+    /// DFS test: Complex branching scenario
+    /// Metric: All branches should be reachable and explored
+    #[test]
+    fn test_complex_branching_dfs() {
+        let scenario = r#"
+[SAY speaker=Start]
+Beginning
+
+[BRANCH choice=Path1 label=path1, choice=Path2 label=path2, choice=Path3 label=path3]
+
+[LABEL name=path1]
+[SAY speaker=A] Path 1
+[BRANCH choice=Sub1A label=sub1a, choice=Sub1B label=sub1b]
+
+[LABEL name=sub1a]
+[SAY speaker=A] Sub 1A
+[JUMP label=end]
+
+[LABEL name=sub1b]  
+[SAY speaker=A] Sub 1B
+[JUMP label=end]
+
+[LABEL name=path2]
+[SAY speaker=B] Path 2
+[JUMP label=end]
+
+[LABEL name=path3]
+[SAY speaker=C] Path 3
+[JUMP label=end]
+
+[LABEL name=end]
+[SAY speaker=End] The End
+"#;
+
+        let program = parse(scenario).expect("Should parse successfully");
+
+        let mut path_coverage = DfsPathExplorer::new();
+        path_coverage.explore_all_paths(&program, 50); // Max depth 50
+
+        // Verify all expected paths were covered
+        let paths = path_coverage.get_discovered_paths();
+
+        // Should have at least 4 distinct paths:
+        // 1. Start -> path1 -> sub1a -> end
+        // 2. Start -> path1 -> sub1b -> end
+        // 3. Start -> path2 -> end
+        // 4. Start -> path3 -> end
+        assert!(
+            paths.len() >= 4,
+            "Should discover at least 4 distinct paths, found {}",
+            paths.len()
+        );
+
+        // Verify specific labels were reached
+        let reached_labels = path_coverage.get_reached_labels();
+        let expected_labels = ["path1", "path2", "path3", "sub1a", "sub1b", "end"];
+
+        for label in expected_labels.iter() {
+            assert!(
+                reached_labels.contains(*label),
+                "Label '{label}' should be reachable, reached labels: {reached_labels:?}"
+            );
+        }
+    }
+
+    /// DFS test: Loop prevention
+    /// Metric: Infinite loops should be detected and prevented
+    #[test]
+    fn test_loop_prevention() {
+        let scenario = r#"
+[LABEL name=loop_start]
+[SAY speaker=A] In loop
+[JUMP label=loop_start]
+"#;
+
+        let program = parse(scenario).expect("Should parse successfully");
+
+        let mut path_coverage = DfsPathExplorer::new();
+        path_coverage.explore_all_paths(&program, 10); // Small depth limit
+
+        // Should detect the loop and stop
+        let paths = path_coverage.get_discovered_paths();
+        assert!(!paths.is_empty(), "Should discover at least one path");
+
+        // Should not exceed depth limit
+        let max_path_length = paths.iter().map(|p| p.len()).max().unwrap_or(0);
+        assert!(
+            max_path_length <= 15,
+            "Path length should be bounded, got {max_path_length}"
+        );
+    }
+
+    /// DFS test: Conditional branching
+    /// Metric: Variable-dependent branches should be explored
+    #[test]
+    fn test_conditional_branching() {
+        let scenario = r#"
+[SET name=score value=0]
+
+[SAY speaker=A] Start
+
+[MODIFY name=score op=add value=10]
+
+[JUMP_IF var=score cmp=ge value=10 label=high_score]
+
+[SAY speaker=A] Low score path
+[JUMP label=end]
+
+[LABEL name=high_score]
+[SAY speaker=A] High score path
+
+[LABEL name=end]
+[SAY speaker=A] End
+"#;
+
+        let program = parse(scenario).expect("Should parse successfully");
+
+        let mut path_coverage = DfsPathExplorer::new();
+        path_coverage.explore_all_paths(&program, 20);
+
+        let reached_labels = path_coverage.get_reached_labels();
+
+        // Should reach high_score label (since score becomes 10)
+        assert!(
+            reached_labels.contains("high_score"),
+            "Should reach high_score label with score=10"
+        );
+
+        assert!(reached_labels.contains("end"), "Should reach end label");
+    }
+
+    /// DFS test: Dead code detection
+    /// Metric: Unreachable code should be identified
+    #[test]
+    fn test_dead_code_detection() {
+        let scenario = r#"
+[SAY speaker=A] Start
+[JUMP label=reachable]
+
+[SAY speaker=B] This is unreachable
+[LABEL name=unreachable_label]
+
+[LABEL name=reachable]
+[SAY speaker=A] End
+"#;
+
+        let program = parse(scenario).expect("Should parse successfully");
+
+        let mut path_coverage = DfsPathExplorer::new();
+        path_coverage.explore_all_paths(&program, 20);
+
+        let reached_labels = path_coverage.get_reached_labels();
+
+        // Should reach 'reachable' but not 'unreachable_label'
+        assert!(
+            reached_labels.contains("reachable"),
+            "Should reach reachable label"
+        );
+
+        assert!(
+            !reached_labels.contains("unreachable_label"),
+            "Should NOT reach unreachable_label"
+        );
+
+        // Verify dead code detection
+        let dead_code = path_coverage.find_dead_code(&program);
+        assert!(!dead_code.is_empty(), "Should detect dead code");
     }
 }

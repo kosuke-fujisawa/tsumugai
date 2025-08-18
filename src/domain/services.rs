@@ -90,10 +90,10 @@ impl StoryExecutionService {
                 let state = execution.state_mut();
 
                 // Check if we already emitted this branch
-                if let Some(branch_state) = state.branch_state() {
-                    if branch_state.is_emitted() {
-                        return Ok(ExecutionResult::WaitForBranchSelection(choices.clone()));
-                    }
+                if let Some(branch_state) = state.branch_state()
+                    && branch_state.is_emitted()
+                {
+                    return Ok(ExecutionResult::WaitForBranchSelection(choices.clone()));
                 }
 
                 // Set up branch state and emit directive
