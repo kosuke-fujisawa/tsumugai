@@ -50,16 +50,17 @@ impl ScenarioRepository for FileSystemScenarioRepository {
     async fn load_scenario(&self, id: &ScenarioId) -> Result<Scenario, RepositoryError> {
         let path = self.get_scenario_path(id);
 
-        if !path.exists() {
-            return Err(RepositoryError::not_found(id.clone()));
-        }
-
-        let content =
-            tokio::fs::read_to_string(&path)
-                .await
-                .map_err(|e| RepositoryError::IoError {
+        let content = match tokio::fs::read_to_string(&path).await {
+            Ok(c) => c,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Err(RepositoryError::not_found(id.clone()));
+            }
+            Err(e) => {
+                return Err(RepositoryError::IoError {
                     message: format!("Failed to read scenario file {}: {}", path.display(), e),
-                })?;
+                });
+            }
+        };
 
         self.parser
             .parse(&content)
@@ -97,6 +98,8 @@ impl ScenarioRepository for FileSystemScenarioRepository {
                     ),
                 })?;
 
+        let mut unique = std::collections::BTreeSet::<String>::new();
+
         while let Some(entry) =
             entries
                 .next_entry()
@@ -110,8 +113,12 @@ impl ScenarioRepository for FileSystemScenarioRepository {
                 && extensions.contains(&extension)
                 && let Some(stem) = path.file_stem().and_then(|s| s.to_str())
             {
-                scenarios.push(ScenarioId::from(stem));
+                unique.insert(stem.to_string());
             }
+        }
+
+        for stem in unique {
+            scenarios.push(ScenarioId::from(stem.as_str()));
         }
 
         Ok(scenarios)
@@ -120,15 +127,15 @@ impl ScenarioRepository for FileSystemScenarioRepository {
     async fn delete_scenario(&self, id: &ScenarioId) -> Result<(), RepositoryError> {
         let path = self.get_scenario_path(id);
 
-        if !path.exists() {
-            return Err(RepositoryError::not_found(id.clone()));
-        }
-
-        tokio::fs::remove_file(&path)
-            .await
-            .map_err(|e| RepositoryError::IoError {
+        match tokio::fs::remove_file(&path).await {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                Err(RepositoryError::not_found(id.clone()))
+            }
+            Err(e) => Err(RepositoryError::IoError {
                 message: format!("Failed to delete scenario file {}: {}", path.display(), e),
-            })
+            }),
+        }
     }
 }
 
@@ -242,16 +249,15 @@ impl SaveDataRepository for JsonSaveDataRepository {
     ) -> Result<Option<ExecutionSnapshot>, RepositoryError> {
         let path = self.get_save_path(scenario_id);
 
-        if !path.exists() {
-            return Ok(None);
-        }
-
-        let content =
-            tokio::fs::read_to_string(&path)
-                .await
-                .map_err(|e| RepositoryError::IoError {
+        let content = match tokio::fs::read_to_string(&path).await {
+            Ok(c) => c,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => {
+                return Err(RepositoryError::IoError {
                     message: format!("Failed to read save file {}: {}", path.display(), e),
-                })?;
+                });
+            }
+        };
 
         let snapshot =
             serde_json::from_str(&content).map_err(|e| RepositoryError::SerializationError {
@@ -275,16 +281,16 @@ impl SaveDataRepository for JsonSaveDataRepository {
     async fn delete_snapshot(&self, scenario_id: &ScenarioId) -> Result<(), RepositoryError> {
         let path = self.get_save_path(scenario_id);
 
-        if !path.exists() {
-            return Err(RepositoryError::SaveDataNotFound {
-                id: scenario_id.clone(),
-            });
-        }
-
-        tokio::fs::remove_file(&path)
-            .await
-            .map_err(|e| RepositoryError::IoError {
+        match tokio::fs::remove_file(&path).await {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                Err(RepositoryError::SaveDataNotFound {
+                    id: scenario_id.clone(),
+                })
+            }
+            Err(e) => Err(RepositoryError::IoError {
                 message: format!("Failed to delete save file {}: {}", path.display(), e),
-            })
+            }),
+        }
     }
 }

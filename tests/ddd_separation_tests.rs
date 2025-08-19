@@ -12,7 +12,7 @@ mod ddd_tests {
     #[test]
     fn test_domain_pure_construction() {
         // Should be able to create domain objects without I/O
-        let scenario_id = ScenarioId::new("test_scenario".to_string());
+        let scenario_id = ScenarioId::from("test_scenario".to_string());
         let commands = vec![
             StoryCommand::Say {
                 speaker: SpeakerName::new("Hero".to_string()),
@@ -39,7 +39,7 @@ mod ddd_tests {
     #[test]
     fn test_domain_error_quality() {
         // Create scenario with undefined label reference
-        let scenario_id = ScenarioId::new("test".to_string());
+        let scenario_id = ScenarioId::from("test".to_string());
         let commands = vec![StoryCommand::Jump {
             label: LabelName::new("undefined".to_string()),
         }];
@@ -68,7 +68,7 @@ mod ddd_tests {
     /// Metric: Service should execute branching scenarios correctly
     #[test]
     fn test_execution_service_branching() {
-        let scenario_id = ScenarioId::new("branch_test".to_string());
+        let scenario_id = ScenarioId::from("branch_test".to_string());
         let commands = vec![
             StoryCommand::Say {
                 speaker: SpeakerName::new("Guide".to_string()),
@@ -158,7 +158,7 @@ mod ddd_tests {
     /// Metric: Variable manipulation should not require external dependencies
     #[test]
     fn test_variable_operations_pure() {
-        let scenario_id = ScenarioId::new("var_test".to_string());
+        let scenario_id = ScenarioId::from("var_test".to_string());
         let commands = vec![
             StoryCommand::SetVariable {
                 name: VariableName::new("score".to_string()),
@@ -224,7 +224,7 @@ mod ddd_tests {
     /// Metric: Save/restore should work without I/O
     #[test]
     fn test_snapshot_pure() {
-        let scenario_id = ScenarioId::new("snapshot_test".to_string());
+        let scenario_id = ScenarioId::from("snapshot_test".to_string());
         let commands = vec![
             StoryCommand::SetVariable {
                 name: VariableName::new("progress".to_string()),

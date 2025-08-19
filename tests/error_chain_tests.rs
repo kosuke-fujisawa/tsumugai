@@ -33,7 +33,7 @@ impl ScenarioRepositoryTrait for FailingScenarioRepository {
 async fn test_error_chain_preserved() {
     // Test that the error source is preserved through the chain
     let repository = Arc::new(FailingScenarioRepository);
-    let scenario_id = ScenarioId::new("test".to_string());
+    let scenario_id = ScenarioId::from("test".to_string());
 
     let result = repository.load_scenario(&scenario_id).await;
 

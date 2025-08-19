@@ -33,11 +33,11 @@ fn main() {
                             }
                             NextAction::WaitUser => {
                                 print!("Press Enter to continue...");
-                                io::stdout().flush().expect("Failed to flush stdout");
+                                io::stdout().flush().expect("stdout flush failed");
                                 let mut input = String::new();
                                 io::stdin()
                                     .read_line(&mut input)
-                                    .expect("Failed to read input");
+                                    .expect("stdin read failed");
                                 execution_log.push("User input: Enter pressed".to_string());
                             }
                             NextAction::WaitBranch => {
@@ -53,11 +53,11 @@ fn main() {
                                     }
 
                                     print!("Enter choice number: ");
-                                    io::stdout().flush().expect("Failed to flush stdout");
+                                    io::stdout().flush().expect("stdout flush failed");
                                     let mut input = String::new();
                                     io::stdin()
                                         .read_line(&mut input)
-                                        .expect("Failed to read input");
+                                        .expect("stdin read failed");
 
                                     if let Ok(choice_num) = input.trim().parse::<usize>() {
                                         if (1..=choices.len()).contains(&choice_num) {
@@ -91,7 +91,7 @@ fn main() {
                         }
                     }
                     Err(e) => {
-                        println!("Error during execution: {e}");
+                        eprintln!("Error during execution: {e}");
                         break;
                     }
                 }
@@ -103,7 +103,7 @@ fn main() {
             }
         }
         Err(e) => {
-            println!("Failed to parse markdown: {e}");
+            eprintln!("Failed to parse markdown: {e}");
         }
     }
 }

@@ -81,7 +81,7 @@ impl MarkdownParserTrait for MockMarkdownParser {
         };
 
         let scenario = Scenario::new(
-            ScenarioId::new("mock".to_string()),
+            ScenarioId::from("mock".to_string()),
             "Mock Scenario".to_string(),
             vec![StoryCommand::Say {
                 speaker: SpeakerName::new("Mock".to_string()),

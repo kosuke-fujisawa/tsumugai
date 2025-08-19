@@ -1,5 +1,6 @@
 //! Domain value objects - Immutable objects that describe aspects of the domain
 
+use crate::domain::errors::DomainError;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -31,8 +32,23 @@ macro_rules! impl_string_wrapper {
 pub struct ScenarioId(String);
 
 impl ScenarioId {
-    pub fn new(id: String) -> Self {
-        Self(id)
+    pub fn new(id: impl Into<String>) -> Result<Self, DomainError> {
+        let s = id.into();
+        let valid = s
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+            && !s.contains("..")
+            && !s.contains('/')
+            && !s.contains('\\')
+            && !s.is_empty();
+        if !valid {
+            return Err(DomainError::invalid_scenario("Invalid scenario id"));
+        }
+        Ok(Self(s))
+    }
+
+    pub fn new_unchecked(id: impl Into<String>) -> Self {
+        Self(id.into())
     }
 
     pub fn as_str(&self) -> &str {
@@ -40,7 +56,24 @@ impl ScenarioId {
     }
 }
 
-impl_string_wrapper!(ScenarioId);
+// Keep From implementations for backward compatibility (unsafe)
+impl From<String> for ScenarioId {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for ScenarioId {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl std::fmt::Display for ScenarioId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 /// Label name for jump targets
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]

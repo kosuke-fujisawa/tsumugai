@@ -15,7 +15,7 @@ struct TestScenarioRepository;
 impl ScenarioRepositoryTrait for TestScenarioRepository {
     async fn load_scenario(&self, _: &ScenarioId) -> Result<Scenario, RepositoryError> {
         Ok(Scenario::new(
-            ScenarioId::new("test".to_string()),
+            ScenarioId::from("test".to_string()),
             "Test".to_string(),
             vec![],
         ))

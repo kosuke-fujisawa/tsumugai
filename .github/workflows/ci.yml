@@ -1,5 +1,9 @@
 name: CI
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [ main ]
@@ -16,7 +20,7 @@ jobs:
     permissions:
       contents: read
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
     
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
@@ -24,13 +28,15 @@ jobs:
         components: rustfmt, clippy
     
     - name: Cache cargo
-      uses: actions/cache@v4
+      uses: actions/cache@374a27f26986edd8c430f386d152a856e179c0ae # v4.2.4
       with:
         path: |
           ~/.cargo/registry
           ~/.cargo/git
           target
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
     
     - name: Format check
       run: cargo fmt --all -- --check
@@ -58,7 +64,7 @@ jobs:
         echo "Examples executed successfully"
     
     - name: Upload dump artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@08396203c179e13c71b9754ce3472ed71842eec0 # v4.6.2
       if: always()
       with:
         name: dump-outputs
@@ -72,26 +78,34 @@ jobs:
     permissions:
       contents: read
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
     
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
     
     - name: Cache cargo
-      uses: actions/cache@v4
+      uses: actions/cache@374a27f26986edd8c430f386d152a856e179c0ae # v4.2.4
       with:
         path: |
           ~/.cargo/registry
           ~/.cargo/git
           target
         key: ${{ runner.os }}-cargo-additional-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
     
     - name: Additional test suites
       run: |
-        cargo test --test unit_engine_tests || echo "Unit engine tests failed (non-blocking)"
-        cargo test --test clean_architecture_tests || echo "Clean architecture tests failed (non-blocking)"
-        cargo test --test application_layer_tests || echo "Application layer tests failed (non-blocking)"
-        cargo test --test dfs_scenario_tests || echo "DFS scenario tests failed (non-blocking)"
-        cargo test --test unit_parser_tests || echo "Unit parser tests failed (non-blocking)"
-        cargo test --test clean_architecture_contract_tests || echo "Contract tests failed (non-blocking)"
-        cargo test --test ddd_separation_tests || echo "DDD separation tests failed (non-blocking)"
+        cargo test --test unit_engine_tests
+        cargo test --test clean_architecture_tests
+        cargo test --test application_layer_tests
+        cargo test --test dfs_scenario_tests
+        cargo test --test unit_parser_tests
+        cargo test --test clean_architecture_contract_tests
+        cargo test --test ddd_separation_tests
+        cargo test --test application_engine_tests
+        cargo test --test application_integration_tests
+        cargo test --test branch_cache_tests
+        cargo test --test dependency_injection_tests
+        cargo test --test directive_mapping_tests
+        cargo test --test error_chain_tests

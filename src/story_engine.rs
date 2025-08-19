@@ -155,7 +155,7 @@ impl StoryEngine {
 
         // Create a dummy execution for compatibility - this will need proper integration
         let scenario = crate::domain::entities::Scenario::new(
-            crate::domain::value_objects::ScenarioId::new("temp".to_string()),
+            crate::domain::value_objects::ScenarioId::from("temp"),
             "Temporary Scenario".to_string(),
             Vec::new(),
         );

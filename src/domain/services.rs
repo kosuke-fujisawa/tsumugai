@@ -140,8 +140,8 @@ impl StoryExecutionService {
                         value: execution
                             .state()
                             .get_variable(name)
-                            .expect("variable must exist after successful modify_variable")
-                            .clone(),
+                            .cloned()
+                            .expect("variable must exist after successful modify_variable"),
                     },
                 ))
             }

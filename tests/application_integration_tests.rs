@@ -15,7 +15,7 @@ impl ScenarioRepositoryTrait for MinimalScenarioRepository {
     async fn load_scenario(&self, _: &ScenarioId) -> Result<Scenario, RepositoryError> {
         // Return a minimal scenario for testing
         let scenario = Scenario::new(
-            ScenarioId::new("test".to_string()),
+            ScenarioId::from("test".to_string()),
             "Test Scenario".to_string(),
             vec![
                 tsumugai::domain::value_objects::StoryCommand::Say {
@@ -92,7 +92,7 @@ async fn test_application_min_flow() {
     let resolver = Arc::new(MinimalResourceResolver);
     let use_case = ScenarioPlaybackUseCase::new(repository, resolver);
 
-    let scenario_id = ScenarioId::new("test".to_string());
+    let scenario_id = ScenarioId::from("test".to_string());
     let mut execution = use_case.start_scenario(&scenario_id).await.unwrap();
 
     // Execute next step should return a Say directive

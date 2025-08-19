@@ -98,6 +98,79 @@ impl MarkdownParser {
         }
     }
 
+    /// Split string by commas while preserving quoted strings
+    fn split_commas_preserving_quotes(s: &str) -> Vec<String> {
+        let mut parts = Vec::new();
+        let mut current = String::new();
+        let mut in_quotes = false;
+        let chars = s.chars();
+
+        for c in chars {
+            match c {
+                '"' => {
+                    in_quotes = !in_quotes;
+                    current.push(c);
+                }
+                ',' if !in_quotes => {
+                    if !current.trim().is_empty() {
+                        parts.push(current.trim().to_string());
+                    }
+                    current.clear();
+                }
+                _ => {
+                    current.push(c);
+                }
+            }
+        }
+
+        if !current.trim().is_empty() {
+            parts.push(current.trim().to_string());
+        }
+
+        parts
+    }
+
+    /// Split string by whitespace while preserving quoted strings
+    fn split_ws_preserving_quotes(s: &str) -> Vec<String> {
+        let mut parts = Vec::new();
+        let mut current = String::new();
+        let mut in_quotes = false;
+        let chars = s.chars();
+
+        for c in chars {
+            match c {
+                '"' => {
+                    in_quotes = !in_quotes;
+                    current.push(c);
+                }
+                ' ' | '\t' if !in_quotes => {
+                    if !current.trim().is_empty() {
+                        parts.push(current.trim().to_string());
+                    }
+                    current.clear();
+                }
+                _ => {
+                    current.push(c);
+                }
+            }
+        }
+
+        if !current.trim().is_empty() {
+            parts.push(current.trim().to_string());
+        }
+
+        parts
+    }
+
+    /// Remove quotes from string if present
+    fn unquote(s: &str) -> std::borrow::Cow<str> {
+        if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
+            std::borrow::Cow::Borrowed(&s[1..s.len() - 1])
+        } else {
+            std::borrow::Cow::Borrowed(s)
+        }
+    }
+
     fn parse(mut self) -> Result<(Vec<StoryCommand>, String), ParseError> {
         let title = self.extract_title();
 
@@ -278,32 +351,22 @@ impl MarkdownParser {
 
         // Use comma detection for parameters
         if full_params.contains(',') {
-            let param_parts: Vec<&str> = full_params.split(',').collect();
+            let param_parts = Self::split_commas_preserving_quotes(&full_params);
             for part in param_parts {
-                let part = part.trim();
                 if let Some(eq_pos) = part.find('=') {
                     let key = part[..eq_pos].trim().to_string();
-                    let value = part[eq_pos + 1..].trim().to_string();
-                    let value = if value.starts_with('"') && value.ends_with('"') {
-                        value[1..value.len() - 1].to_string()
-                    } else {
-                        value
-                    };
-                    params.insert(key, value);
+                    let value = part[eq_pos + 1..].trim();
+                    params.insert(key, Self::unquote(value).to_string());
                 }
             }
         } else {
             // Handle space-separated parameters
-            for part in parts {
+            let ws_parts = Self::split_ws_preserving_quotes(&full_params);
+            for part in ws_parts {
                 if let Some(eq_pos) = part.find('=') {
                     let key = part[..eq_pos].to_string();
-                    let value = part[eq_pos + 1..].to_string();
-                    let value = if value.starts_with('"') && value.ends_with('"') {
-                        value[1..value.len() - 1].to_string()
-                    } else {
-                        value
-                    };
-                    params.insert(key, value);
+                    let value = part[eq_pos + 1..].trim();
+                    params.insert(key, Self::unquote(value).to_string());
                 }
             }
         }
@@ -363,11 +426,10 @@ impl MarkdownParser {
             let parts: Vec<&str> = command_content.split_whitespace().collect();
             if parts.len() > 1 && parts[0] == "BRANCH" {
                 let params_str = parts[1..].join(" ");
-                let param_pairs: Vec<&str> = params_str.split(',').collect();
+                let param_pairs = Self::split_commas_preserving_quotes(&params_str);
 
                 for pair in param_pairs {
-                    let pair = pair.trim();
-                    let key_value_pairs: Vec<&str> = pair.split_whitespace().collect();
+                    let key_value_pairs = Self::split_ws_preserving_quotes(&pair);
 
                     let mut current_choice: Option<String> = None;
                     let mut current_label: Option<String> = None;
@@ -378,9 +440,9 @@ impl MarkdownParser {
                             let value = kv[eq_pos + 1..].trim();
 
                             if key == "choice" {
-                                current_choice = Some(value.to_string());
+                                current_choice = Some(Self::unquote(value).to_string());
                             } else if key == "label" {
-                                current_label = Some(value.to_string());
+                                current_label = Some(Self::unquote(value).to_string());
                             }
                         }
                     }
