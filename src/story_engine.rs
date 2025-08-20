@@ -179,12 +179,14 @@ impl StoryEngine {
 
             match result {
                 ExecutionResult::Continue(directive) => return Ok(StepResult::Continue(directive)),
-                ExecutionResult::WaitForUser(directive) => return Ok(StepResult::WaitForUser(directive)),
+                ExecutionResult::WaitForUser(directive) => {
+                    return Ok(StepResult::WaitForUser(directive));
+                }
                 ExecutionResult::WaitForTimer { directive, .. } => {
-                    return Ok(StepResult::WaitForUser(directive))
+                    return Ok(StepResult::WaitForUser(directive));
                 }
                 ExecutionResult::WaitForBranchSelection(choices) => {
-                    return Ok(StepResult::WaitForChoice(choices))
+                    return Ok(StepResult::WaitForChoice(choices));
                 }
                 ExecutionResult::Jump(_) => continue, // 次のコマンドへ
                 ExecutionResult::Finished => return Ok(StepResult::Finished),

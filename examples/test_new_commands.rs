@@ -42,10 +42,8 @@ fn main() {
                             }
                             NextAction::WaitBranch => {
                                 // Handle branch selection
-                                if let Some(choices) = step_result
-                                    .directives
-                                    .iter()
-                                    .find_map(|d| match d {
+                                if let Some(choices) =
+                                    step_result.directives.iter().find_map(|d| match d {
                                         tsumugai::Directive::Branch { choices } => Some(choices),
                                         _ => None,
                                     })

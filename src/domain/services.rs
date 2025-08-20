@@ -133,7 +133,8 @@ impl StoryExecutionService {
                 operation,
                 value,
             } => {
-                let new_value = self.modify_variable(execution.state_mut(), name, operation, value)?;
+                let new_value =
+                    self.modify_variable(execution.state_mut(), name, operation, value)?;
                 Ok(ExecutionResult::Continue(
                     ExecutionDirective::VariableChanged {
                         name: name.clone(),
