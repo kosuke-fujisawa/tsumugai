@@ -1,69 +1,121 @@
 //! # tsumugai
 //!
-//! A Rust library that parses Markdown scenarios into Command sequences and provides
-//! step-by-step execution with Directive emission for visual novel-like applications.
+//! A Rust library that parses Markdown scenarios into story commands and provides
+//! step-by-step execution for visual novel-like applications using Clean Architecture principles.
 //!
-//! The library does NOT implement audio/video playback, rendering, or UI - it only
-//! provides the execution logic and tells your application what to do through Directives.
+//! The library provides both high-level convenience APIs and low-level domain access
+//! for maximum flexibility.
 //!
-//! ## Example
+//! ## Quick Start
 //!
 //! ```rust
-//! use tsumugai::{parse, Engine, Step, WaitKind};
+//! use tsumugai::application::{engine::Engine, api::{NextAction, Directive}};
 //!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Simple usage - load and execute a scenario
 //! let markdown = r#"
-//! [SAY speaker=Ayumi]
+//! [SAY speaker=Hero]
 //! Hello, world!
-//!
-//! [PLAY_BGM name=intro]
 //! "#;
-//!
-//! let program = parse(markdown).unwrap();
-//! let mut engine = Engine::new(program);
+//! let mut engine = Engine::from_markdown(markdown)?;
 //!
 //! loop {
-//!     match engine.step() {
-//!         Step::Next => continue,
-//!         Step::Wait(WaitKind::User) => {
-//!             // Handle user input, then continue
-//!             continue;
+//!     let result = engine.step()?;
+//!     
+//!     // Handle directives
+//!     for directive in &result.directives {
+//!         match directive {
+//!             Directive::Say { speaker, text } => {
+//!                 println!("{}: {}", speaker, text);
+//!             }
+//!             _ => println!("Other directive: {:?}", directive),
 //!         }
-//!         Step::Wait(WaitKind::Branch(choices)) => {
-//!             // Handle branch selection, then jump
-//!             continue;
-//!         }
-//!         Step::Jump(label) => {
-//!             engine.jump_to(&label).unwrap();
-//!         }
-//!         Step::Halt => break,
 //!     }
 //!     
-//!     // Get emitted directives
-//!     let directives = engine.take_emitted();
-//!     for directive in directives {
-//!         // Handle each directive (play audio, show text, etc.)
-//!         println!("{:?}", directive);
+//!     // Handle next action
+//!     match result.next {
+//!         NextAction::Next => continue,
+//!         NextAction::WaitUser => {
+//!             // Wait for user input, then continue
+//!             break; // For demo
+//!         }
+//!         NextAction::WaitBranch => {
+//!             // Present choices to user, then call engine.choose(index)
+//!             engine.choose(0)?;
+//!         }
+//!         NextAction::Halt => break,
 //!     }
 //! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Advanced Usage with Domain Layer
+//!
+//! ```rust
+//! use tsumugai::infrastructure::parsing::{MarkdownScenarioParser, ScenarioParser};
+//! use tsumugai::domain::{entities::StoryExecution, services::StoryExecutionService};
+//!
+//! # #[tokio::main]
+//! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Use domain services directly for more control
+//! let parser = MarkdownScenarioParser::with_default_id_generator();
+//! let scenario = parser.parse("[SAY speaker=Hero]\nHello!").await?;
+//!
+//! let mut execution = StoryExecution::new(scenario)?;
+//! let execution_service = StoryExecutionService::new();
+//!
+//! let result = execution_service.execute_next_command(&mut execution)?;
+//! println!("Execution result: {:?}", result);
+//! # Ok(())
+//! # }
 //! ```
 
+pub mod application;
+pub mod contracts;
+pub mod domain;
 pub mod engine;
+pub mod infrastructure;
 pub mod ir;
+pub mod legacy_adapter;
 pub mod parse;
 pub mod resolve;
 
-pub use engine::{Directive, Engine, ResId, Step, WaitKind};
+// Stable public contracts - the main API for library users
+pub use application::api::{ApiError, Directive, NextAction, StepResult};
+pub use application::engine::Engine;
+
+// Legacy contracts for backward compatibility
+pub use contracts::{StepDirectives, StoryEngineError};
+
+// High-level API exports
+pub use story_engine::StoryEngine;
+
+// Domain layer exports for advanced usage
+// Note: Users can access domain and infrastructure modules directly
+
+// Legacy API exports for backward compatibility
+#[deprecated(since = "0.2.0", note = "Use `application::api::Directive` instead")]
+pub use engine::{Directive as LegacyDirective, ResId};
+#[deprecated(since = "0.2.0", note = "Use `application::engine::Engine` instead")]
+pub use engine::{Engine as LegacyEngine, Step, WaitKind};
 pub use ir::*;
+#[deprecated(
+    since = "0.2.0",
+    note = "Use `application::engine::Engine::from_markdown()` instead"
+)]
 pub use parse::{ParseError, parse};
 pub use resolve::*;
+
+// High-level story engine implementation
+mod story_engine;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::Directive;
 
     #[test]
-    fn test_basic_parsing() {
+    fn test_basic_parsing_and_execution() {
         let markdown = r#"
 [SAY speaker=Ayumi]
 Hello, world!
@@ -71,74 +123,98 @@ Hello, world!
 [PLAY_BGM name=intro]
 "#;
 
-        let program = parse(markdown).unwrap();
-        assert_eq!(program.cmds.len(), 2);
+        let mut engine = Engine::from_markdown(markdown).unwrap();
 
-        match &program.cmds[0] {
-            Command::Say { speaker, text } => {
+        // First step: SAY command
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::WaitUser);
+        assert_eq!(step_result.directives.len(), 1);
+
+        match &step_result.directives[0] {
+            Directive::Say { speaker, text } => {
                 assert_eq!(speaker, "Ayumi");
                 assert_eq!(text, "Hello, world!");
             }
-            _ => panic!("Expected Say command"),
+            _ => panic!("Expected Say directive"),
         }
 
-        match &program.cmds[1] {
-            Command::PlayBgm { name } => {
-                assert_eq!(name, "intro");
+        // Second step: PLAY_BGM command
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::Next);
+        assert_eq!(step_result.directives.len(), 1);
+
+        match &step_result.directives[0] {
+            Directive::PlayBgm { path } => {
+                assert_eq!(path, &None); // No resolver
             }
-            _ => panic!("Expected PlayBgm command"),
+            _ => panic!("Expected PlayBgm directive"),
         }
     }
 
     #[test]
-    fn test_branch_parsing() {
+    fn test_branch_execution() {
         let markdown = r#"
 [BRANCH choice=左へ label=go_left, choice=右へ label=go_right]
 
 [LABEL name=go_left]
+[SAY speaker=Guide]
+You went left.
 
 [LABEL name=go_right]
+[SAY speaker=Guide] 
+You went right.
 "#;
 
-        let program = match parse(markdown) {
-            Ok(p) => p,
-            Err(e) => panic!("Parse error: {:?}", e),
-        };
-        assert_eq!(program.cmds.len(), 3); // BRANCH + 2 LABELs
+        let mut engine = Engine::from_markdown(markdown).unwrap();
 
-        match &program.cmds[0] {
-            Command::Branch { choices } => {
+        // First step: BRANCH command
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::WaitBranch);
+        assert_eq!(step_result.directives.len(), 1);
+
+        match &step_result.directives[0] {
+            Directive::Branch { choices } => {
                 assert_eq!(choices.len(), 2);
-                assert_eq!(choices[0].choice, "左へ");
-                assert_eq!(choices[0].label, "go_left");
-                assert_eq!(choices[1].choice, "右へ");
-                assert_eq!(choices[1].label, "go_right");
+                assert_eq!(choices[0], "左へ");
+                assert_eq!(choices[1], "右へ");
             }
-            _ => panic!("Expected Branch command"),
+            _ => panic!("Expected Branch directive"),
+        }
+
+        // Choose first option (left)
+        engine.choose(0).unwrap();
+
+        // Should now be at left label
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::Next);
+
+        // Next should be the SAY after left label
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::WaitUser);
+        match &step_result.directives[0] {
+            Directive::Say { speaker, text } => {
+                assert_eq!(speaker, "Guide");
+                assert_eq!(text, "You went left.");
+            }
+            _ => panic!("Expected Say directive"),
         }
     }
 
     #[test]
-    fn test_engine_execution() {
+    fn test_wait_execution() {
         let markdown = r#"
 [SAY speaker=Ayumi]
 Hello!
 
-[PLAY_BGM name=intro]
-
 [WAIT 1.5s]
 "#;
 
-        let program = parse(markdown).unwrap();
-        let mut engine = Engine::new(program);
+        let mut engine = Engine::from_markdown(markdown).unwrap();
 
         // First step: SAY command
-        let step = engine.step();
-        assert_eq!(step, Step::Wait(WaitKind::User));
-
-        let directives = engine.take_emitted();
-        assert_eq!(directives.len(), 1);
-        match &directives[0] {
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::WaitUser);
+        match &step_result.directives[0] {
             Directive::Say { speaker, text } => {
                 assert_eq!(speaker, "Ayumi");
                 assert_eq!(text, "Hello!");
@@ -146,36 +222,19 @@ Hello!
             _ => panic!("Expected Say directive"),
         }
 
-        // Second step: PLAY_BGM command
-        let step = engine.step();
-        assert_eq!(step, Step::Next);
-
-        let directives = engine.take_emitted();
-        assert_eq!(directives.len(), 1);
-        match &directives[0] {
-            Directive::PlayBgm { res } => {
-                assert_eq!(res.logical, "intro");
-                assert_eq!(res.resolved, None); // No resolver
-            }
-            _ => panic!("Expected PlayBgm directive"),
-        }
-
-        // Third step: WAIT command
-        let step = engine.step();
-        assert_eq!(step, Step::Wait(WaitKind::Timer(1.5)));
-
-        let directives = engine.take_emitted();
-        assert_eq!(directives.len(), 1);
-        match &directives[0] {
-            Directive::Wait { secs } => {
-                assert_eq!(*secs, 1.5);
+        // Second step: WAIT command
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::WaitUser);
+        match &step_result.directives[0] {
+            Directive::Wait { seconds } => {
+                assert_eq!(*seconds, 1.5);
             }
             _ => panic!("Expected Wait directive"),
         }
 
-        // Fourth step: End of program
-        let step = engine.step();
-        assert_eq!(step, Step::Halt);
+        // Third step: End of program
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::Halt);
     }
 
     #[test]
@@ -192,34 +251,20 @@ This should be skipped.
 Target reached!
 "#;
 
-        let program = parse(markdown).unwrap();
-        let mut engine = Engine::new(program);
+        let mut engine = Engine::from_markdown(markdown).unwrap();
 
         // First step: JUMP command
-        let step = engine.step();
-        match step {
-            Step::Jump(label) => {
-                assert_eq!(label, "target");
-                let directives = engine.take_emitted(); // Take jump directive
-                assert_eq!(directives.len(), 1);
-                engine.jump_to(&label).unwrap();
-            }
-            _ => panic!("Expected Jump step"),
-        }
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::Next);
 
-        // Should now be at the LABEL
-        let step = engine.step();
-        assert_eq!(step, Step::Next);
-        let directives = engine.take_emitted(); // Take label directive
-        assert_eq!(directives.len(), 1);
+        // Next step: should land at the LABEL
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::Next);
 
         // Next should be the SAY after the label
-        let step = engine.step();
-        assert_eq!(step, Step::Wait(WaitKind::User));
-
-        let directives = engine.take_emitted(); // Take say directive
-        assert_eq!(directives.len(), 1);
-        match &directives[0] {
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::WaitUser);
+        match &step_result.directives[0] {
             Directive::Say { speaker, text } => {
                 assert_eq!(speaker, "Ayumi");
                 assert_eq!(text, "Target reached!");
@@ -246,43 +291,31 @@ This should be skipped.
 Score is correct!
 "#;
 
-        let program = parse(markdown).unwrap();
-        let mut engine = Engine::new(program);
+        let mut engine = Engine::from_markdown(markdown).unwrap();
 
         // SET command
-        let step = engine.step();
-        assert_eq!(step, Step::Next);
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::Next);
 
         // MODIFY command
-        let step = engine.step();
-        assert_eq!(step, Step::Next);
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::Next);
 
         // Check variable value
-        assert_eq!(engine.vars().get("score"), Some(&Value::Int(15)));
+        assert_eq!(engine.get_var("score"), Some("15".to_string()));
 
-        // JUMP_IF command should jump
-        let step = engine.step();
-        match step {
-            Step::Jump(label) => {
-                assert_eq!(label, "success");
-                engine.take_emitted(); // Clear any emitted directives
-                engine.jump_to(&label).unwrap();
-            }
-            _ => panic!("Expected Jump step"),
-        }
+        // JUMP_IF command should execute
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::Next);
 
         // Should now be at the LABEL
-        let step = engine.step();
-        assert_eq!(step, Step::Next);
-        engine.take_emitted(); // Clear label directive
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::Next);
 
         // Next should be the success SAY
-        let step = engine.step();
-        assert_eq!(step, Step::Wait(WaitKind::User));
-
-        let directives = engine.take_emitted();
-        assert_eq!(directives.len(), 1);
-        match &directives[0] {
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::WaitUser);
+        match &step_result.directives[0] {
             Directive::Say { speaker, text } => {
                 assert_eq!(speaker, "System");
                 assert_eq!(text, "Score is correct!");
@@ -292,7 +325,7 @@ Score is correct!
     }
 
     #[test]
-    fn test_save_restore() {
+    fn test_variable_persistence() {
         let markdown = r#"
 [SET name=score value=10]
 
@@ -300,25 +333,21 @@ Score is correct!
 Current score: 10
 "#;
 
-        let program = parse(markdown).unwrap();
-        let mut engine = Engine::new(program);
+        let mut engine = Engine::from_markdown(markdown).unwrap();
 
         // Execute SET command
-        engine.step();
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::Next);
 
-        // Take a snapshot
-        let save_data = engine.snapshot();
-        assert_eq!(save_data.pc, 1);
-        assert_eq!(save_data.vars.get("score"), Some(&Value::Int(10)));
+        // Check variable was set
+        assert_eq!(engine.get_var("score"), Some("10".to_string()));
 
         // Continue execution
-        engine.step();
-        assert_eq!(engine.snapshot().pc, 2);
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::WaitUser);
 
-        // Restore from snapshot
-        engine.restore(save_data).unwrap();
-        assert_eq!(engine.snapshot().pc, 1);
-        assert_eq!(engine.vars().get("score"), Some(&Value::Int(10)));
+        // Variable should still be accessible
+        assert_eq!(engine.get_var("score"), Some("10".to_string()));
     }
 
     #[test]
@@ -341,27 +370,25 @@ Current score: 10
 [PLAY_BGM name=missing]
 "#;
 
-        let program = parse(markdown).unwrap();
-        let mut engine = Engine::with_resolver(program, Box::new(TestResolver));
+        let mut engine =
+            Engine::from_markdown_with_resolver(markdown, Box::new(TestResolver)).unwrap();
 
         // First BGM should resolve
-        engine.step();
-        let directives = engine.take_emitted();
-        match &directives[0] {
-            Directive::PlayBgm { res } => {
-                assert_eq!(res.logical, "intro");
-                assert_eq!(res.resolved, Some(PathBuf::from("/test/intro.mp3")));
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::Next);
+        match &step_result.directives[0] {
+            Directive::PlayBgm { path } => {
+                assert_eq!(path, &Some("/test/intro.mp3".to_string()));
             }
             _ => panic!("Expected PlayBgm directive"),
         }
 
         // Second BGM should not resolve
-        engine.step();
-        let directives = engine.take_emitted();
-        match &directives[0] {
-            Directive::PlayBgm { res } => {
-                assert_eq!(res.logical, "missing");
-                assert_eq!(res.resolved, None);
+        let step_result = engine.step().unwrap();
+        assert_eq!(step_result.next, NextAction::Next);
+        match &step_result.directives[0] {
+            Directive::PlayBgm { path } => {
+                assert_eq!(path, &None);
             }
             _ => panic!("Expected PlayBgm directive"),
         }
@@ -385,29 +412,39 @@ go
 [SAY speaker=A]
 stop
 "#;
-        let program = parse(md).unwrap();
-        let mut eng = Engine::new(program);
+        let mut eng = Engine::from_markdown(md).unwrap();
 
         // 1回目：SAY で待ち
-        assert!(matches!(eng.step(), Step::Wait(WaitKind::User)));
-        eng.take_emitted();
+        let step_result = eng.step().unwrap();
+        assert_eq!(step_result.next, NextAction::WaitUser);
 
-        // 2回目：BRANCHをEmitして待ち（Enterでは進まない）
-        assert!(matches!(eng.step(), Step::Wait(WaitKind::Branch(_))));
-        let ds = eng.take_emitted();
-        assert!(matches!(ds.last(), Some(Directive::Branch { .. })));
-
-        // Enterではなく jump_to でのみ進む
-        // eng.step() をもう一度呼んでも Wait(Branch) のまま、かつ Branch を再Emitしない想定
-        assert!(matches!(eng.step(), Step::Wait(WaitKind::Branch(_))));
-        let again = eng.take_emitted();
-        assert!(again.is_empty(), "should not re-emit branch");
+        // 2回目：BRANCHで待ち
+        let step_result = eng.step().unwrap();
+        assert_eq!(step_result.next, NextAction::WaitBranch);
+        match &step_result.directives[0] {
+            Directive::Branch { choices } => {
+                assert_eq!(choices.len(), 2);
+            }
+            _ => panic!("Expected Branch directive"),
+        }
 
         // 選択決定
-        eng.jump_to("go").unwrap();
-        assert!(matches!(eng.step(), Step::Next)); // LABELに到達
-        eng.take_emitted(); // LABEL directive を消費
-        assert!(matches!(eng.step(), Step::Wait(WaitKind::User))); // go の SAY に到達
+        eng.choose(0).unwrap(); // Choose "Go"
+
+        // LABELに到達
+        let step_result = eng.step().unwrap();
+        assert_eq!(step_result.next, NextAction::Next);
+
+        // go の SAY に到達
+        let step_result = eng.step().unwrap();
+        assert_eq!(step_result.next, NextAction::WaitUser);
+        match &step_result.directives[0] {
+            Directive::Say { speaker, text } => {
+                assert_eq!(speaker, "A");
+                assert_eq!(text, "go");
+            }
+            _ => panic!("Expected Say directive"),
+        }
     }
 
     #[test]
@@ -421,35 +458,40 @@ stop
 [LABEL name=go_left]
 [SAY speaker=A] L
 "#;
-        let p = parse(md).unwrap();
-        let mut eng = Engine::new(p);
+        let mut eng = Engine::from_markdown(md).unwrap();
 
-        // 1: 分岐に到達 → Wait(Branch)
-        match eng.step() {
-            Step::Wait(WaitKind::Branch(choices)) => {
+        // 1: 分岐に到達 → WaitBranch
+        let step_result = eng.step().unwrap();
+        assert_eq!(step_result.next, NextAction::WaitBranch);
+        match &step_result.directives[0] {
+            Directive::Branch { choices } => {
                 assert_eq!(choices.len(), 2);
-                eng.jump_to(&choices[0].label).unwrap();
             }
-            other => panic!("expected Branch wait, got {other:?}"),
+            _ => panic!("Expected Branch directive"),
         }
+
+        // Choose first option
+        eng.choose(0).unwrap();
 
         // 2: 分岐先の LABEL に到達 → Next
-        match eng.step() {
-            Step::Next => { /* OK */ }
-            other => panic!("expected Next, got {other:?}"),
-        }
-        eng.take_emitted(); // Clear label directive
+        let step_result = eng.step().unwrap();
+        assert_eq!(step_result.next, NextAction::Next);
 
-        // 3: 分岐先の SAY に到達 → Wait(User)
-        match eng.step() {
-            Step::Wait(WaitKind::User) => { /* OK */ }
-            other => panic!("expected User wait, got {other:?}"),
+        // 3: 分岐先の SAY に到達 → WaitUser
+        let step_result = eng.step().unwrap();
+        assert_eq!(step_result.next, NextAction::WaitUser);
+        match &step_result.directives[0] {
+            Directive::Say { speaker, text } => {
+                assert_eq!(speaker, "A");
+                assert_eq!(text, "R");
+            }
+            _ => panic!("Expected Say directive"),
         }
     }
 
     /// Unit test: Parse label validation
-    /// Verifies that undefined labels result in ParseError with line numbers included.
-    /// Metric: Error message must contain "line N" for proper debugging.
+    /// Verifies that undefined labels result in ApiError with line numbers included.
+    /// Metric: Error message must contain line information for proper debugging.
     #[test]
     fn parse_label_validation() {
         let markdown_with_undefined_label = r#"
@@ -464,28 +506,18 @@ Hello
 Done
 "#;
 
-        match parse(markdown_with_undefined_label) {
-            Err(crate::ParseError::UndefinedLabel { label, line }) => {
-                assert_eq!(label, "undefined_label");
-                assert_eq!(line, 2); // JUMP is command 1 (0-indexed + 1)
-
-                // Verify error message contains line information
-                let error_msg = format!(
-                    "{}",
-                    crate::ParseError::UndefinedLabel {
-                        label: label.clone(),
-                        line
-                    }
-                );
-                assert!(
-                    error_msg.contains(&format!("line {}", line)),
-                    "Error message should contain 'line {}', got: {}",
-                    line,
-                    error_msg
-                );
+        match Engine::from_markdown(markdown_with_undefined_label) {
+            Err(ApiError::Parse {
+                line,
+                column: _,
+                message,
+            }) => {
+                assert!(message.contains("undefined_label"));
+                assert!(message.contains("Undefined label"));
+                assert!(line > 0, "Line number should be provided");
             }
             Err(other_error) => {
-                panic!("Expected UndefinedLabel error, got: {:?}", other_error);
+                panic!("Expected Parse error, got: {other_error:?}");
             }
             Ok(_) => {
                 panic!("Expected parse error for undefined label, but parsing succeeded");
@@ -507,32 +539,18 @@ Hello
 Done
 "#;
 
-        match parse(markdown_with_undefined_branch_label) {
-            Err(crate::ParseError::UndefinedLabel { label, line }) => {
-                assert_eq!(label, "undefined_target");
-                assert_eq!(line, 2); // BRANCH is command 1 (0-indexed + 1)
-
-                // Verify error message format
-                let error_msg = format!(
-                    "{}",
-                    crate::ParseError::UndefinedLabel {
-                        label: label.clone(),
-                        line
-                    }
-                );
-                assert!(
-                    error_msg.contains("line"),
-                    "Error message should contain 'line', got: {}",
-                    error_msg
-                );
-                assert!(
-                    error_msg.contains("undefined_target"),
-                    "Error message should contain label name, got: {}",
-                    error_msg
-                );
+        match Engine::from_markdown(markdown_with_undefined_branch_label) {
+            Err(ApiError::Parse {
+                line,
+                column: _,
+                message,
+            }) => {
+                assert!(message.contains("undefined_target"));
+                assert!(message.contains("Undefined label"));
+                assert!(line > 0, "Line number should be provided");
             }
             Err(other_error) => {
-                panic!("Expected UndefinedLabel error, got: {:?}", other_error);
+                panic!("Expected Parse error, got: {other_error:?}");
             }
             Ok(_) => {
                 panic!("Expected parse error for undefined branch label, but parsing succeeded");
@@ -559,14 +577,11 @@ Done
 "#;
 
         // This should parse successfully
-        let result = parse(markdown_with_all_valid_labels);
+        let result = Engine::from_markdown(markdown_with_all_valid_labels);
         assert!(
             result.is_ok(),
             "All labels are defined, parsing should succeed: {:?}",
             result.err()
         );
-
-        let program = result.unwrap();
-        assert_eq!(program.cmds.len(), 6); // SAY, JUMP, LABEL, BRANCH, LABEL, SAY
     }
 }

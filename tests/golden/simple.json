@@ -1,0 +1,49 @@
+{
+  "input_hash": "4af8a800c01c7941496ceadc191ce2cf",
+  "steps": [
+    {
+      "step_number": 0,
+      "next_action": "WaitUser",
+      "directives": [
+        {
+          "type": "Say",
+          "args": {
+            "speaker": "Hero",
+            "text": "Hello, world!"
+          }
+        }
+      ]
+    },
+    {
+      "step_number": 1,
+      "next_action": "WaitUser",
+      "directives": [
+        {
+          "type": "Wait",
+          "args": {
+            "seconds": 1.0
+          }
+        }
+      ]
+    },
+    {
+      "step_number": 2,
+      "next_action": "WaitUser",
+      "directives": [
+        {
+          "type": "Say",
+          "args": {
+            "speaker": "Hero",
+            "text": "Goodbye!"
+          }
+        }
+      ]
+    },
+    {
+      "step_number": 3,
+      "next_action": "Halt",
+      "directives": []
+    }
+  ],
+  "final_state": "Completed"
+}

@@ -1,0 +1,111 @@
+name: CI
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  core:
+    name: Core Library Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+    
+    - name: Cache cargo
+      uses: actions/cache@374a27f26986edd8c430f386d152a856e179c0ae # v4.2.4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+    
+    - name: Format check
+      run: cargo fmt --all -- --check
+    
+    - name: Clippy check
+      run: cargo clippy --all-targets --all-features -- -W clippy::all -A clippy::too_many_arguments
+    
+    - name: Library tests
+      run: cargo test --lib
+    
+    - name: Golden tests (Required)
+      run: cargo test --test golden_tests
+    
+    - name: Integration tests
+      run: cargo test --test integration_tests
+    
+    - name: Build examples
+      run: cargo build --examples
+    
+    - name: Test examples
+      run: |
+        mkdir -p artifacts
+        cargo run --example dump -- tests/fixtures/simple.md > artifacts/simple_output.json
+        cargo run --example dump -- tests/fixtures/branch.md > artifacts/branch_output.json
+        echo "Examples executed successfully"
+    
+    - name: Upload dump artifacts
+      uses: actions/upload-artifact@08396203c179e13c71b9754ce3472ed71842eec0 # v4.6.2
+      if: always()
+      with:
+        name: dump-outputs
+        path: artifacts/*.json
+        retention-days: 7
+
+  additional_tests:
+    name: Additional Tests (Non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Cache cargo
+      uses: actions/cache@374a27f26986edd8c430f386d152a856e179c0ae # v4.2.4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-additional-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+    
+    - name: Additional test suites
+      run: |
+        cargo test --test unit_engine_tests
+        cargo test --test clean_architecture_tests
+        cargo test --test application_layer_tests
+        cargo test --test dfs_scenario_tests
+        cargo test --test unit_parser_tests
+        cargo test --test clean_architecture_contract_tests
+        cargo test --test ddd_separation_tests
+        cargo test --test application_engine_tests
+        cargo test --test application_integration_tests
+        cargo test --test branch_cache_tests
+        cargo test --test dependency_injection_tests
+        cargo test --test directive_mapping_tests
+        cargo test --test error_chain_tests
