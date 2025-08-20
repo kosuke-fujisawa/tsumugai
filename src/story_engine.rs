@@ -171,22 +171,25 @@ impl StoryEngine {
 
     /// Execute the next step in the story
     pub async fn step(&mut self) -> Result<StepResult, StoryEngineError> {
-        let result = self
-            .playback_use_case
-            .execute_next_step(&mut self.execution)
-            .map_err(|e| StoryEngineError::domain(e.to_string()))?;
+        loop {
+            let result = self
+                .playback_use_case
+                .execute_next_step(&mut self.execution)
+                .map_err(|e| StoryEngineError::domain(e.to_string()))?;
 
-        Ok(match result {
-            ExecutionResult::Continue(directive) => StepResult::Continue(directive),
-            ExecutionResult::WaitForUser(directive) => StepResult::WaitForUser(directive),
-            ExecutionResult::WaitForTimer { directive, .. } => StepResult::WaitForUser(directive),
-            ExecutionResult::WaitForBranchSelection(choices) => StepResult::WaitForChoice(choices),
-            ExecutionResult::Jump(_) => {
-                // After a jump, immediately execute the next command
-                Box::pin(self.step()).await?
+            match result {
+                ExecutionResult::Continue(directive) => return Ok(StepResult::Continue(directive)),
+                ExecutionResult::WaitForUser(directive) => return Ok(StepResult::WaitForUser(directive)),
+                ExecutionResult::WaitForTimer { directive, .. } => {
+                    return Ok(StepResult::WaitForUser(directive))
+                }
+                ExecutionResult::WaitForBranchSelection(choices) => {
+                    return Ok(StepResult::WaitForChoice(choices))
+                }
+                ExecutionResult::Jump(_) => continue, // 次のコマンドへ
+                ExecutionResult::Finished => return Ok(StepResult::Finished),
             }
-            ExecutionResult::Finished => StepResult::Finished,
-        })
+        }
     }
 
     /// Choose an option when in a branch state

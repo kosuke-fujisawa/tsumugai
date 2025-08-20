@@ -42,10 +42,13 @@ fn main() {
                             }
                             NextAction::WaitBranch => {
                                 // Handle branch selection
-                                if let Some(tsumugai::Directive::Branch { choices }) = step_result
+                                if let Some(choices) = step_result
                                     .directives
                                     .iter()
-                                    .find(|d| matches!(d, tsumugai::Directive::Branch { .. }))
+                                    .find_map(|d| match d {
+                                        tsumugai::Directive::Branch { choices } => Some(choices),
+                                        _ => None,
+                                    })
                                 {
                                     println!("Choose from the following options:");
                                     for (i, choice) in choices.iter().enumerate() {

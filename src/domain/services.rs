@@ -133,15 +133,11 @@ impl StoryExecutionService {
                 operation,
                 value,
             } => {
-                self.modify_variable(execution.state_mut(), name, operation, value)?;
+                let new_value = self.modify_variable(execution.state_mut(), name, operation, value)?;
                 Ok(ExecutionResult::Continue(
                     ExecutionDirective::VariableChanged {
                         name: name.clone(),
-                        value: execution
-                            .state()
-                            .get_variable(name)
-                            .cloned()
-                            .expect("variable must exist after successful modify_variable"),
+                        value: new_value,
                     },
                 ))
             }
@@ -201,16 +197,16 @@ impl StoryExecutionService {
         name: &VariableName,
         operation: &VariableOperation,
         value: &StoryValue,
-    ) -> Result<(), DomainError> {
+    ) -> Result<StoryValue, DomainError> {
         let current_value = state
             .get_variable(name)
             .ok_or_else(|| DomainError::variable_not_found(name.clone()))?;
 
         let new_value = match (current_value, value, operation) {
-            (StoryValue::Integer(a), StoryValue::Integer(b), VariableOperation::Add) => {
+            (&StoryValue::Integer(a), &StoryValue::Integer(b), &VariableOperation::Add) => {
                 StoryValue::Integer(a + b)
             }
-            (StoryValue::Integer(a), StoryValue::Integer(b), VariableOperation::Subtract) => {
+            (&StoryValue::Integer(a), &StoryValue::Integer(b), &VariableOperation::Subtract) => {
                 StoryValue::Integer(a - b)
             }
             _ => {
@@ -222,8 +218,8 @@ impl StoryExecutionService {
             }
         };
 
-        state.set_variable(name.clone(), new_value);
-        Ok(())
+        state.set_variable(name.clone(), new_value.clone());
+        Ok(new_value)
     }
 
     /// Evaluate a conditional expression
@@ -239,7 +235,7 @@ impl StoryExecutionService {
             .ok_or_else(|| DomainError::variable_not_found(variable.clone()))?;
 
         let result = match (actual_value, expected_value) {
-            (StoryValue::Integer(a), StoryValue::Integer(b)) => match comparison {
+            (&StoryValue::Integer(a), &StoryValue::Integer(b)) => match *comparison {
                 ComparisonOperation::Equal => a == b,
                 ComparisonOperation::NotEqual => a != b,
                 ComparisonOperation::LessThan => a < b,
@@ -247,12 +243,12 @@ impl StoryExecutionService {
                 ComparisonOperation::GreaterThan => a > b,
                 ComparisonOperation::GreaterThanOrEqual => a >= b,
             },
-            (StoryValue::Boolean(a), StoryValue::Boolean(b)) => match comparison {
+            (&StoryValue::Boolean(a), &StoryValue::Boolean(b)) => match *comparison {
                 ComparisonOperation::Equal => a == b,
                 ComparisonOperation::NotEqual => a != b,
                 _ => false,
             },
-            (StoryValue::Text(a), StoryValue::Text(b)) => match comparison {
+            (&StoryValue::Text(ref a), &StoryValue::Text(ref b)) => match *comparison {
                 ComparisonOperation::Equal => a == b,
                 ComparisonOperation::NotEqual => a != b,
                 _ => false,
