@@ -106,38 +106,53 @@ fn execute_node(state: &mut State, node: &AstNode, output: &mut Output, ast: &As
             false // Stop here, wait for user input
         }
         AstNode::ShowImage { layer, name } => {
-            output.add_effect("show_image".to_string(), Some(serde_json::json!({
-                "layer": layer,
-                "name": name
-            })));
+            output.add_effect(
+                "show_image".to_string(),
+                Some(serde_json::json!({
+                    "layer": layer,
+                    "name": name
+                })),
+            );
             state.pc += 1;
             false // Stop here to allow UI to process effect
         }
         AstNode::PlayBgm { name } => {
-            output.add_effect("play_bgm".to_string(), Some(serde_json::json!({
-                "name": name
-            })));
+            output.add_effect(
+                "play_bgm".to_string(),
+                Some(serde_json::json!({
+                    "name": name
+                })),
+            );
             state.pc += 1;
             false // Stop here to allow UI to process effect
         }
         AstNode::PlaySe { name } => {
-            output.add_effect("play_se".to_string(), Some(serde_json::json!({
-                "name": name
-            })));
+            output.add_effect(
+                "play_se".to_string(),
+                Some(serde_json::json!({
+                    "name": name
+                })),
+            );
             state.pc += 1;
             false // Stop here to allow UI to process effect
         }
         AstNode::PlayMovie { name } => {
-            output.add_effect("play_movie".to_string(), Some(serde_json::json!({
-                "name": name
-            })));
+            output.add_effect(
+                "play_movie".to_string(),
+                Some(serde_json::json!({
+                    "name": name
+                })),
+            );
             state.pc += 1;
             false // Stop here to allow UI to process effect
         }
         AstNode::Wait { seconds } => {
-            output.add_effect("wait".to_string(), Some(serde_json::json!({
-                "seconds": seconds
-            })));
+            output.add_effect(
+                "wait".to_string(),
+                Some(serde_json::json!({
+                    "seconds": seconds
+                })),
+            );
             state.pc += 1;
             false // Stop here
         }
@@ -159,7 +174,12 @@ fn execute_node(state: &mut State, node: &AstNode, output: &mut Output, ast: &As
             }
             true // Continue
         }
-        AstNode::JumpIf { var, cmp, value, label } => {
+        AstNode::JumpIf {
+            var,
+            cmp,
+            value,
+            label,
+        } => {
             match state.check_condition(var, cmp, value) {
                 Ok(true) => {
                     if let Some(target_pc) = ast.get_label_index(label) {
@@ -190,16 +210,22 @@ fn execute_node(state: &mut State, node: &AstNode, output: &mut Output, ast: &As
         }
         AstNode::Label { name } => {
             state.last_label = Some(name.clone());
-            output.add_effect("label".to_string(), Some(serde_json::json!({
-                "name": name
-            })));
+            output.add_effect(
+                "label".to_string(),
+                Some(serde_json::json!({
+                    "name": name
+                })),
+            );
             state.pc += 1;
             true // Continue
         }
         AstNode::ClearLayer { layer } => {
-            output.add_effect("clear_layer".to_string(), Some(serde_json::json!({
-                "layer": layer
-            })));
+            output.add_effect(
+                "clear_layer".to_string(),
+                Some(serde_json::json!({
+                    "layer": layer
+                })),
+            );
             state.pc += 1;
             true // Continue
         }

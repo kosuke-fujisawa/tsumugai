@@ -54,11 +54,20 @@ pub enum AstNode {
     /// Unconditional jump to label
     Jump { label: String },
     /// Conditional jump
-    JumpIf { var: String, cmp: Comparison, value: String, label: String },
+    JumpIf {
+        var: String,
+        cmp: Comparison,
+        value: String,
+        label: String,
+    },
     /// Set variable value
     Set { name: String, value: String },
     /// Modify variable value
-    Modify { name: String, op: Operation, value: String },
+    Modify {
+        name: String,
+        op: Operation,
+        value: String,
+    },
     /// Label marker (no-op during execution)
     Label { name: String },
     /// Clear specified image layer

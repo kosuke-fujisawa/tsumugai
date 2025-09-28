@@ -29,7 +29,10 @@ fn main() -> anyhow::Result<()> {
         if let AstNode::Branch { choices } = node {
             println!("  選択肢の詳細:");
             for (j, choice) in choices.iter().enumerate() {
-                println!("    {}: id='{}', label='{}', target='{}'", j, choice.id, choice.label, choice.target);
+                println!(
+                    "    {}: id='{}', label='{}', target='{}'",
+                    j, choice.id, choice.label, choice.target
+                );
             }
         }
     }

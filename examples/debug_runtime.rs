@@ -1,6 +1,9 @@
 //! Debug runtime behavior with branch
 
-use tsumugai::{parser, runtime, types::{state::State, event::Event}};
+use tsumugai::{
+    parser, runtime,
+    types::{event::Event, state::State},
+};
 
 fn main() -> anyhow::Result<()> {
     let scenario = r#"
@@ -37,7 +40,10 @@ fn main() -> anyhow::Result<()> {
     println!("AST labels: {:?}", ast.labels);
     for (i, choice_target) in state.pending_choices.iter().enumerate() {
         if let Some(label_index) = ast.get_label_index(choice_target) {
-            println!("  choice_{} -> '{}' -> label_index {}", i, choice_target, label_index);
+            println!(
+                "  choice_{} -> '{}' -> label_index {}",
+                i, choice_target, label_index
+            );
         }
     }
 
@@ -49,7 +55,9 @@ fn main() -> anyhow::Result<()> {
 
     // Step 2: choice_0 を選択
     println!("\n--- Step 2: choice_0 を選択 ---");
-    let choice_event = Event::Choice { id: "choice_0".to_string() };
+    let choice_event = Event::Choice {
+        id: "choice_0".to_string(),
+    };
     let (new_state, output) = runtime::step(state, &ast, Some(choice_event));
     state = new_state;
 
@@ -61,7 +69,11 @@ fn main() -> anyhow::Result<()> {
     println!("出力:");
     println!("  lines.len(): {}", output.lines.len());
     for line in &output.lines {
-        println!("    {}: {}", line.speaker.as_ref().unwrap_or(&"None".to_string()), line.text);
+        println!(
+            "    {}: {}",
+            line.speaker.as_ref().unwrap_or(&"None".to_string()),
+            line.text
+        );
     }
 
     // Step 3: 続行
@@ -76,7 +88,11 @@ fn main() -> anyhow::Result<()> {
     println!("出力:");
     println!("  lines.len(): {}", output.lines.len());
     for line in &output.lines {
-        println!("    {}: {}", line.speaker.as_ref().unwrap_or(&"None".to_string()), line.text);
+        println!(
+            "    {}: {}",
+            line.speaker.as_ref().unwrap_or(&"None".to_string()),
+            line.text
+        );
     }
 
     Ok(())

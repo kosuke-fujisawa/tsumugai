@@ -36,13 +36,11 @@ impl State {
 
     /// Get variable value as string
     pub fn get_var(&self, name: &str) -> Option<String> {
-        self.flags.get(name).and_then(|v| {
-            match v {
-                serde_json::Value::String(s) => Some(s.clone()),
-                serde_json::Value::Number(n) => Some(n.to_string()),
-                serde_json::Value::Bool(b) => Some(b.to_string()),
-                _ => None,
-            }
+        self.flags.get(name).and_then(|v| match v {
+            serde_json::Value::String(s) => Some(s.clone()),
+            serde_json::Value::Number(n) => Some(n.to_string()),
+            serde_json::Value::Bool(b) => Some(b.to_string()),
+            _ => None,
         })
     }
 
@@ -61,12 +59,21 @@ impl State {
     }
 
     /// Modify variable with operation
-    pub fn modify_var(&mut self, name: &str, op: crate::types::ast::Operation, value: &str) -> Result<(), String> {
+    pub fn modify_var(
+        &mut self,
+        name: &str,
+        op: crate::types::ast::Operation,
+        value: &str,
+    ) -> Result<(), String> {
         let current = self.get_var(name).unwrap_or_else(|| "0".to_string());
 
         // Parse both current and new value as numbers
-        let current_num: f64 = current.parse().map_err(|_| format!("Cannot parse '{}' as number", current))?;
-        let value_num: f64 = value.parse().map_err(|_| format!("Cannot parse '{}' as number", value))?;
+        let current_num: f64 = current
+            .parse()
+            .map_err(|_| format!("Cannot parse '{}' as number", current))?;
+        let value_num: f64 = value
+            .parse()
+            .map_err(|_| format!("Cannot parse '{}' as number", value))?;
 
         let result = match op {
             crate::types::ast::Operation::Add => current_num + value_num,
@@ -91,7 +98,12 @@ impl State {
     }
 
     /// Check if condition is true
-    pub fn check_condition(&self, var: &str, cmp: &crate::types::ast::Comparison, value: &str) -> Result<bool, String> {
+    pub fn check_condition(
+        &self,
+        var: &str,
+        cmp: &crate::types::ast::Comparison,
+        value: &str,
+    ) -> Result<bool, String> {
         let current = self.get_var(var).unwrap_or_else(|| "0".to_string());
 
         // Try numeric comparison first

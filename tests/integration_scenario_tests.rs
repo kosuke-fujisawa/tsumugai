@@ -2,7 +2,10 @@
 //!
 //! These tests verify that parse → runtime → storage workflow functions correctly
 
-use tsumugai::{parser, runtime, storage, types::{event::Event, state::State}};
+use tsumugai::{
+    parser, runtime, storage,
+    types::{event::Event, state::State},
+};
 
 #[test]
 fn integration_simple_scenario() {
@@ -88,7 +91,9 @@ You chose the right path.
     assert!(state2.waiting_for_choice);
 
     // Simulate user choosing left path
-    let choice_event = Event::Choice { id: "choice_0".to_string() };
+    let choice_event = Event::Choice {
+        id: "choice_0".to_string(),
+    };
     let (state3, _output3) = runtime::step(state2, &ast, Some(choice_event));
     assert!(!state3.waiting_for_choice);
 

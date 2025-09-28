@@ -152,7 +152,12 @@ Success!
     assert!(ast.nodes.len() >= 1);
 
     match &ast.nodes[0] {
-        AstNode::JumpIf { var, cmp, value, label } => {
+        AstNode::JumpIf {
+            var,
+            cmp,
+            value,
+            label,
+        } => {
             assert_eq!(var, "score");
             assert_eq!(*cmp, Comparison::Equal);
             assert_eq!(value, "15");

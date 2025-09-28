@@ -163,7 +163,10 @@ fn get_user_choice(max_choices: usize) -> anyhow::Result<usize> {
             if choice_num > 0 && choice_num <= max_choices {
                 return Ok(choice_num);
             } else {
-                println!("無効な選択です。1から{}の間で入力してください。", max_choices);
+                println!(
+                    "無効な選択です。1から{}の間で入力してください。",
+                    max_choices
+                );
             }
         } else {
             println!("数字を入力してください。");

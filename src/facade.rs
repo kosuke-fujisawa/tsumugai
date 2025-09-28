@@ -3,7 +3,7 @@
 //! This module demonstrates how the new parse → step → save/load API works
 //! and provides backward compatibility wrappers.
 
-use crate::types::{Ast, State, Event, Output};
+use crate::types::{Ast, Event, Output, State};
 use crate::{parser, runtime, storage};
 
 /// A simple facade engine that wraps the new architecture
@@ -102,18 +102,29 @@ Checkpoint reached!
         // Execute first step
         let (output1, _) = engine.step(None);
         assert_eq!(output1.lines[0].text, "Checkpoint reached!");
-        assert_eq!(engine.state().get_var("progress"), Some("checkpoint1".to_string()));
+        assert_eq!(
+            engine.state().get_var("progress"),
+            Some("checkpoint1".to_string())
+        );
 
         // Save state
         let saved_bytes = engine.save_state().expect("Failed to save");
 
         // Modify state (simulate progression)
-        engine.state.set_var("progress".to_string(), "checkpoint2".to_string());
-        assert_eq!(engine.state().get_var("progress"), Some("checkpoint2".to_string()));
+        engine
+            .state
+            .set_var("progress".to_string(), "checkpoint2".to_string());
+        assert_eq!(
+            engine.state().get_var("progress"),
+            Some("checkpoint2".to_string())
+        );
 
         // Load saved state
         engine.load_state(&saved_bytes).expect("Failed to load");
-        assert_eq!(engine.state().get_var("progress"), Some("checkpoint1".to_string()));
+        assert_eq!(
+            engine.state().get_var("progress"),
+            Some("checkpoint1".to_string())
+        );
     }
 
     #[test]
@@ -174,11 +185,16 @@ Checkpoint reached!
         assert_eq!(output3.choices[1].label, "山の道");
 
         // 森の道を選択
-        let choice_event = Event::Choice { id: "choice_0".to_string() };
+        let choice_event = Event::Choice {
+            id: "choice_0".to_string(),
+        };
         let (output4, finished4) = engine.step(Some(choice_event));
         assert!(!finished4);
         assert_eq!(output4.lines.len(), 1);
-        assert_eq!(output4.lines[0].text, "森の道を選びました。緑豊かな風景が広がります。");
+        assert_eq!(
+            output4.lines[0].text,
+            "森の道を選びました。緑豊かな風景が広がります。"
+        );
 
         // 変数が設定されているか確認（デバッグ用）
         println!("Current PC: {}", engine.state().pc);
@@ -194,6 +210,9 @@ Checkpoint reached!
         let (output5, finished5) = engine.step(None);
         println!("Output5: lines={:?}, finished={}", output5.lines, finished5);
         assert!(finished5);
-        assert_eq!(output5.lines[0].text, "冒険が完了しました。お疲れさまでした！");
+        assert_eq!(
+            output5.lines[0].text,
+            "冒険が完了しました。お疲れさまでした！"
+        );
     }
 }
