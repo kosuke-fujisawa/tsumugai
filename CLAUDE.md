@@ -28,6 +28,9 @@ LLM（Claude, ChatGPT など）にプロンプトを与える際に参照する�
   - 各モジュールは一つの理由でのみ変更される。
   - 例：文法拡張で `parser` が変わる、実行仕様変更で `runtime` が変わる。
 
+- **品質ゲート (Quality Gate)**
+  - コミット前に `cargo fmt` と `cargo clippy -- -D warnings` を実行し、修正する。
+
 ---
 
 ## 📝 シナリオ生成ルール

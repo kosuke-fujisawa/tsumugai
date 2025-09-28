@@ -90,12 +90,12 @@ impl StoryExecutionService {
                 let state = execution.state_mut();
 
                 // Check if we already emitted this branch
-                if let Some(branch_state) = state.branch_state() {
-                    if branch_state.is_emitted() {
-                        return Ok(ExecutionResult::WaitForBranchSelection(
-                            branch_state.choices().to_vec(),
-                        ));
-                    }
+                if let Some(branch_state) = state.branch_state()
+                    && branch_state.is_emitted()
+                {
+                    return Ok(ExecutionResult::WaitForBranchSelection(
+                        branch_state.choices().to_vec(),
+                    ));
                 }
 
                 // Set up branch state and emit directive
@@ -249,7 +249,7 @@ impl StoryExecutionService {
                 ComparisonOperation::NotEqual => a != b,
                 _ => false,
             },
-            (&StoryValue::Text(ref a), &StoryValue::Text(ref b)) => match *comparison {
+            (StoryValue::Text(a), StoryValue::Text(b)) => match *comparison {
                 ComparisonOperation::Equal => a == b,
                 ComparisonOperation::NotEqual => a != b,
                 _ => false,

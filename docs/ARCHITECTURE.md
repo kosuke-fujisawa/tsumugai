@@ -1,5 +1,38 @@
 # ARCHITECTURE — tsumugai
 
+tsumugaiは、目的の異なる2つのアーキテクチャを提供します。
+
+- **簡易アーキテクチャ (Facade)**: 手軽さと即時性を重視したAPI。
+- **コアアーキテクチャ (Layered)**: 拡張性と保守性を重視した階層化API。
+
+---
+
+## 1. アーキテクチャの選択ガイド
+
+| 観点 | 簡易アーキテクチャ (Facade) | コアアーキテクチャ (Layered) |
+|:---|:---|:---|
+| **主な目的** | 手軽な利用、迅速なプロトタイピング | 拡張性、保守性、長期的な開発 |
+| **設計** | パーサーとランタイムを直接組み合わせたシンプルな構成 | DDDに基づく3層のクリーンアーキテクチャ |
+| **API** | `facade::Facade` 構造体 | `application::engine::StoryEngine` |
+| **状態管理** | 呼び出し側で `State` オブジェクトを保持 | `StoryEngine` が内部で状態をカプセル化 |
+| **データフロー** | `Markdown -> AST -> Runtime -> Output` | `Markdown -> IR -> Engine -> StepResult` |
+| **こんな時に** | 個人開発、小規模ゲーム、ツールへの組み込み | チーム開発、大規模ゲーム、複雑な独自仕様 |
+
+---
+
+## 2. 簡易アーキテクチャ (Facade) 詳細
+
+`facade`モジュールを介して提供される、シンプルな構成です。
+
+- **`parser`**: MarkdownテキストをAST (Abstract Syntax Tree) に変換します。
+- **`runtime`**: ASTと現在の状態(`State`)を受け取り、次の状態と`Output`（描画すべき内容）を返します。
+- **`types`**: `AST`, `State`, `Output`, `Event`など、簡易アーキテクチャで使われるデータ構造を定義します。
+- **`facade`**: これらを統合し、`Facade::new(markdown)` や `Facade::next(&mut state)` のような簡単なインターフェースを提供します。
+
+## 3. コアアーキテクチャ (Layered) 詳細
+
+# ARCHITECTURE — tsumugai
+
 > 目的：**Markdown の台本**を逐次解釈し、**決定的な StepResult(JSON)** を返す“コア”を提供する。  
 > 表示・音・演出はホスト（例：Tauri+Svelte）側の責務。
 

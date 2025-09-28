@@ -11,3 +11,8 @@ async-trait = "0.1"
 tokio = { version = "1.0", features = ["fs", "rt", "rt-multi-thread", "macros"] }
 md5 = "0.7"
 log = "0.4"
+anyhow = "1.0.100"
+
+[[example]]
+name = "choice_example"
+path = "examples/choice_example.rs"
