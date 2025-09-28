@@ -70,10 +70,10 @@ impl MarkdownParser {
     }
 
     fn extract_command(&self, line: &str) -> Option<String> {
-        if line.starts_with('[') {
-            if let Some(end) = line.find(']') {
-                return Some(line[1..end].to_string());
-            }
+        if line.starts_with('[')
+            && let Some(end) = line.find(']')
+        {
+            return Some(line[1..end].to_string());
         }
         None
     }
@@ -174,7 +174,7 @@ impl MarkdownParser {
             if let Some(eq_pos) = part.find('=') {
                 let key = part[..eq_pos].trim().to_string();
                 let value = part[eq_pos + 1..].trim().to_string();
-                params.entry(key).or_insert_with(Vec::new).push(value);
+                params.entry(key).or_default().push(value);
             }
         }
 
@@ -226,8 +226,7 @@ impl MarkdownParser {
         // Check if duration is in the command itself (e.g., "WAIT 1.5s")
         if parts.len() > 1 {
             let duration_str = parts[1];
-            if duration_str.ends_with('s') {
-                let num_str = &duration_str[..duration_str.len() - 1];
+            if let Some(num_str) = duration_str.strip_suffix('s') {
                 return num_str.parse::<f32>().map_err(|_| {
                     anyhow::anyhow!(
                         "Invalid duration '{}' at line {}",
@@ -239,16 +238,16 @@ impl MarkdownParser {
         }
 
         // Check params for "seconds" or "duration"
-        if let Some(seconds_vec) = params.get("seconds").or_else(|| params.get("duration")) {
-            if let Some(seconds) = seconds_vec.first() {
-                return seconds.parse::<f32>().map_err(|_| {
-                    anyhow::anyhow!(
-                        "Invalid duration '{}' at line {}",
-                        seconds,
-                        self.current_line + 1
-                    )
-                });
-            }
+        if let Some(seconds_vec) = params.get("seconds").or_else(|| params.get("duration"))
+            && let Some(seconds) = seconds_vec.first()
+        {
+            return seconds.parse::<f32>().map_err(|_| {
+                anyhow::anyhow!(
+                    "Invalid duration '{}' at line {}",
+                    seconds,
+                    self.current_line + 1
+                )
+            });
         }
 
         anyhow::bail!(

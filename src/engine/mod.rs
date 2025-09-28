@@ -160,12 +160,12 @@ impl Engine {
                 Step::Next
             }
             Command::Modify { name, op, value } => {
-                if let Some(Value::Int(current_val)) = self.vars.get_mut(name) {
-                    if let &Value::Int(modify_val) = value {
-                        match op {
-                            Op::Add => *current_val += modify_val,
-                            Op::Sub => *current_val -= modify_val,
-                        }
+                if let Some(Value::Int(current_val)) = self.vars.get_mut(name)
+                    && let &Value::Int(modify_val) = value
+                {
+                    match op {
+                        Op::Add => *current_val += modify_val,
+                        Op::Sub => *current_val -= modify_val,
                     }
                 }
                 self.pc += 1;

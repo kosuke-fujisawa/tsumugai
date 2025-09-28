@@ -163,7 +163,7 @@ impl MarkdownParser {
     }
 
     /// Remove quotes from string if present
-    fn unquote(s: &str) -> std::borrow::Cow<str> {
+    fn unquote(s: &str) -> std::borrow::Cow<'_, str> {
         if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
             std::borrow::Cow::Borrowed(&s[1..s.len() - 1])
         } else {

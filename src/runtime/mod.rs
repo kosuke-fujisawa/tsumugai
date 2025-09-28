@@ -59,24 +59,23 @@ fn handle_event(state: &mut State, event: &Event, output: &mut Output, ast: &Ast
         Event::Choice { id } => {
             if state.waiting_for_choice {
                 // Extract choice index from ID (e.g., "choice_0" -> 0)
-                if let Some(index_str) = id.strip_prefix("choice_") {
-                    if let Ok(choice_index) = index_str.parse::<usize>() {
-                        if choice_index < state.pending_choices.len() {
-                            // Get the target label for this choice
-                            let target_label = &state.pending_choices[choice_index];
+                if let Some(index_str) = id.strip_prefix("choice_")
+                    && let Ok(choice_index) = index_str.parse::<usize>()
+                    && choice_index < state.pending_choices.len()
+                {
+                    // Get the target label for this choice
+                    let target_label = &state.pending_choices[choice_index];
 
-                            // Jump to the target label
-                            if let Some(target_pc) = ast.get_label_index(target_label) {
-                                state.pc = target_pc;
-                            }
-
-                            // Clear the choice state
-                            state.waiting_for_choice = false;
-                            state.pending_choices.clear();
-
-                            return true; // Event was handled
-                        }
+                    // Jump to the target label
+                    if let Some(target_pc) = ast.get_label_index(target_label) {
+                        state.pc = target_pc;
                     }
+
+                    // Clear the choice state
+                    state.waiting_for_choice = false;
+                    state.pending_choices.clear();
+
+                    return true; // Event was handled
                 }
             }
             false

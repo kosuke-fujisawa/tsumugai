@@ -203,19 +203,18 @@ fn convert_parse_error(err: InfraParseError) -> crate::ParseError {
             if message.contains("Undefined label") {
                 // Extract label name and line from the message
                 // This is a workaround for the domain error -> parse error conversion
-                if let Some(start) = message.find("'") {
-                    if let Some(end) = message.rfind("'") {
-                        if start < end {
-                            let label = message[start + 1..end].to_string();
-                            // Extract line number
-                            if let Some(line_start) = message.find("line ") {
-                                let line_part = &message[line_start + 5..];
-                                if let Some(line_num) = line_part.split_whitespace().next()
-                                    && let Ok(line) = line_num.parse::<usize>()
-                                {
-                                    return crate::ParseError::UndefinedLabel { label, line };
-                                }
-                            }
+                if let Some(start) = message.find("'")
+                    && let Some(end) = message.rfind("'")
+                    && start < end
+                {
+                    let label = message[start + 1..end].to_string();
+                    // Extract line number
+                    if let Some(line_start) = message.find("line ") {
+                        let line_part = &message[line_start + 5..];
+                        if let Some(line_num) = line_part.split_whitespace().next()
+                            && let Ok(line) = line_num.parse::<usize>()
+                        {
+                            return crate::ParseError::UndefinedLabel { label, line };
                         }
                     }
                 }
