@@ -133,3 +133,84 @@ pub struct StepResult {
 1.  **Core**: `step()` → `next=WaitBranch`, `Directive::Branch { choices }`
 2.  **Host**: UI で選択 → `choose(index)`
 3.  **Core**: 次の `step()` で分岐先の `Say`/`ShowImage`/… を返す
+
+---
+
+## 9. 簡易アーキテクチャ APIリファレンス
+
+簡易アーキテクチャは `tsumugai::facade::Facade` 構造体を通じて利用します。
+JSONではなく、Rustの構造体を直接やり取りするのが特徴です。
+
+### 主な構造体
+
+- **`Facade`**: `Facade::new(markdown: &str)` で初期化し、`next(&mut State)` でシナリオを1ステップ進めます。
+- **`State`**: シナリオの実行状態を保持します。`State::new()` で初期化し、`facade.next()`に渡します。
+- **`Output`**: `facade.next()` の戻り値。次にホストアプリが実行すべきことを示します。
+- **`Event`**: `Output` に含まれる、発生したイベントのリスト（台詞、BGM再生など）。
+
+### `Output` 構造体 (抜粋)
+
+```rust
+pub enum Output {
+    /// 次のステップへ進む
+    Next,
+    /// ユーザーの入力を待つ
+    Wait,
+    /// シナリオの終端
+    Halt,
+    /// 選択肢を提示し、ユーザーの選択を待つ
+    Branch(Vec<String>),
+}
+```
+
+### `Event` 構造体 (抜粋)
+
+```rust
+pub enum Event {
+    /// 台詞を表示
+    Say(String, String), // speaker, text
+    /// BGMを再生
+    PlayBgm(String), // path
+    /// 画像を表示
+    ShowImage(String, String), // layer, path
+    // ... 他のイベント
+}
+```
+
+### `State` 構造体 (抜粋)
+
+```rust
+pub struct State {
+    /// 現在の実行位置
+    current_index: usize,
+    /// ユーザーフラグ
+    flags: HashMap<String, String>,
+    // ... 他の状態
+}
+```
+
+### 利用例
+
+```rust
+use tsumugai::facade::{Facade, State};
+use tsumugai::types::output::Output;
+
+let markdown = "# scene: start\n[SAY speaker=A] こんにちは";
+let facade = Facade::new(markdown).unwrap();
+let mut state = State::new();
+
+loop {
+    let (output, events) = facade.next(&mut state);
+    
+    // events を元に描画処理...
+    
+    match output {
+        Output::Next | Output::Wait => { /* ユーザー入力待ち */ },
+        Output::Branch(choices) => {
+            let choice_index = get_user_choice(&choices);
+            state.set_choice(choice_index);
+        },
+        Output::Halt => break,
+    }
+}
+```
