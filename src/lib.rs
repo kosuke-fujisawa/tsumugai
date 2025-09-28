@@ -81,9 +81,23 @@ pub mod legacy_adapter;
 pub mod parse;
 pub mod resolve;
 
+// New simplified architecture modules
+pub mod types;
+pub mod parser;
+pub mod runtime;
+pub mod storage;
+pub mod facade;
+
 // Stable public contracts - the main API for library users
 pub use application::api::{ApiError, Directive, NextAction, StepResult};
 pub use application::engine::Engine;
+
+// New simplified API exports
+pub use parser::parse as parse_scenario;
+pub use runtime::step;
+pub use storage::{save, load};
+pub use types::{Ast, State, Event, Output};
+pub use facade::SimpleEngine;
 
 // Legacy contracts for backward compatibility
 pub use contracts::{StepDirectives, StoryEngineError};
