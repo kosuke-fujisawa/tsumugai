@@ -94,13 +94,9 @@ You chose the right path.
     let choice_event = Event::Choice {
         id: "choice_0".to_string(),
     };
-    let (state3, _output3) = runtime::step(state2, &ast, Some(choice_event));
-    assert!(!state3.waiting_for_choice);
-
-    // Continue to execute - should go to left label and execute SAY
-    let (state4, output4) = runtime::step(state3, &ast, None);
-    assert_eq!(output4.lines.len(), 1);
-    assert_eq!(output4.lines[0].text, "You chose the left path.");
+    let (_state3, output3) = runtime::step(state2, &ast, Some(choice_event));
+    assert_eq!(output3.lines.len(), 1);
+    assert_eq!(output3.lines[0].text, "You chose the left path.");
 }
 
 #[test]
