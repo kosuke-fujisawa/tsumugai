@@ -1,0 +1,18 @@
+{
+  "lines": [
+    {
+      "speaker": "System",
+      "text": "A"
+    }
+  ],
+  "choices": [],
+  "effects": [
+    {
+      "tag": "label",
+      "opts": {
+        "name": "option_a"
+      }
+    }
+  ],
+  "can_save": true
+}

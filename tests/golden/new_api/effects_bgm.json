@@ -1,0 +1,13 @@
+{
+  "lines": [],
+  "choices": [],
+  "effects": [
+    {
+      "tag": "play_bgm",
+      "opts": {
+        "name": "battle.mp3"
+      }
+    }
+  ],
+  "can_save": true
+}

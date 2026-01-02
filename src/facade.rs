@@ -201,7 +201,7 @@ Checkpoint reached!
         println!("Variables: {:?}", engine.state().flags);
 
         // 次のステップを実行してSETコマンドを処理
-        let (output4_5, _) = engine.step(None);
+        let (_output4_5, _) = engine.step(None);
         println!("After SET command: Variables: {:?}", engine.state().flags);
 
         assert_eq!(engine.state().get_var("path"), Some("forest".to_string()));

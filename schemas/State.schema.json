@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/yourusername/tsumugai/schemas/State.schema.json",
+  "title": "Tsumugai Runtime State",
+  "description": "Schema for the runtime state of story execution in tsumugai",
+  "type": "object",
+  "required": ["pc", "flags", "rng_seed", "waiting_for_choice", "pending_choices", "last_label"],
+  "properties": {
+    "pc": {
+      "type": "integer",
+      "description": "Program counter - current position in the AST",
+      "minimum": 0
+    },
+    "flags": {
+      "type": "object",
+      "description": "Game variables/flags stored as key-value pairs",
+      "additionalProperties": true
+    },
+    "rng_seed": {
+      "type": "integer",
+      "description": "Random number generator seed for deterministic execution",
+      "minimum": 0
+    },
+    "waiting_for_choice": {
+      "type": "boolean",
+      "description": "Whether we're currently waiting for a user choice"
+    },
+    "pending_choices": {
+      "type": "array",
+      "description": "Pending choice options if waiting for branch",
+      "items": {
+        "type": "string"
+      }
+    },
+    "last_label": {
+      "type": ["string", "null"],
+      "description": "Last label that was reached (for tracking)"
+    }
+  },
+  "examples": [
+    {
+      "pc": 0,
+      "flags": {},
+      "rng_seed": 0,
+      "waiting_for_choice": false,
+      "pending_choices": [],
+      "last_label": null
+    },
+    {
+      "pc": 5,
+      "flags": {
+        "score": 100,
+        "player_name": "Alice"
+      },
+      "rng_seed": 12345,
+      "waiting_for_choice": true,
+      "pending_choices": ["left", "right"],
+      "last_label": "checkpoint"
+    }
+  ]
+}

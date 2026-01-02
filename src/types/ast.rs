@@ -10,11 +10,29 @@ pub struct Ast {
     pub nodes: Vec<AstNode>,
     /// Label to index mapping for jumps
     pub labels: HashMap<String, usize>,
+    /// Declared conditions (from :::conditions blocks)
+    pub conditions: std::collections::HashSet<String>,
 }
 
 impl Ast {
     pub fn new(nodes: Vec<AstNode>, labels: HashMap<String, usize>) -> Self {
-        Self { nodes, labels }
+        Self {
+            nodes,
+            labels,
+            conditions: std::collections::HashSet::new(),
+        }
+    }
+
+    pub fn with_conditions(
+        nodes: Vec<AstNode>,
+        labels: HashMap<String, usize>,
+        conditions: std::collections::HashSet<String>,
+    ) -> Self {
+        Self {
+            nodes,
+            labels,
+            conditions,
+        }
     }
 
     pub fn get_label_index(&self, label: &str) -> Option<usize> {
@@ -80,6 +98,7 @@ pub struct Choice {
     pub id: String,
     pub label: String,
     pub target: String,
+    pub condition: Option<String>,
 }
 
 /// Comparison operators for conditional jumps

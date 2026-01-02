@@ -1,0 +1,14 @@
+{
+  "lines": [],
+  "choices": [],
+  "effects": [
+    {
+      "tag": "show_image",
+      "opts": {
+        "layer": "background",
+        "name": "forest.jpg"
+      }
+    }
+  ],
+  "can_save": true
+}

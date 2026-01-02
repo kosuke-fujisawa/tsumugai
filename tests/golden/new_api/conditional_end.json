@@ -1,0 +1,18 @@
+{
+  "lines": [
+    {
+      "speaker": "System",
+      "text": "Game over."
+    }
+  ],
+  "choices": [],
+  "effects": [
+    {
+      "tag": "label",
+      "opts": {
+        "name": "end"
+      }
+    }
+  ],
+  "can_save": true
+}

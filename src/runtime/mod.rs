@@ -9,18 +9,46 @@ use crate::types::{
     state::State,
 };
 
+pub mod debug;
+
 #[cfg(test)]
 mod tests;
 
 /// Execute a single step of the story
 ///
 /// Takes the current state, AST, and optional event, returns updated state and output
-pub fn step(mut state: State, ast: &Ast, event: Option<Event>) -> (State, Output) {
+pub fn step(state: State, ast: &Ast, event: Option<Event>) -> (State, Output) {
+    step_with_debug(state, ast, event, &debug::DebugConfig::default())
+}
+
+/// Execute a single step with debug configuration
+///
+/// Takes the current state, AST, optional event, and debug config, returns updated state and output
+pub fn step_with_debug(
+    mut state: State,
+    ast: &Ast,
+    event: Option<Event>,
+    debug_config: &debug::DebugConfig,
+) -> (State, Output) {
+    let start_pc = state.pc;
     let mut output = Output::new();
 
+    debug::log(
+        debug_config,
+        debug::DebugCategory::Engine,
+        debug::LogLevel::Debug,
+        &format!("[Step] Starting at PC={}", start_pc),
+    );
+
     // Handle events first
-    if let Some(event) = event {
-        let event_handled = handle_event(&mut state, &event, &mut output, ast);
+    if let Some(ref event) = event {
+        debug::log(
+            debug_config,
+            debug::DebugCategory::Flow,
+            debug::LogLevel::Debug,
+            &format!("[Event] Handling event: {:?}", event),
+        );
+        let event_handled = handle_event(&mut state, event, &mut output, ast, debug_config);
         if event_handled && !output.choices.is_empty() {
             // If we handled an event AND generated new choices, return early
             return (state, output);
@@ -29,6 +57,12 @@ pub fn step(mut state: State, ast: &Ast, event: Option<Event>) -> (State, Output
 
     // If we're waiting for a choice, don't advance until choice is made
     if state.waiting_for_choice && output.choices.is_empty() {
+        debug::log(
+            debug_config,
+            debug::DebugCategory::Flow,
+            debug::LogLevel::Debug,
+            "[Flow] Waiting for choice, not advancing",
+        );
         return (state, output);
     }
 
@@ -36,6 +70,12 @@ pub fn step(mut state: State, ast: &Ast, event: Option<Event>) -> (State, Output
     loop {
         if state.pc >= ast.len() {
             // End of program
+            debug::log(
+                debug_config,
+                debug::DebugCategory::Engine,
+                debug::LogLevel::Info,
+                &format!("[Engine] Reached end of program at PC={}", state.pc),
+            );
             break;
         }
 
@@ -44,7 +84,14 @@ pub fn step(mut state: State, ast: &Ast, event: Option<Event>) -> (State, Output
             None => break,
         };
 
-        let should_continue = execute_node(&mut state, node, &mut output, ast);
+        debug::log(
+            debug_config,
+            debug::DebugCategory::Engine,
+            debug::LogLevel::Trace,
+            &format!("[Engine] Executing PC={} node={:?}", state.pc, node),
+        );
+
+        let should_continue = execute_node(&mut state, node, &mut output, ast, debug_config);
 
         if !should_continue {
             break;
@@ -54,7 +101,13 @@ pub fn step(mut state: State, ast: &Ast, event: Option<Event>) -> (State, Output
     (state, output)
 }
 
-fn handle_event(state: &mut State, event: &Event, output: &mut Output, ast: &Ast) -> bool {
+fn handle_event(
+    state: &mut State,
+    event: &Event,
+    output: &mut Output,
+    ast: &Ast,
+    debug_config: &debug::DebugConfig,
+) -> bool {
     match event {
         Event::Choice { id } => {
             if state.waiting_for_choice {
@@ -68,6 +121,15 @@ fn handle_event(state: &mut State, event: &Event, output: &mut Output, ast: &Ast
 
                     // Jump to the target label
                     if let Some(target_pc) = ast.get_label_index(target_label) {
+                        debug::log(
+                            debug_config,
+                            debug::DebugCategory::Flow,
+                            debug::LogLevel::Debug,
+                            &format!(
+                                "[Branch] Choice {} selected, jumping from PC={} to PC={} (label={})",
+                                choice_index, state.pc, target_pc, target_label
+                            ),
+                        );
                         state.pc = target_pc;
                     }
 
@@ -97,7 +159,13 @@ fn handle_event(state: &mut State, event: &Event, output: &mut Output, ast: &Ast
     }
 }
 
-fn execute_node(state: &mut State, node: &AstNode, output: &mut Output, ast: &Ast) -> bool {
+fn execute_node(
+    state: &mut State,
+    node: &AstNode,
+    output: &mut Output,
+    ast: &Ast,
+    debug_config: &debug::DebugConfig,
+) -> bool {
     match node {
         AstNode::Say { speaker, text } => {
             output.add_line(Some(speaker.clone()), text.clone());
@@ -156,6 +224,16 @@ fn execute_node(state: &mut State, node: &AstNode, output: &mut Output, ast: &As
             false // Stop here
         }
         AstNode::Branch { choices } => {
+            debug::log(
+                debug_config,
+                debug::DebugCategory::Flow,
+                debug::LogLevel::Debug,
+                &format!(
+                    "[Branch] Presenting {} choices at PC={}",
+                    choices.len(),
+                    state.pc
+                ),
+            );
             for choice in choices {
                 output.add_choice(choice.id.clone(), choice.label.clone());
             }
@@ -166,6 +244,15 @@ fn execute_node(state: &mut State, node: &AstNode, output: &mut Output, ast: &As
         }
         AstNode::Jump { label } => {
             if let Some(target_pc) = ast.get_label_index(label) {
+                debug::log(
+                    debug_config,
+                    debug::DebugCategory::Flow,
+                    debug::LogLevel::Debug,
+                    &format!(
+                        "[Jump] Jumping from PC={} to PC={} (label={})",
+                        state.pc, target_pc, label
+                    ),
+                );
                 state.pc = target_pc;
             } else {
                 // Should not happen if validation passed
@@ -182,28 +269,78 @@ fn execute_node(state: &mut State, node: &AstNode, output: &mut Output, ast: &As
             match state.check_condition(var, cmp, value) {
                 Ok(true) => {
                     if let Some(target_pc) = ast.get_label_index(label) {
+                        debug::log(
+                            debug_config,
+                            debug::DebugCategory::Flow,
+                            debug::LogLevel::Debug,
+                            &format!(
+                                "[JumpIf] Condition {}={:?} {:?} {} is TRUE, jumping from PC={} to PC={} (label={})",
+                                var,
+                                state.get_var(var),
+                                cmp,
+                                value,
+                                state.pc,
+                                target_pc,
+                                label
+                            ),
+                        );
                         state.pc = target_pc;
                     } else {
                         state.pc += 1;
                     }
                 }
                 Ok(false) => {
+                    debug::log(
+                        debug_config,
+                        debug::DebugCategory::Flow,
+                        debug::LogLevel::Debug,
+                        &format!(
+                            "[JumpIf] Condition {}={:?} {:?} {} is FALSE, not jumping",
+                            var,
+                            state.get_var(var),
+                            cmp,
+                            value
+                        ),
+                    );
                     state.pc += 1;
                 }
                 Err(_) => {
                     // Error in condition evaluation, just continue
+                    debug::log(
+                        debug_config,
+                        debug::DebugCategory::Flow,
+                        debug::LogLevel::Warn,
+                        &format!("[JumpIf] Error evaluating condition for var={}", var),
+                    );
                     state.pc += 1;
                 }
             }
             true // Continue
         }
         AstNode::Set { name, value } => {
+            debug::log(
+                debug_config,
+                debug::DebugCategory::Variables,
+                debug::LogLevel::Debug,
+                &format!("[Set] Setting {}={}", name, value),
+            );
             state.set_var(name.clone(), value.clone());
             state.pc += 1;
             true // Continue
         }
         AstNode::Modify { name, op, value } => {
+            let old_value = state.get_var(name);
             let _ = state.modify_var(name, op.clone(), value);
+            let new_value = state.get_var(name);
+            debug::log(
+                debug_config,
+                debug::DebugCategory::Variables,
+                debug::LogLevel::Debug,
+                &format!(
+                    "[Modify] {} {:?} {} : {:?} -> {:?}",
+                    name, op, value, old_value, new_value
+                ),
+            );
             state.pc += 1;
             true // Continue
         }

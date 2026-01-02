@@ -5,13 +5,16 @@
 //! - State: Runtime state including program counter and variables
 //! - Event: External events like user choices
 //! - Output: Results of step execution
+//! - Directive: Represents "what happens next" in the scenario
 
 pub mod ast;
+pub mod directive;
 pub mod event;
 pub mod output;
 pub mod state;
 
 pub use ast::Ast;
+pub use directive::Directive;
 pub use event::Event;
 pub use output::Output;
 pub use state::State;

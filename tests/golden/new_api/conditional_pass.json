@@ -1,0 +1,18 @@
+{
+  "lines": [
+    {
+      "speaker": "System",
+      "text": "You passed!"
+    }
+  ],
+  "choices": [],
+  "effects": [
+    {
+      "tag": "label",
+      "opts": {
+        "name": "pass"
+      }
+    }
+  ],
+  "can_save": true
+}

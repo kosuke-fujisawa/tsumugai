@@ -53,10 +53,22 @@ tsumugai は、
 
 ### 3. チェック・検証（ドライラン）
 
-- 指定漏れ（背景未指定など）を検出
-- 到達不能な分岐の検出
-- 条件式・選択肢定義の不整合チェック
-- ワーニング付きで最後まで流せる
+**静的検証（parser::check）**:
+- 条件の宣言と使用の整合性チェック
+- 未定義条件の使用を警告
+- 宣言されたが未使用の条件を警告
+
+**包括的 Linter（lint モジュール）**:
+- **構文チェック**: コマンドパラメータの検証
+- **参照整合性**: 未定義ラベル・条件の検出
+- **品質チェック**: 連続WAIT、重複BGM、長文テキストの警告
+- **フロー分析**: 到達不能コード、無限ループの検出
+
+**デバッグログ（runtime::step_with_debug）**:
+- プログラムカウンタ、実行ステップの詳細ログ
+- 分岐・ジャンプの追跡
+- 変数状態の監視
+- 環境変数 `TSUMUGAI_DEBUG` で有効化
 
 👉 **「動かさなくても問題点が分かる」**のが特徴です。
 
@@ -98,46 +110,88 @@ tsumugai
 
 ⸻
 
-最小の使用例（CUI / ドライラン）
-```
-use tsumugai::{Engine, UserEvent};
+## 最小の使用例（新API）
+
+### シンプルAPI（推奨）
+
+```rust
+use tsumugai::{parser, runtime, types::{State, Event}};
 
 fn main() -> anyhow::Result<()> {
     let scenario = r#"
 [SAY speaker=Alice]
 こんにちは。
 
-:::choices
-- 進む @go
-:::
+[BRANCH choice=進む choice=戻る]
 
-# scene: next
+[LABEL name=進む]
 [SAY speaker=Alice]
-おしまい。
+前に進みましょう。
+
+[LABEL name=戻る]
+[SAY speaker=Alice]
+戻りましょう。
+"#;
+
+    // 1. パース
+    let ast = parser::parse(scenario)?;
+
+    // 2. 初期状態
+    let mut state = State::new();
+
+    // 3. ステップ実行
+    loop {
+        let (new_state, output) = runtime::step(state, &ast, None);
+        state = new_state;
+
+        // セリフを表示
+        for line in &output.lines {
+            if let Some(speaker) = &line.speaker {
+                println!("{}: {}", speaker, line.text);
+            } else {
+                println!("{}", line.text);
+            }
+        }
+
+        // 選択肢がある場合
+        if !output.choices.is_empty() {
+            for (i, choice) in output.choices.iter().enumerate() {
+                println!("  {}. {}", i + 1, choice.label);
+            }
+
+            // ユーザー入力（ここでは固定で最初を選択）
+            let event = Event::Choice { id: "choice_0".to_string() };
+            let (new_state, _) = runtime::step(state, &ast, Some(event));
+            state = new_state;
+        }
+
+        // プログラム終了チェック
+        if state.pc >= ast.len() {
+            break;
+        }
+    }
+
+    Ok(())
+}
+```
+
+### 従来API（互換性維持）
+
+```rust
+use tsumugai::application::engine::Engine;
+
+fn main() -> anyhow::Result<()> {
+    let scenario = r#"
+[SAY speaker=Alice]
+こんにちは。
 "#;
 
     let mut engine = Engine::from_markdown(scenario)?;
 
-    loop {
-        let step = engine.step(None)?;
+    let result = engine.step()?;
 
-        // tsumugai が返す「指示」をそのまま出力
-        for directive in step.directives {
-            println!("{:?}", directive);
-        }
-
-        match step.next {
-            tsumugai::NextAction::WaitUser => {
-                // Enter待ち
-                let mut buf = String::new();
-                std::io::stdin().read_line(&mut buf)?;
-            }
-            tsumugai::NextAction::WaitChoice => {
-                // 選択肢を選ぶ（ここでは固定）
-                engine.step(Some(UserEvent::Choose("go".into())))?;
-            }
-            tsumugai::NextAction::Halt => break,
-        }
+    for directive in &result.directives {
+        println!("{:?}", directive);
     }
 
     Ok(())
@@ -150,7 +204,7 @@ fn main() -> anyhow::Result<()> {
 
 ⸻
 
-シナリオ形式
+## シナリオ形式
 	•	標準的な Markdown ファイル
 	•	見出し・コメントが使える
 	•	人間にも LLM にも読みやすい
@@ -162,7 +216,7 @@ fn main() -> anyhow::Result<()> {
 
 ⸻
 
-設計方針
+## 設計方針
 	•	テストファースト（TDD）
 	•	最小責務・単純な構造
 	•	シナリオ解釈と検証に特化
@@ -171,7 +225,7 @@ fn main() -> anyhow::Result<()> {
 
 ⸻
 
-tsumugai が目指すもの
+## tsumugai が目指すもの
 	•	これさえあれば シナリオの正しさは確認できる
 	•	実行にもチェックにも使える
 	•	LLM フレンドリーなノベルゲーム開発基盤

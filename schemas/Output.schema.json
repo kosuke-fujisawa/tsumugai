@@ -1,0 +1,145 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/yourusername/tsumugai/schemas/Output.schema.json",
+  "title": "Tsumugai Runtime Output",
+  "description": "Schema for the output of a single runtime execution step in tsumugai",
+  "type": "object",
+  "required": ["lines", "choices", "effects", "can_save"],
+  "properties": {
+    "lines": {
+      "type": "array",
+      "description": "Lines of dialogue or narrative text to display",
+      "items": {
+        "$ref": "#/definitions/Line"
+      }
+    },
+    "choices": {
+      "type": "array",
+      "description": "Available choices for user selection",
+      "items": {
+        "$ref": "#/definitions/Choice"
+      }
+    },
+    "effects": {
+      "type": "array",
+      "description": "Effect tags for the UI layer to handle (sound, images, etc.)",
+      "items": {
+        "$ref": "#/definitions/EffectTag"
+      }
+    },
+    "can_save": {
+      "type": "boolean",
+      "description": "Whether the game state can be saved at this point"
+    }
+  },
+  "definitions": {
+    "Line": {
+      "type": "object",
+      "required": ["speaker", "text"],
+      "properties": {
+        "speaker": {
+          "type": ["string", "null"],
+          "description": "Speaker name (null for narrative text)"
+        },
+        "text": {
+          "type": "string",
+          "description": "The text content"
+        }
+      }
+    },
+    "Choice": {
+      "type": "object",
+      "required": ["id", "label"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this choice"
+        },
+        "label": {
+          "type": "string",
+          "description": "Display text for the choice"
+        }
+      }
+    },
+    "EffectTag": {
+      "type": "object",
+      "required": ["tag", "opts"],
+      "properties": {
+        "tag": {
+          "type": "string",
+          "description": "Effect type identifier",
+          "enum": [
+            "play_bgm",
+            "play_se",
+            "show_image",
+            "clear_layer",
+            "play_movie",
+            "wait",
+            "label",
+            "save",
+            "load"
+          ]
+        },
+        "opts": {
+          "type": ["object", "null"],
+          "description": "Optional parameters for the effect",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Resource name (for bgm, se, image, movie)"
+            },
+            "layer": {
+              "type": "string",
+              "description": "Layer name (for images)"
+            },
+            "seconds": {
+              "type": "number",
+              "description": "Duration in seconds (for wait)"
+            }
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "lines": [
+        {
+          "speaker": "Alice",
+          "text": "Hello, world!"
+        }
+      ],
+      "choices": [],
+      "effects": [],
+      "can_save": true
+    },
+    {
+      "lines": [],
+      "choices": [
+        {
+          "id": "choice_0",
+          "label": "Go left"
+        },
+        {
+          "id": "choice_1",
+          "label": "Go right"
+        }
+      ],
+      "effects": [],
+      "can_save": true
+    },
+    {
+      "lines": [],
+      "choices": [],
+      "effects": [
+        {
+          "tag": "play_bgm",
+          "opts": {
+            "name": "intro.mp3"
+          }
+        }
+      ],
+      "can_save": true
+    }
+  ]
+}

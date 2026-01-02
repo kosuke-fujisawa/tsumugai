@@ -1,0 +1,13 @@
+{
+  "lines": [],
+  "choices": [],
+  "effects": [
+    {
+      "tag": "wait",
+      "opts": {
+        "seconds": 2.5
+      }
+    }
+  ],
+  "can_save": true
+}

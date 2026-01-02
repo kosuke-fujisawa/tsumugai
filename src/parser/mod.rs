@@ -5,6 +5,8 @@
 use crate::types::ast::{Ast, AstNode, Choice, Comparison, Operation};
 use std::collections::HashMap;
 
+pub mod check;
+
 #[cfg(test)]
 mod tests;
 
@@ -19,6 +21,7 @@ struct MarkdownParser {
     current_line: usize,
     nodes: Vec<AstNode>,
     labels: HashMap<String, usize>,
+    conditions: std::collections::HashSet<String>,
 }
 
 impl MarkdownParser {
@@ -29,11 +32,12 @@ impl MarkdownParser {
             current_line: 0,
             nodes: Vec::new(),
             labels: HashMap::new(),
+            conditions: std::collections::HashSet::new(),
         }
     }
 
     fn parse(mut self) -> anyhow::Result<Ast> {
-        // First pass: collect all nodes
+        // First pass: collect all nodes and conditions
         while self.current_line < self.lines.len() {
             self.parse_line()?;
             self.current_line += 1;
@@ -42,15 +46,30 @@ impl MarkdownParser {
         // Second pass: validate labels
         self.validate_labels()?;
 
-        Ok(Ast::new(self.nodes, self.labels))
+        Ok(Ast::with_conditions(
+            self.nodes,
+            self.labels,
+            self.conditions,
+        ))
     }
 
     fn parse_line(&mut self) -> anyhow::Result<()> {
         let line = &self.lines[self.current_line];
         let trimmed = line.trim();
 
-        // Skip empty lines, comments, and headers
-        if trimmed.is_empty() || trimmed.starts_with("<!--") || trimmed.starts_with('#') {
+        // Skip empty lines, comments, and headers (except :::conditions)
+        if trimmed.is_empty() || trimmed.starts_with("<!--") {
+            return Ok(());
+        }
+
+        // Check for :::conditions block
+        if trimmed == ":::conditions" {
+            self.parse_conditions_block()?;
+            return Ok(());
+        }
+
+        // Skip headers (except :::conditions)
+        if trimmed.starts_with('#') {
             return Ok(());
         }
 
@@ -67,6 +86,38 @@ impl MarkdownParser {
         }
 
         Ok(())
+    }
+
+    fn parse_conditions_block(&mut self) -> anyhow::Result<()> {
+        // Move to next line after :::conditions
+        self.current_line += 1;
+
+        while self.current_line < self.lines.len() {
+            let line = self.lines[self.current_line].trim();
+
+            // End of conditions block
+            if line == ":::" {
+                return Ok(());
+            }
+
+            // Skip empty lines
+            if line.is_empty() {
+                self.current_line += 1;
+                continue;
+            }
+
+            // Parse condition name (single word per line)
+            if !line.starts_with('-') && !line.starts_with('[') {
+                self.conditions.insert(line.to_string());
+            }
+
+            self.current_line += 1;
+        }
+
+        anyhow::bail!(
+            "Unclosed :::conditions block starting at line {}",
+            self.current_line
+        )
     }
 
     fn extract_command(&self, line: &str) -> Option<String> {
@@ -173,7 +224,7 @@ impl MarkdownParser {
         for part in parts {
             if let Some(eq_pos) = part.find('=') {
                 let key = part[..eq_pos].trim().to_string();
-                let value = part[eq_pos + 1..].trim().to_string();
+                let value = part[eq_pos + 1..].trim_end_matches(',').trim().to_string();
                 params.entry(key).or_default().push(value);
             }
         }
@@ -265,11 +316,30 @@ impl MarkdownParser {
 
         // Get all choice values
         if let Some(choice_values) = params.get("choice") {
-            for choice_text in choice_values {
+            let labels = params.get("label");
+            let conditions = params.get("if");
+
+            for (i, choice_text) in choice_values.iter().enumerate() {
+                let target = if let Some(label_vec) = labels {
+                    label_vec
+                        .get(i)
+                        .cloned()
+                        .unwrap_or_else(|| choice_text.clone())
+                } else {
+                    choice_text.clone() // Use choice text as target label
+                };
+
+                let condition = if let Some(cond_vec) = conditions {
+                    cond_vec.get(i).cloned()
+                } else {
+                    None
+                };
+
                 choices.push(Choice {
                     id: format!("choice_{}", choice_num),
                     label: choice_text.clone(),
-                    target: choice_text.clone(), // Use choice text as target label
+                    target,
+                    condition,
                 });
                 choice_num += 1;
             }

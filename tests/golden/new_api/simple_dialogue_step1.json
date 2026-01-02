@@ -1,0 +1,11 @@
+{
+  "lines": [
+    {
+      "speaker": "Alice",
+      "text": "Hello!"
+    }
+  ],
+  "choices": [],
+  "effects": [],
+  "can_save": true
+}

@@ -1,7 +1,7 @@
 //! Tests for the parser module
 
 use super::*;
-use crate::types::ast::{AstNode, Choice, Comparison, Operation};
+use crate::types::ast::{AstNode, Comparison, Operation};
 
 #[test]
 fn parse_single_say_returns_ast_node() {
@@ -203,5 +203,59 @@ Hello!
             assert_eq!(text, "Hello!");
         }
         _ => panic!("Expected Say node"),
+    }
+}
+
+#[test]
+fn parse_conditions_block() {
+    let markdown = r#"
+:::conditions
+can_go_right
+has_key
+is_night
+:::
+
+[SAY speaker=Test]
+Hello
+"#;
+
+    let ast = parse(markdown).unwrap();
+    assert_eq!(ast.conditions.len(), 3);
+    assert!(ast.conditions.contains("can_go_right"));
+    assert!(ast.conditions.contains("has_key"));
+    assert!(ast.conditions.contains("is_night"));
+}
+
+#[test]
+fn parse_branch_with_conditions() {
+    let markdown = r#"
+:::conditions
+can_go_right
+:::
+
+[BRANCH choice=右へ if=can_go_right label=right, choice=左へ label=left]
+
+[LABEL name=right]
+[SAY speaker=A]
+Right path
+
+[LABEL name=left]
+[SAY speaker=A]
+Left path
+"#;
+
+    let ast = parse(markdown).unwrap();
+
+    // Check conditions were parsed
+    assert_eq!(ast.conditions.len(), 1);
+    assert!(ast.conditions.contains("can_go_right"));
+
+    // Check branch was parsed with condition
+    if let AstNode::Branch { choices } = &ast.nodes[0] {
+        assert_eq!(choices.len(), 2);
+        assert_eq!(choices[0].condition, Some("can_go_right".to_string()));
+        assert_eq!(choices[1].condition, None);
+    } else {
+        panic!("Expected Branch node");
     }
 }

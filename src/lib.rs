@@ -77,12 +77,18 @@ pub mod domain;
 pub mod engine;
 pub mod infrastructure;
 pub mod ir;
-pub mod legacy_adapter;
-pub mod parse;
 pub mod resolve;
 
-// New simplified architecture modules
+// Legacy modules - only available with "facade" feature
+#[cfg(feature = "facade")]
 pub mod facade;
+#[cfg(feature = "facade")]
+pub mod legacy_adapter;
+#[cfg(feature = "facade")]
+pub mod parse;
+
+// New simplified architecture modules (always available)
+pub mod lint;
 pub mod parser;
 pub mod runtime;
 pub mod storage;
@@ -92,12 +98,22 @@ pub mod types;
 pub use application::api::{ApiError, Directive, NextAction, StepResult};
 pub use application::engine::Engine;
 
-// New simplified API exports
-pub use facade::SimpleEngine;
+// New simplified API exports (always available)
+pub use lint::config::LintConfig;
+pub use lint::{LintIssue, LintLevel, LintResult, lint, lint_with_config};
+pub use parser::check::{CheckResult, check};
 pub use parser::parse as parse_scenario;
+pub use runtime::debug::{
+    DebugCategory, DebugConfig, DebugOutput, DebugSnapshot, LogLevel as DebugLogLevel,
+};
 pub use runtime::step;
 pub use storage::{load, save};
+pub use types::directive::Directive as SimpleDirective; // New simplified directive for Issue #9
 pub use types::{Ast, Event, Output, State};
+
+// Facade API - only available with "facade" feature
+#[cfg(feature = "facade")]
+pub use facade::SimpleEngine;
 
 // Legacy contracts for backward compatibility
 pub use contracts::{StepDirectives, StoryEngineError};
@@ -114,6 +130,7 @@ pub use engine::{Directive as LegacyDirective, ResId};
 #[deprecated(since = "0.2.0", note = "Use `application::engine::Engine` instead")]
 pub use engine::{Engine as LegacyEngine, Step, WaitKind};
 pub use ir::*;
+#[cfg(feature = "facade")]
 #[deprecated(
     since = "0.2.0",
     note = "Use `application::engine::Engine::from_markdown()` instead"

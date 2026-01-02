@@ -1,0 +1,19 @@
+{
+  "lines": [],
+  "choices": [
+    {
+      "id": "choice_0",
+      "label": "option_a"
+    },
+    {
+      "id": "choice_1",
+      "label": "option_b"
+    },
+    {
+      "id": "choice_2",
+      "label": "option_c"
+    }
+  ],
+  "effects": [],
+  "can_save": true
+}
