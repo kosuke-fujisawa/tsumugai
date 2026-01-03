@@ -2,7 +2,7 @@
 //!
 //! This module provides a simple parser that converts Markdown DSL to AST.
 
-use crate::types::ast::{Ast, AstNode, Choice, Comparison, Operation};
+use crate::types::ast::{Ast, AstNode, Choice, Comparison, Expr, Operation};
 use std::collections::HashMap;
 
 pub mod check;
@@ -13,7 +13,14 @@ mod tests;
 /// Parse markdown content into an AST
 pub fn parse(markdown: &str) -> anyhow::Result<Ast> {
     let parser = MarkdownParser::new(markdown);
-    parser.parse()
+    parser.parse_with_validation(true)
+}
+
+/// Parse markdown content into an AST without label validation
+/// This is useful for dry-run mode where undefined labels should be warnings, not errors
+pub fn parse_unchecked(markdown: &str) -> anyhow::Result<Ast> {
+    let parser = MarkdownParser::new(markdown);
+    parser.parse_with_validation(false)
 }
 
 struct MarkdownParser {
@@ -36,15 +43,17 @@ impl MarkdownParser {
         }
     }
 
-    fn parse(mut self) -> anyhow::Result<Ast> {
+    fn parse_with_validation(mut self, validate: bool) -> anyhow::Result<Ast> {
         // First pass: collect all nodes and conditions
         while self.current_line < self.lines.len() {
             self.parse_line()?;
             self.current_line += 1;
         }
 
-        // Second pass: validate labels
-        self.validate_labels()?;
+        // Second pass: validate labels (only if validation is enabled)
+        if validate {
+            self.validate_labels()?;
+        }
 
         Ok(Ast::with_conditions(
             self.nodes,
@@ -54,7 +63,7 @@ impl MarkdownParser {
     }
 
     fn parse_line(&mut self) -> anyhow::Result<()> {
-        let line = &self.lines[self.current_line];
+        let line = self.lines[self.current_line].clone();
         let trimmed = line.trim();
 
         // Skip empty lines, comments, and headers (except :::conditions)
@@ -68,7 +77,27 @@ impl MarkdownParser {
             return Ok(());
         }
 
-        // Skip headers (except :::conditions)
+        // Check for :::when block
+        if trimmed.starts_with(":::when") {
+            let when_line = trimmed.to_string();
+            self.parse_when_block(&when_line)?;
+            return Ok(());
+        }
+
+        // Skip other ::: blocks (flag, vars, choices, route)
+        if trimmed.starts_with(":::") {
+            self.skip_block()?;
+            return Ok(());
+        }
+
+        // Parse scene headers
+        if trimmed.starts_with("# scene:") || trimmed.starts_with("#scene:") {
+            let scene_line = trimmed.to_string();
+            self.parse_scene_header(&scene_line)?;
+            return Ok(());
+        }
+
+        // Skip other headers
         if trimmed.starts_with('#') {
             return Ok(());
         }
@@ -84,6 +113,104 @@ impl MarkdownParser {
 
             self.nodes.push(node);
         }
+
+        Ok(())
+    }
+
+    fn parse_when_block(&mut self, line: &str) -> anyhow::Result<()> {
+        // Extract condition expression (after ":::when ")
+        let condition_str = if let Some(expr) = line.strip_prefix(":::when") {
+            expr.trim()
+        } else {
+            anyhow::bail!("Invalid when block at line {}", self.current_line + 1);
+        };
+
+        // Parse the condition expression
+        let condition = self.parse_expr(condition_str)?;
+
+        // Move to next line
+        self.current_line += 1;
+
+        // Collect nodes in the when block
+        let mut body = Vec::new();
+        let mut depth = 1;
+
+        while self.current_line < self.lines.len() {
+            let line = &self.lines[self.current_line];
+            let trimmed = line.trim();
+
+            // Check for block end
+            if trimmed == ":::" {
+                depth -= 1;
+                if depth == 0 {
+                    break;
+                }
+            } else if trimmed.starts_with(":::") && trimmed != ":::" {
+                depth += 1;
+            }
+
+            // Skip empty lines and comments
+            if trimmed.is_empty() || trimmed.starts_with("<!--") {
+                self.current_line += 1;
+                continue;
+            }
+
+            // Parse command
+            if let Some(cmd_content) = self.extract_command(trimmed) {
+                let node = self.parse_command(&cmd_content)?;
+                body.push(node);
+            }
+
+            self.current_line += 1;
+        }
+
+        // Add WhenBlock node
+        self.nodes.push(AstNode::WhenBlock { condition, body });
+
+        Ok(())
+    }
+
+    fn parse_scene_header(&mut self, line: &str) -> anyhow::Result<()> {
+        use crate::types::ast::{EndingKind, SceneMeta};
+
+        // Extract scene name (after "# scene:" or "#scene:")
+        let scene_name = if let Some(name) = line.strip_prefix("# scene:") {
+            name.trim().to_string()
+        } else if let Some(name) = line.strip_prefix("#scene:") {
+            name.trim().to_string()
+        } else {
+            anyhow::bail!("Invalid scene header at line {}", self.current_line + 1);
+        };
+
+        // Check next line for @ending directive
+        let mut ending = None;
+        if self.current_line + 1 < self.lines.len() {
+            let next_line = self.lines[self.current_line + 1].trim();
+            if let Some(ending_str) = next_line.strip_prefix("@ending") {
+                let ending_type = ending_str.trim();
+                ending = Some(match ending_type.to_uppercase().as_str() {
+                    "GOOD" => EndingKind::Good,
+                    "BAD" => EndingKind::Bad,
+                    "TRUE" => EndingKind::True,
+                    "NORMAL" => EndingKind::Normal,
+                    "" => EndingKind::Normal, // Default if no type specified
+                    custom => EndingKind::Custom(custom.to_string()),
+                });
+                // Skip the @ending line
+                self.current_line += 1;
+            }
+        }
+
+        let meta = SceneMeta {
+            name: scene_name.clone(),
+            ending,
+        };
+
+        // Register scene name as a label
+        self.labels.insert(scene_name, self.nodes.len());
+
+        // Add scene node to AST
+        self.nodes.push(AstNode::Scene { meta });
 
         Ok(())
     }
@@ -120,6 +247,32 @@ impl MarkdownParser {
         )
     }
 
+    fn skip_block(&mut self) -> anyhow::Result<()> {
+        // Skip until we find the closing ::: or end of file
+        self.current_line += 1;
+
+        let mut depth = 1; // Track nested blocks
+
+        while self.current_line < self.lines.len() {
+            let line = self.lines[self.current_line].trim();
+
+            // Check for nested block start
+            if line.starts_with(":::") && line != ":::" {
+                depth += 1;
+            } else if line == ":::" {
+                depth -= 1;
+                if depth == 0 {
+                    return Ok(());
+                }
+            }
+
+            self.current_line += 1;
+        }
+
+        // Reached end of file without closing, that's OK
+        Ok(())
+    }
+
     fn extract_command(&self, line: &str) -> Option<String> {
         if line.starts_with('[')
             && let Some(end) = line.find(']')
@@ -144,16 +297,16 @@ impl MarkdownParser {
                 let text = self.get_say_text()?;
                 Ok(AstNode::Say { speaker, text })
             }
-            "PLAY_BGM" => {
-                let name = self.require_param(&params, "name", command_name)?;
+            "PLAY_BGM" | "PLAY_MUSIC" => {
+                let name = self.require_param_or(&params, &["name", "file"], command_name)?;
                 Ok(AstNode::PlayBgm { name })
             }
             "PLAY_SE" => {
-                let name = self.require_param(&params, "name", command_name)?;
+                let name = self.require_param_or(&params, &["name", "file"], command_name)?;
                 Ok(AstNode::PlaySe { name })
             }
             "SHOW_IMAGE" => {
-                let name = self.require_param(&params, "name", command_name)?;
+                let name = self.require_param_or(&params, &["name", "file"], command_name)?;
                 let layer = params
                     .get("layer")
                     .and_then(|v| v.first())
@@ -162,8 +315,15 @@ impl MarkdownParser {
                 Ok(AstNode::ShowImage { layer, name })
             }
             "PLAY_MOVIE" => {
-                let name = self.require_param(&params, "name", command_name)?;
+                let name = self.require_param_or(&params, &["name", "file"], command_name)?;
                 Ok(AstNode::PlayMovie { name })
+            }
+            // Skip unsupported commands silently (they will be ignored in dry_run)
+            "POSITION" | "SHOW_CHOICE" | "HIDE_IMAGE" | "STOP_BGM" | "STOP_SE" => {
+                // Return a label with a special marker to skip
+                Ok(AstNode::Label {
+                    name: format!("__skip_{}", command_name),
+                })
             }
             "WAIT" => {
                 let seconds = self.parse_wait_duration(&parts, &params)?;
@@ -180,6 +340,10 @@ impl MarkdownParser {
             "JUMP" => {
                 let label = self.require_param(&params, "label", command_name)?;
                 Ok(AstNode::Jump { label })
+            }
+            "GOTO" => {
+                let target = self.require_param(&params, "target", command_name)?;
+                Ok(AstNode::Goto { target })
             }
             "JUMP_IF" => {
                 let var = self.require_param(&params, "var", command_name)?;
@@ -252,6 +416,26 @@ impl MarkdownParser {
             })
     }
 
+    /// Try to get a parameter with alternative names (e.g., "name" or "file")
+    fn require_param_or(
+        &self,
+        params: &HashMap<String, Vec<String>>,
+        keys: &[&str],
+        command: &str,
+    ) -> anyhow::Result<String> {
+        for key in keys {
+            if let Some(value) = params.get(*key).and_then(|v| v.first()).cloned() {
+                return Ok(value);
+            }
+        }
+        anyhow::bail!(
+            "Missing required parameter (one of {:?}) for command '{}' at line {}",
+            keys,
+            command,
+            self.current_line + 1
+        )
+    }
+
     fn get_say_text(&mut self) -> anyhow::Result<String> {
         // Look ahead to next non-empty line for the actual text
         let mut text_line = self.current_line + 1;
@@ -262,7 +446,9 @@ impl MarkdownParser {
                 && !line.starts_with('#')
                 && !line.starts_with("<!--")
             {
-                return Ok(line.to_string());
+                // Remove [c] tags (click/continue markers)
+                let text = line.replace("[c]", "").trim().to_string();
+                return Ok(text);
             }
             text_line += 1;
         }
@@ -394,6 +580,9 @@ impl MarkdownParser {
                 AstNode::Jump { label } => {
                     referenced_labels.insert(label);
                 }
+                AstNode::Goto { target } => {
+                    referenced_labels.insert(target);
+                }
                 AstNode::JumpIf { label, .. } => {
                     referenced_labels.insert(label);
                 }
@@ -414,5 +603,202 @@ impl MarkdownParser {
         }
 
         Ok(())
+    }
+
+    /// Parse an expression string into an Expr AST
+    fn parse_expr(&self, expr_str: &str) -> anyhow::Result<Expr> {
+        let mut tokens = self.tokenize_expr(expr_str);
+        self.parse_or_expr(&mut tokens)
+    }
+
+    /// Tokenize an expression string
+    fn tokenize_expr(&self, expr_str: &str) -> Vec<String> {
+        let mut tokens = Vec::new();
+        let mut current = String::new();
+        let mut chars = expr_str.chars().peekable();
+
+        while let Some(ch) = chars.next() {
+            match ch {
+                ' ' | '\t' => {
+                    if !current.is_empty() {
+                        tokens.push(current.clone());
+                        current.clear();
+                    }
+                }
+                '(' | ')' => {
+                    if !current.is_empty() {
+                        tokens.push(current.clone());
+                        current.clear();
+                    }
+                    tokens.push(ch.to_string());
+                }
+                '=' | '!' | '<' | '>' => {
+                    if !current.is_empty() {
+                        tokens.push(current.clone());
+                        current.clear();
+                    }
+                    current.push(ch);
+                    if let Some(&next_ch) = chars.peek() {
+                        if next_ch == '=' {
+                            chars.next();
+                            current.push(next_ch);
+                        }
+                    }
+                    tokens.push(current.clone());
+                    current.clear();
+                }
+                '&' | '|' => {
+                    if !current.is_empty() {
+                        tokens.push(current.clone());
+                        current.clear();
+                    }
+                    current.push(ch);
+                    if let Some(&next_ch) = chars.peek() {
+                        if (ch == '&' && next_ch == '&') || (ch == '|' && next_ch == '|') {
+                            chars.next();
+                            current.push(next_ch);
+                        }
+                    }
+                    tokens.push(current.clone());
+                    current.clear();
+                }
+                '"' => {
+                    if !current.is_empty() {
+                        tokens.push(current.clone());
+                        current.clear();
+                    }
+                    // Parse string literal
+                    let mut string_val = String::new();
+                    while let Some(str_ch) = chars.next() {
+                        if str_ch == '"' {
+                            break;
+                        }
+                        string_val.push(str_ch);
+                    }
+                    tokens.push(format!("\"{}\"", string_val));
+                }
+                _ => {
+                    current.push(ch);
+                }
+            }
+        }
+
+        if !current.is_empty() {
+            tokens.push(current);
+        }
+
+        tokens
+    }
+
+    /// Parse OR expression: and_expr ('||' and_expr)*
+    fn parse_or_expr(&self, tokens: &mut Vec<String>) -> anyhow::Result<Expr> {
+        let mut left = self.parse_and_expr(tokens)?;
+
+        while !tokens.is_empty() && tokens[0] == "||" {
+            tokens.remove(0); // consume '||'
+            let right = self.parse_and_expr(tokens)?;
+            left = Expr::Or(Box::new(left), Box::new(right));
+        }
+
+        Ok(left)
+    }
+
+    /// Parse AND expression: not_expr ('&&' not_expr)*
+    fn parse_and_expr(&self, tokens: &mut Vec<String>) -> anyhow::Result<Expr> {
+        let mut left = self.parse_not_expr(tokens)?;
+
+        while !tokens.is_empty() && tokens[0] == "&&" {
+            tokens.remove(0); // consume '&&'
+            let right = self.parse_not_expr(tokens)?;
+            left = Expr::And(Box::new(left), Box::new(right));
+        }
+
+        Ok(left)
+    }
+
+    /// Parse NOT expression: '!' not_expr | comparison_expr
+    fn parse_not_expr(&self, tokens: &mut Vec<String>) -> anyhow::Result<Expr> {
+        if !tokens.is_empty() && tokens[0] == "!" {
+            tokens.remove(0); // consume '!'
+            let expr = self.parse_not_expr(tokens)?;
+            return Ok(Expr::Not(Box::new(expr)));
+        }
+
+        self.parse_comparison_expr(tokens)
+    }
+
+    /// Parse comparison expression: primary (('==' | '!=' | '<' | '>' | '<=' | '>=') primary)?
+    fn parse_comparison_expr(&self, tokens: &mut Vec<String>) -> anyhow::Result<Expr> {
+        let left = self.parse_primary(tokens)?;
+
+        if !tokens.is_empty() {
+            let op = &tokens[0];
+            match op.as_str() {
+                "==" => {
+                    tokens.remove(0);
+                    let right = self.parse_primary(tokens)?;
+                    return Ok(Expr::Equal(Box::new(left), Box::new(right)));
+                }
+                "!=" => {
+                    tokens.remove(0);
+                    let right = self.parse_primary(tokens)?;
+                    return Ok(Expr::NotEqual(Box::new(left), Box::new(right)));
+                }
+                "<" => {
+                    tokens.remove(0);
+                    let right = self.parse_primary(tokens)?;
+                    return Ok(Expr::LessThan(Box::new(left), Box::new(right)));
+                }
+                "<=" => {
+                    tokens.remove(0);
+                    let right = self.parse_primary(tokens)?;
+                    return Ok(Expr::LessThanOrEqual(Box::new(left), Box::new(right)));
+                }
+                ">" => {
+                    tokens.remove(0);
+                    let right = self.parse_primary(tokens)?;
+                    return Ok(Expr::GreaterThan(Box::new(left), Box::new(right)));
+                }
+                ">=" => {
+                    tokens.remove(0);
+                    let right = self.parse_primary(tokens)?;
+                    return Ok(Expr::GreaterThanOrEqual(Box::new(left), Box::new(right)));
+                }
+                _ => {}
+            }
+        }
+
+        Ok(left)
+    }
+
+    /// Parse primary: 'true' | 'false' | number | string | variable
+    fn parse_primary(&self, tokens: &mut Vec<String>) -> anyhow::Result<Expr> {
+        if tokens.is_empty() {
+            anyhow::bail!("Unexpected end of expression");
+        }
+
+        let token = tokens.remove(0);
+
+        // Boolean literals
+        if token == "true" || token == "TRUE" {
+            return Ok(Expr::Bool(true));
+        }
+        if token == "false" || token == "FALSE" {
+            return Ok(Expr::Bool(false));
+        }
+
+        // String literals
+        if token.starts_with('"') && token.ends_with('"') {
+            let string_val = token[1..token.len() - 1].to_string();
+            return Ok(Expr::String(string_val));
+        }
+
+        // Number literals
+        if let Ok(num) = token.parse::<i64>() {
+            return Ok(Expr::Number(num));
+        }
+
+        // Variable reference
+        Ok(Expr::Var(token))
     }
 }

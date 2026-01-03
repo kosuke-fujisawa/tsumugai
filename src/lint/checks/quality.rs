@@ -63,15 +63,16 @@ fn check_duplicate_bgm(ast: &Ast, result: &mut LintResult, config: &LintConfig) 
     for node in &ast.nodes {
         if let AstNode::PlayBgm { name } = node {
             if let Some(ref last) = last_bgm
-                && last == name {
-                    result.add_issue(LintIssue {
-                        level: LintLevel::Info,
-                        message: format!("Duplicate BGM '{}' played consecutively", name),
-                        line: 0,
-                        column: 0,
-                        category: "quality".to_string(),
-                    });
-                }
+                && last == name
+            {
+                result.add_issue(LintIssue {
+                    level: LintLevel::Info,
+                    message: format!("Duplicate BGM '{}' played consecutively", name),
+                    line: 0,
+                    column: 0,
+                    category: "quality".to_string(),
+                });
+            }
             last_bgm = Some(name.clone());
         }
     }
@@ -80,19 +81,20 @@ fn check_duplicate_bgm(ast: &Ast, result: &mut LintResult, config: &LintConfig) 
 fn check_text_length(ast: &Ast, result: &mut LintResult, config: &LintConfig) {
     for node in &ast.nodes {
         if let AstNode::Say { text, .. } = node
-            && text.len() > config.quality.max_text_length {
-                result.add_issue(LintIssue {
-                    level: LintLevel::Info,
-                    message: format!(
-                        "Text length {} exceeds recommended maximum of {}",
-                        text.len(),
-                        config.quality.max_text_length
-                    ),
-                    line: 0,
-                    column: 0,
-                    category: "quality".to_string(),
-                });
-            }
+            && text.len() > config.quality.max_text_length
+        {
+            result.add_issue(LintIssue {
+                level: LintLevel::Info,
+                message: format!(
+                    "Text length {} exceeds recommended maximum of {}",
+                    text.len(),
+                    config.quality.max_text_length
+                ),
+                line: 0,
+                column: 0,
+                category: "quality".to_string(),
+            });
+        }
     }
 }
 

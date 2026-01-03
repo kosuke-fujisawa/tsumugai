@@ -1,122 +1,149 @@
 # CLAUDE.md
 
-この文書は `tsumugai` 開発と利用のためのガイドラインです。  
-LLM（Claude, ChatGPT など）にプロンプトを与える際に参照することで、統一された出力と開発体験を確保します。
+この文書は `tsumugai` の開発および利用におけるガイドラインです。  
+LLM（Claude / ChatGPT など）にプロンプトを与える際の **思考の前提・制約・生成方針** を統一することを目的とします。
 
 ---
 
-## 🎯 開発設計方針
+## 🎯 tsumugai は何か
 
-### 新アーキテクチャ（2024年実装完了）
-`tsumugai` は DDD/クリーンアーキテクチャから、よりシンプルで保守しやすい3モジュール構成に移行完了しました。
+`tsumugai` は、
 
-#### 新モジュール構成
-- **`parser/`** - Markdown DSL → AST 変換
-  - `parse(markdown: &str) -> Result<Ast>` 関数を提供
-  - AST の妥当性検証（未定義ラベル検出など）
+**Markdown で書かれたノベルゲーム用シナリオを解析し、  
+実行・検証・ドライランを行える  
+「シナリオチェッカー付き多機能パースエンジン」** です。
 
-- **`runtime/`** - AST 実行と状態管理
-  - `step(state: State, ast: &Ast, event: Option<Event>) -> (State, Output)` 関数
-  - ステートレスな実行エンジン
-  - 1ステップずつの確定的実行
+- ゲームエンジンではありません
+- UI / 描画 / 音声再生は行いません
+- シナリオを **上から順に解釈可能な AST** に変換し、
+  - 実行（runtime）
+  - ドライラン
+  - 妥当性チェック
+  を **同一構造** で行います
 
-- **`storage/`** - セーブ/ロード機能
-  - `save(state: &State) -> Result<Vec<u8>>` でJSON形式保存
-  - `load(bytes: &[u8]) -> Result<State>` で復元
-  - バージョン管理対応済み
+最優先の利用者は **シナリオライター** です。
 
-#### 統一API
+---
+
+## 🧠 設計思想（最重要）
+
+### ライター・LLM ファースト
+- シナリオは **人間が直感的に読める**
+- 同時に **LLM が構造を正確に把握できる**
+- 暗黙仕様・省略・文脈依存を避ける
+
+### 宣言してから使う
+- フラグ・変数・条件は **必ず宣言されてから使用**
+- 未宣言の参照はエラーまたはワーニング対象
+
+### 実行と検証を分離できる
+- 実行可能 = 正しい、ではない
+- `dry-run` / `check` によって
+  - 到達不能ルート
+  - 条件漏れ
+  - 指定不足
+  を検出できることを重視する
+
+---
+
+## 🏗 開発アーキテクチャ
+
+### モジュール構成（確定）
+
+- **`parser/`**
+  - Markdown DSL → AST 変換
+  - 構文エラー・宣言漏れ検出
+  - 文法拡張はここに閉じる
+
+- **`runtime/`**
+  - AST を 1 ステップずつ確定的に実行
+  - 実行・ドライラン・デバッグ実行は同一ロジック
+  - ステートレス設計
+
+- **`storage/`**
+  - State の保存 / 復元
+  - JSON 形式・バージョン管理対応
+
 ```rust
-// 新しいシンプルAPI
-use tsumugai::{parser, runtime, storage, types::{State, Event}};
+use tsumugai::{parser, runtime, storage};
 
 let ast = parser::parse(markdown)?;
-let mut state = State::new();
-let (new_state, output) = runtime::step(state, &ast, None);
-let save_data = storage::save(&new_state)?;
+let state = runtime::step(state, &ast, event);
+let bytes = storage::save(&state)?;
 ```
 
-### 設計原則
-- **TDD / テストファースト**
-  - 必ず `cargo test` を先に書く。
-  - ユニットテストと統合テストを両輪で活用する。
+⸻
 
-- **DRY 原則 & tidy first**
-  - 明確な重複はまとめる。
-  - ただし過剰抽象化は避け、まず動かしてから整理する。
+📝 シナリオ生成ガイドライン（LLM 向け）
 
-- **関心の分離 (Separation of Concerns)**
-  - モジュールは責務ごとに分割する。
-  - テストもモジュール境界で切る。
+基本方針
+	•	シナリオは Markdown で記述する
+	•	ブロック構造を重視する
+	•	条件・分岐は「見た目で追える」ことを優先する
 
-- **単一責任原則 (Single Responsibility Principle)**
-  - 各モジュールは一つの理由でのみ変更される。
-  - 例：文法拡張で `parser` が変わる、実行仕様変更で `runtime` が変わる。
+推奨される構造要素
+	•	# scene: シーン境界
+	•	:::flag / :::vars 宣言ブロック
+	•	:::choices 選択肢定義
+	•	:::route 選択結果の処理
+	•	:::when 条件付き実行ブロック
 
-- **品質ゲート (Quality Gate)**
-  - コミット前に `cargo fmt` と `cargo clippy -- -D warnings` を実行し、修正する。
+※ 正確な文法・制約は SPEC.md を参照すること
 
----
+⸻
 
-## 📝 シナリオ生成ルール
-
-### 基本フォーマット
-- シナリオは Markdown で書く。
-- シーンラベルは `# scene: NAME`
-- コマンドは `[COMMAND key=value ...]`
-- コメントは `<!-- -->` で LLM にも人間にも読みやすく残す。
-
-### サポートされるコマンド
-- `[SAY speaker=...]` 台詞
-- `[PLAY_BGM name=...]` BGM 再生
-- `[SHOW_IMAGE name=...]` 画像表示
-- `[PLAY_MOVIE name=...]` ムービー再生
-- `[WAIT 2s]` 待機
-- `[BRANCH choice=... label=...]` 選択肢分岐
-- `[IF flag=... value=...]` 条件分岐
-- `[SET flag=... value=...]` 内部状態変更
-
-### 制約
-- 出力はシナリオ本体のみ。説明文は不要。
-- パラメータは必ず `key=value` 形式。
-- 英語・日本語の混在可。
-- 演出はタグで表現するが、描画実装は UI 側の責務。
-
----
-
-## 📦 出力テンプレート
-
-```markdown
-# scene: intro
-
-[SAY speaker=Alice]
-Welcome to this world.
-
-[PLAY_BGM name=intro.mp3]
-
-[WAIT 1.5s]
-
-[SAY speaker=Bob]
-はじめようか？
-
-[BRANCH choice=Start label=start, choice=Exit label=end]
+🔍 条件・式について
+	•	条件は 式として記述する
+	•	サポートされる論理：
+	•	&& || !
+	•	== != < > <= >=
+	•	eval / 任意コード実行は行わない
+	•	条件の意味は 宣言またはコメントで説明されていることが望ましい
+```md
+:::when help_count > 0 && route == "ayumi"
 ```
 
----
+⸻
 
-## ✅ テスト方針
+⚠️ チェックとワーニング
+	•	tsumugai は 親切に警告する
+	•	以下はワーニングまたはエラー対象
+	•	未宣言フラグ・変数の使用
+	•	選択肢に対応する route が存在しない
+	•	条件が常に真 / 常に偽になる可能性
+	•	必須演出（背景など）の未指定
 
-### テスト戦略
-- **ユニットテスト**: 各モジュールごと（parser, runtime, storage）
-- **統合テスト**: シナリオを通しで実行し、出力JSONをgolden testで比較
-- **回帰テスト**: セーブデータの互換性を常に検証
+ワーニングは 人格を持ったメッセージとして出力されることがある。
 
-### テスト実行
-```bash
-# 全テスト実行
-cargo test
+⸻
 
-# 品質ゲート
-cargo fmt
-cargo clippy -- -D warnings
-```
+🧪 テスト方針
+	•	TDD / テストファースト
+	•	ユニットテスト
+	•	parser / runtime / storage
+	•	統合テスト
+	•	シナリオ全体の dry-run 結果
+	•	回帰テスト
+	•	セーブデータ互換性
+
+⸻
+
+❌ やらないこと（明確に）
+	•	任意式評価（eval）
+	•	ユーザー定義関数
+	•	ループ・再帰
+	•	型推論
+	•	外部コード実行
+
+これらは アプリケーション層の責務とする。
+
+⸻
+
+🧭 LLM への指示例
+	•	「tsumugai 形式でシナリオを書いて」
+	•	「このシナリオを dry-run 観点でチェックして」
+	•	「到達不能なルートを指摘して」
+	•	「フラグの宣言漏れがないか確認して」
+
+説明文は不要。
+シナリオ本文のみを出力すること。

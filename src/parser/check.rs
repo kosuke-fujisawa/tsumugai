@@ -34,10 +34,7 @@ pub fn check(ast: &Ast) -> CheckResult {
                     // Check if condition is declared
                     if !ast.conditions.contains(condition) {
                         warnings.push(Directive::Warning {
-                            message: format!(
-                                "Undeclared condition '{}' used in choice",
-                                condition
-                            ),
+                            message: format!("Undeclared condition '{}' used in choice", condition),
                             line: 0, // TODO: Track line numbers in AST
                             column: 0,
                         });

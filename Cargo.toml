@@ -3,6 +3,10 @@ name = "tsumugai"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "tsumugai"
+path = "src/main.rs"
+
 [features]
 default = ["facade"]  # Enable facade by default during migration period
 facade = []  # Enable legacy facade for backward compatibility

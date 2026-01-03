@@ -40,18 +40,20 @@ fn check_unreachable_code(ast: &Ast, result: &mut LintResult, _config: &LintConf
             AstNode::Jump { label } => {
                 // Only jumps to target
                 if let Some(target_pc) = ast.get_label_index(label)
-                    && !reachable.contains(&target_pc) {
-                        reachable.insert(target_pc);
-                        queue.push_back(target_pc);
-                    }
+                    && !reachable.contains(&target_pc)
+                {
+                    reachable.insert(target_pc);
+                    queue.push_back(target_pc);
+                }
             }
             AstNode::JumpIf { label, .. } => {
                 // Can jump to target OR continue to next
                 if let Some(target_pc) = ast.get_label_index(label)
-                    && !reachable.contains(&target_pc) {
-                        reachable.insert(target_pc);
-                        queue.push_back(target_pc);
-                    }
+                    && !reachable.contains(&target_pc)
+                {
+                    reachable.insert(target_pc);
+                    queue.push_back(target_pc);
+                }
                 let next_pc = pc + 1;
                 if !reachable.contains(&next_pc) {
                     reachable.insert(next_pc);
@@ -62,10 +64,11 @@ fn check_unreachable_code(ast: &Ast, result: &mut LintResult, _config: &LintConf
                 // Can jump to any choice target
                 for choice in choices {
                     if let Some(target_pc) = ast.get_label_index(&choice.target)
-                        && !reachable.contains(&target_pc) {
-                            reachable.insert(target_pc);
-                            queue.push_back(target_pc);
-                        }
+                        && !reachable.contains(&target_pc)
+                    {
+                        reachable.insert(target_pc);
+                        queue.push_back(target_pc);
+                    }
                 }
                 // Also continues to next (to emit the branch directive)
                 let next_pc = pc + 1;
@@ -108,18 +111,15 @@ fn check_potential_infinite_loops(ast: &Ast, result: &mut LintResult, config: &L
     for (index, node) in ast.nodes.iter().enumerate() {
         if let AstNode::Jump { label } = node
             && let Some(target_pc) = ast.get_label_index(label)
-                && target_pc <= index {
-                    // This is a backward jump
-                    // Check if there's any conditional exit between target and current
-                    let has_conditional_exit = check_has_conditional_exit(
-                        ast,
-                        target_pc,
-                        index,
-                        config.flow.max_analysis_depth,
-                    );
+            && target_pc <= index
+        {
+            // This is a backward jump
+            // Check if there's any conditional exit between target and current
+            let has_conditional_exit =
+                check_has_conditional_exit(ast, target_pc, index, config.flow.max_analysis_depth);
 
-                    if !has_conditional_exit {
-                        result.add_issue(LintIssue {
+            if !has_conditional_exit {
+                result.add_issue(LintIssue {
                             level: LintLevel::Warning,
                             message: format!(
                                 "Potential infinite loop: unconditional backward jump from {} to {} (label={})",
@@ -129,8 +129,8 @@ fn check_potential_infinite_loops(ast: &Ast, result: &mut LintResult, config: &L
                             column: 0,
                             category: "flow".to_string(),
                         });
-                    }
-                }
+            }
+        }
     }
 }
 
