@@ -3,8 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Lint configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct LintConfig {
     /// Syntax checks configuration
     pub syntax: SyntaxConfig,
@@ -15,7 +14,6 @@ pub struct LintConfig {
     /// Flow analysis configuration
     pub flow: FlowConfig,
 }
-
 
 /// Syntax checking configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -88,8 +88,11 @@ pub mod legacy_adapter;
 pub mod parse;
 
 // New simplified architecture modules (always available)
+pub mod cli;
 pub mod lint;
+pub mod narrative_layer;
 pub mod parser;
+pub mod player;
 pub mod runtime;
 pub mod storage;
 pub mod types;
@@ -101,15 +104,17 @@ pub use application::engine::Engine;
 // New simplified API exports (always available)
 pub use lint::config::LintConfig;
 pub use lint::{LintIssue, LintLevel, LintResult, lint, lint_with_config};
+pub use narrative_layer::output_to_events;
 pub use parser::check::{CheckResult, check};
 pub use parser::parse as parse_scenario;
+pub use player::{PlayerResult, PlayerSession, StateHistory};
 pub use runtime::debug::{
     DebugCategory, DebugConfig, DebugOutput, DebugSnapshot, LogLevel as DebugLogLevel,
 };
 pub use runtime::step;
 pub use storage::{load, save};
 pub use types::directive::Directive as SimpleDirective; // New simplified directive for Issue #9
-pub use types::{Ast, Event, Output, State};
+pub use types::{Ast, ChoiceOption, Event, NarrativeEvent, Output, State};
 
 // Facade API - only available with "facade" feature
 #[cfg(feature = "facade")]
