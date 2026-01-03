@@ -327,7 +327,11 @@ fn step_with_trace_generates_dialogue_event() {
     // Should have one Dialogue trace event
     assert_eq!(trace_events.len(), 1);
     match &trace_events[0] {
-        DebugTraceEvent::Dialogue { speaker, text, click_wait } => {
+        DebugTraceEvent::Dialogue {
+            speaker,
+            text,
+            click_wait,
+        } => {
             assert_eq!(speaker.as_ref().unwrap(), "Alice");
             assert_eq!(text, "Hello, world!");
             assert!(*click_wait);
@@ -338,7 +342,7 @@ fn step_with_trace_generates_dialogue_event() {
 
 #[test]
 fn step_with_trace_generates_enter_scene_event() {
-    use crate::types::ast::{SceneMeta, EndingKind};
+    use crate::types::ast::{EndingKind, SceneMeta};
 
     let nodes = vec![AstNode::Scene {
         meta: SceneMeta {
@@ -420,7 +424,11 @@ fn step_with_trace_generates_effect_set_var_event() {
     assert_eq!(trace_events.len(), 2);
 
     match &trace_events[0] {
-        DebugTraceEvent::EffectSetVar { name, before, after } => {
+        DebugTraceEvent::EffectSetVar {
+            name,
+            before,
+            after,
+        } => {
             assert_eq!(name, "score");
             assert_eq!(before, &serde_json::Value::Null);
             assert_eq!(after, &serde_json::json!(100));
@@ -429,7 +437,11 @@ fn step_with_trace_generates_effect_set_var_event() {
     }
 
     match &trace_events[1] {
-        DebugTraceEvent::EffectSetVar { name, before, after } => {
+        DebugTraceEvent::EffectSetVar {
+            name,
+            before,
+            after,
+        } => {
             assert_eq!(name, "score");
             assert_eq!(before, &serde_json::json!(100));
             assert_eq!(after, &serde_json::json!(150));
@@ -498,7 +510,9 @@ fn step_with_trace_generates_jump_event_with_when_reason() {
     // Should have two trace events: EffectSetVar and Jump
     assert!(trace_events.len() >= 2);
 
-    let jump_event = trace_events.iter().find(|e| matches!(e, DebugTraceEvent::Jump { .. }));
+    let jump_event = trace_events
+        .iter()
+        .find(|e| matches!(e, DebugTraceEvent::Jump { .. }));
     assert!(jump_event.is_some());
 
     match jump_event.unwrap() {

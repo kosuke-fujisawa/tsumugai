@@ -7,12 +7,8 @@
 //! - Variable changes
 //! - Jump events
 
+use tsumugai::types::{debug::DebugTraceEvent, event::Event, state::State};
 use tsumugai::{parser, runtime};
-use tsumugai::types::{
-    debug::DebugTraceEvent,
-    event::Event,
-    state::State,
-};
 
 #[test]
 fn debug_trace_full_scenario_flow() {
@@ -36,7 +32,11 @@ Let's begin your journey.
     state = new_state;
 
     // Should have EnterScene and Dialogue events
-    assert!(trace1.iter().any(|e| matches!(e, DebugTraceEvent::EnterScene { name } if name == "opening")));
+    assert!(
+        trace1
+            .iter()
+            .any(|e| matches!(e, DebugTraceEvent::EnterScene { name } if name == "opening"))
+    );
     assert!(trace1.iter().any(|e| matches!(
         e,
         DebugTraceEvent::Dialogue { speaker: Some(speaker), text, .. }
@@ -44,7 +44,8 @@ Let's begin your journey.
     )));
 
     // Step 2: SET command + second dialogue (Guide)
-    let (_new_state, _output, trace2) = runtime::step_with_trace(state, &ast, Some(Event::Continue));
+    let (_new_state, _output, trace2) =
+        runtime::step_with_trace(state, &ast, Some(Event::Continue));
 
     // Should have EffectSetVar and Dialogue events
     assert!(trace2.iter().any(|e| matches!(
@@ -116,7 +117,8 @@ End
     state = new_state;
 
     // Step 2: GOTO command + Label + End dialogue
-    let (_new_state, _output, trace2) = runtime::step_with_trace(state, &ast, Some(Event::Continue));
+    let (_new_state, _output, trace2) =
+        runtime::step_with_trace(state, &ast, Some(Event::Continue));
 
     // Should have Jump event with Goto reason and ending dialogue
     assert!(trace2.iter().any(|e| matches!(
@@ -151,7 +153,10 @@ Score updated
     let (_new_state, _output, trace) = runtime::step_with_trace(state, &ast, None);
 
     // Should have two EffectSetVar events for SET and MODIFY
-    let set_events: Vec<_> = trace.iter().filter(|e| matches!(e, DebugTraceEvent::EffectSetVar { .. })).collect();
+    let set_events: Vec<_> = trace
+        .iter()
+        .filter(|e| matches!(e, DebugTraceEvent::EffectSetVar { .. }))
+        .collect();
     assert_eq!(set_events.len(), 2);
 
     // Should have Dialogue event
@@ -195,16 +200,30 @@ Hello
     for trace in &all_traces {
         match trace {
             DebugTraceEvent::Jump { to, .. } => {
-                assert!(!to.contains("__skip_"), "Jump target should not contain __skip_");
+                assert!(
+                    !to.contains("__skip_"),
+                    "Jump target should not contain __skip_"
+                );
             }
             DebugTraceEvent::EnterScene { name } => {
-                assert!(!name.contains("__skip_"), "Scene name should not contain __skip_");
+                assert!(
+                    !name.contains("__skip_"),
+                    "Scene name should not contain __skip_"
+                );
             }
             _ => {}
         }
     }
 
     // Should have EnterScene and Dialogue events, but no internal labels
-    assert!(all_traces.iter().any(|e| matches!(e, DebugTraceEvent::EnterScene { .. })));
-    assert!(all_traces.iter().any(|e| matches!(e, DebugTraceEvent::Dialogue { .. })));
+    assert!(
+        all_traces
+            .iter()
+            .any(|e| matches!(e, DebugTraceEvent::EnterScene { .. }))
+    );
+    assert!(
+        all_traces
+            .iter()
+            .any(|e| matches!(e, DebugTraceEvent::Dialogue { .. }))
+    );
 }

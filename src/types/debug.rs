@@ -137,11 +137,7 @@ impl DebuggerState {
 
     /// Take a snapshot of the current state
     pub fn snapshot(&mut self, note: String) {
-        let snapshot = Snapshot::new(
-            self.state.clone(),
-            self.current_scene.clone(),
-            note,
-        );
+        let snapshot = Snapshot::new(self.state.clone(), self.current_scene.clone(), note);
         self.history.push(snapshot);
     }
 

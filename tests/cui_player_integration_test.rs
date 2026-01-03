@@ -1,6 +1,6 @@
 //! Integration tests for CUI player with ViewState
 
-use tsumugai::{cli::view_state::ViewState, parse_scenario, player::PlayerSession, PlayerResult};
+use tsumugai::{PlayerResult, cli::view_state::ViewState, parse_scenario, player::PlayerSession};
 
 #[test]
 fn test_view_state_differential_display() {
@@ -48,10 +48,12 @@ How are you?
         } => {
             let delta = view_state.apply_effects(&effects, None);
             // Should show new image and BGM
-            assert!(delta
-                .effects_added
-                .iter()
-                .any(|e| e.contains("ShowImage: school.png")));
+            assert!(
+                delta
+                    .effects_added
+                    .iter()
+                    .any(|e| e.contains("ShowImage: school.png"))
+            );
             assert!(delta.effects_added.iter().any(|e| e.contains("PlayBGM")));
         }
         _ => panic!("Expected step"),
@@ -78,10 +80,7 @@ How are you?
         } => {
             let delta = view_state.apply_effects(&effects, None);
             // Image is the same, should not be added
-            assert!(!delta
-                .effects_added
-                .iter()
-                .any(|e| e.contains("ShowImage")));
+            assert!(!delta.effects_added.iter().any(|e| e.contains("ShowImage")));
         }
         _ => panic!("Expected step"),
     }

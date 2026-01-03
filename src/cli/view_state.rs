@@ -67,7 +67,9 @@ impl ViewState {
                 };
 
                 if is_new {
-                    delta.effects_added.push(format!("ShowImage: {} ({})", name, layer));
+                    delta
+                        .effects_added
+                        .push(format!("ShowImage: {} ({})", name, layer));
                     self.images.insert(layer.clone(), image.clone());
                 }
             } else {
@@ -204,7 +206,11 @@ mod tests {
 
         let delta = view.apply_effects(&effects, None);
 
-        assert!(delta.effects_added.contains(&"PlayBGM: bgm1.mp3".to_string()));
+        assert!(
+            delta
+                .effects_added
+                .contains(&"PlayBGM: bgm1.mp3".to_string())
+        );
         assert_eq!(view.bgm, Some("bgm1.mp3".to_string()));
     }
 
@@ -233,17 +239,24 @@ mod tests {
 
         let delta = view.apply_effects(&effects, None);
 
-        assert!(delta.effects_added.contains(&"ShowImage: bg1.png (bg)".to_string()));
+        assert!(
+            delta
+                .effects_added
+                .contains(&"ShowImage: bg1.png (bg)".to_string())
+        );
         assert!(view.images.contains_key("bg"));
     }
 
     #[test]
     fn test_image_no_change_on_same_image() {
         let mut view = ViewState::new();
-        view.images.insert("bg".to_string(), ImageEffect {
-            layer: "bg".to_string(),
-            name: Some("bg1.png".to_string()),
-        });
+        view.images.insert(
+            "bg".to_string(),
+            ImageEffect {
+                layer: "bg".to_string(),
+                name: Some("bg1.png".to_string()),
+            },
+        );
 
         let mut effects = Effects::new();
         effects.images.push(ImageEffect {
@@ -264,10 +277,18 @@ mod tests {
         effects.se.push("se1.wav".to_string());
 
         let delta1 = view.apply_effects(&effects, None);
-        assert!(delta1.effects_added.contains(&"PlaySE: se1.wav".to_string()));
+        assert!(
+            delta1
+                .effects_added
+                .contains(&"PlaySE: se1.wav".to_string())
+        );
 
         // SE should trigger again even with same sound
         let delta2 = view.apply_effects(&effects, None);
-        assert!(delta2.effects_added.contains(&"PlaySE: se1.wav".to_string()));
+        assert!(
+            delta2
+                .effects_added
+                .contains(&"PlaySE: se1.wav".to_string())
+        );
     }
 }

@@ -4,9 +4,9 @@
 //! experience scenarios in the terminal.
 
 use crate::{
-    cli::view_state::{clear_screen, render_delta, ViewState},
+    cli::view_state::{ViewState, clear_screen, render_delta},
     player::{PlayerResult, PlayerSession},
-    types::{display_step::DisplayStep, State},
+    types::{State, display_step::DisplayStep},
 };
 use std::io::{self, Write};
 
@@ -251,7 +251,6 @@ fn show_display_step(step: &DisplayStep) {
         }
     }
 }
-
 
 /// Check if step is a choice block
 fn is_choice_block(step: &DisplayStep) -> bool {

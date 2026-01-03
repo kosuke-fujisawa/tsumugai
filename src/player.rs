@@ -5,7 +5,7 @@
 
 use crate::{
     runtime,
-    types::{display_step::DisplayStep, display_step::Effects, event::Event, Ast, State},
+    types::{Ast, State, display_step::DisplayStep, display_step::Effects, event::Event},
 };
 
 /// Manages state history for undo functionality
@@ -113,7 +113,8 @@ impl PlayerSession {
         match display_step {
             Some(step) => {
                 // Save to history
-                self.display_history.push((Some(step.clone()), effects.clone()));
+                self.display_history
+                    .push((Some(step.clone()), effects.clone()));
                 PlayerResult::Step {
                     display_step: step,
                     effects,
@@ -147,7 +148,8 @@ impl PlayerSession {
         match display_step {
             Some(step) => {
                 // Save to history
-                self.display_history.push((Some(step.clone()), effects.clone()));
+                self.display_history
+                    .push((Some(step.clone()), effects.clone()));
                 PlayerResult::Step {
                     display_step: step,
                     effects,
@@ -279,15 +281,13 @@ mod tests {
 
         // First next should return the first dialogue
         match session.next() {
-            PlayerResult::Step { display_step, .. } => {
-                match display_step {
-                    DisplayStep::Dialogue { speaker, text } => {
-                        assert_eq!(speaker, "Alice");
-                        assert_eq!(text, "Hello!");
-                    }
-                    _ => panic!("Expected Dialogue, got {:?}", display_step),
+            PlayerResult::Step { display_step, .. } => match display_step {
+                DisplayStep::Dialogue { speaker, text } => {
+                    assert_eq!(speaker, "Alice");
+                    assert_eq!(text, "Hello!");
                 }
-            }
+                _ => panic!("Expected Dialogue, got {:?}", display_step),
+            },
             PlayerResult::Ended => panic!("Should not end yet"),
         }
 
@@ -295,17 +295,18 @@ mod tests {
 
         // Second next should return the second dialogue
         match session.next() {
-            PlayerResult::Step { display_step, .. } => {
-                match display_step {
-                    DisplayStep::Dialogue { speaker, text } => {
-                        assert_eq!(speaker, "Bob");
-                        assert_eq!(text, "Hi!");
-                    }
-                    _ => panic!("Expected Dialogue, got {:?}", display_step),
+            PlayerResult::Step { display_step, .. } => match display_step {
+                DisplayStep::Dialogue { speaker, text } => {
+                    assert_eq!(speaker, "Bob");
+                    assert_eq!(text, "Hi!");
                 }
-            }
+                _ => panic!("Expected Dialogue, got {:?}", display_step),
+            },
             PlayerResult::Ended => {
-                eprintln!("Session ended at second step. PC: {}", session.current_state().pc);
+                eprintln!(
+                    "Session ended at second step. PC: {}",
+                    session.current_state().pc
+                );
                 panic!("Should not end yet at second step");
             }
         }

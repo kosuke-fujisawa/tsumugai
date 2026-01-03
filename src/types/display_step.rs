@@ -12,25 +12,16 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum DisplayStep {
     /// A line of dialogue with a speaker
-    Dialogue {
-        speaker: String,
-        text: String,
-    },
+    Dialogue { speaker: String, text: String },
 
     /// A narration line without a speaker
-    Narration {
-        text: String,
-    },
+    Narration { text: String },
 
     /// A choice block that requires player input
-    ChoiceBlock {
-        choices: Vec<ChoiceItem>,
-    },
+    ChoiceBlock { choices: Vec<ChoiceItem> },
 
     /// A scene boundary (scene start)
-    SceneBoundary {
-        scene_name: String,
-    },
+    SceneBoundary { scene_name: String },
 }
 
 /// A single choice option in a choice block
@@ -66,10 +57,7 @@ impl Effects {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.images.is_empty()
-            && self.bgm.is_none()
-            && self.se.is_empty()
-            && self.other.is_empty()
+        self.images.is_empty() && self.bgm.is_none() && self.se.is_empty() && self.other.is_empty()
     }
 
     pub fn add_image(&mut self, layer: String, name: String) {
@@ -80,10 +68,7 @@ impl Effects {
     }
 
     pub fn clear_layer(&mut self, layer: String) {
-        self.images.push(ImageEffect {
-            layer,
-            name: None,
-        });
+        self.images.push(ImageEffect { layer, name: None });
     }
 
     pub fn set_bgm(&mut self, name: String) {

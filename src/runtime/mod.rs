@@ -210,12 +210,7 @@ pub fn step_to_next_display(
                 if condition_result {
                     // Execute body nodes
                     for body_node in body {
-                        execute_node_in_display_step(
-                            &mut state,
-                            body_node,
-                            &mut effects,
-                            ast,
-                        );
+                        execute_node_in_display_step(&mut state, body_node, &mut effects, ast);
                     }
                 }
                 state.pc += 1;
@@ -276,8 +271,7 @@ pub fn step_with_trace(
     event: Option<Event>,
 ) -> (State, Output, Vec<DebugTraceEvent>) {
     let mut trace_events = Vec::new();
-    let (new_state, output) =
-        step_with_trace_internal(state, ast, event, &mut trace_events);
+    let (new_state, output) = step_with_trace_internal(state, ast, event, &mut trace_events);
     (new_state, output, trace_events)
 }
 
@@ -372,7 +366,8 @@ fn step_with_trace_internal(
 
     // Handle events first
     if let Some(ref event) = event {
-        let event_handled = handle_event_with_trace(&mut state, event, &mut output, ast, trace_events);
+        let event_handled =
+            handle_event_with_trace(&mut state, event, &mut output, ast, trace_events);
         if event_handled && !output.choices.is_empty() {
             // If we handled an event AND generated new choices, return early
             return (state, output);
@@ -396,7 +391,8 @@ fn step_with_trace_internal(
             None => break,
         };
 
-        let should_continue = execute_node_with_trace(&mut state, node, &mut output, ast, trace_events);
+        let should_continue =
+            execute_node_with_trace(&mut state, node, &mut output, ast, trace_events);
 
         if !should_continue {
             break;

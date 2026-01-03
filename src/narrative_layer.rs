@@ -4,10 +4,10 @@
 //! NarrativeEvent types suitable for display in a CUI player.
 
 use crate::types::{
+    Ast,
     narrative::{ChoiceOption, NarrativeEvent},
     output::Output,
     state::State,
-    Ast,
 };
 
 /// Convert runtime output to narrative events
@@ -66,7 +66,7 @@ pub fn output_to_events(output: &Output, state: &State, ast: &Ast) -> Vec<Narrat
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{ast::AstNode, output::Output, state::State, Ast};
+    use crate::types::{Ast, ast::AstNode, output::Output, state::State};
     use std::collections::HashMap;
 
     #[test]

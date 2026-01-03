@@ -109,7 +109,10 @@ Congratulations!
             ("@ending GOOD", Some(EndingKind::Good)),
             ("@ending TRUE", Some(EndingKind::True)),
             ("@ending NORMAL", Some(EndingKind::Normal)),
-            ("@ending Custom", Some(EndingKind::Custom("CUSTOM".to_string()))),
+            (
+                "@ending Custom",
+                Some(EndingKind::Custom("CUSTOM".to_string())),
+            ),
         ];
 
         for (ending_line, expected_ending) in test_cases {
@@ -290,15 +293,13 @@ Equal!
         let result = parse(input).expect("Should parse successfully");
 
         match &result.nodes[0] {
-            AstNode::WhenBlock { condition, .. } => {
-                match condition {
-                    Expr::Equal(left, right) => {
-                        assert!(matches!(**left, Expr::Var(_)));
-                        assert!(matches!(**right, Expr::String(_)));
-                    }
-                    _ => panic!("Expected Equal expression"),
+            AstNode::WhenBlock { condition, .. } => match condition {
+                Expr::Equal(left, right) => {
+                    assert!(matches!(**left, Expr::Var(_)));
+                    assert!(matches!(**right, Expr::String(_)));
                 }
-            }
+                _ => panic!("Expected Equal expression"),
+            },
             _ => panic!("Expected WhenBlock"),
         }
     }
@@ -316,18 +317,16 @@ High score!
         let result = parse(input).expect("Should parse successfully");
 
         match &result.nodes[0] {
-            AstNode::WhenBlock { condition, .. } => {
-                match condition {
-                    Expr::GreaterThanOrEqual(left, right) => {
-                        assert!(matches!(**left, Expr::Var(_)));
-                        match **right {
-                            Expr::Number(n) => assert_eq!(n, 15),
-                            _ => panic!("Expected Number expression"),
-                        }
+            AstNode::WhenBlock { condition, .. } => match condition {
+                Expr::GreaterThanOrEqual(left, right) => {
+                    assert!(matches!(**left, Expr::Var(_)));
+                    match **right {
+                        Expr::Number(n) => assert_eq!(n, 15),
+                        _ => panic!("Expected Number expression"),
                     }
-                    _ => panic!("Expected GreaterThanOrEqual expression"),
                 }
-            }
+                _ => panic!("Expected GreaterThanOrEqual expression"),
+            },
             _ => panic!("Expected WhenBlock"),
         }
     }
