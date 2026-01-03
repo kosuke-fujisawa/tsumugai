@@ -5,7 +5,7 @@
 
 use crate::{
     runtime,
-    types::{Ast, State, display_step::DisplayStep, display_step::Effects, event::Event},
+    types::{display_step::DisplayStep, display_step::Effects, event::Event, Ast, State},
 };
 
 /// Manages state history for undo functionality
@@ -113,8 +113,7 @@ impl PlayerSession {
         match display_step {
             Some(step) => {
                 // Save to history
-                self.display_history
-                    .push((Some(step.clone()), effects.clone()));
+                self.display_history.push((Some(step.clone()), effects.clone()));
                 PlayerResult::Step {
                     display_step: step,
                     effects,
@@ -148,8 +147,7 @@ impl PlayerSession {
         match display_step {
             Some(step) => {
                 // Save to history
-                self.display_history
-                    .push((Some(step.clone()), effects.clone()));
+                self.display_history.push((Some(step.clone()), effects.clone()));
                 PlayerResult::Step {
                     display_step: step,
                     effects,
@@ -281,13 +279,15 @@ mod tests {
 
         // First next should return the first dialogue
         match session.next() {
-            PlayerResult::Step { display_step, .. } => match display_step {
-                DisplayStep::Dialogue { speaker, text } => {
-                    assert_eq!(speaker, "Alice");
-                    assert_eq!(text, "Hello!");
+            PlayerResult::Step { display_step, .. } => {
+                match display_step {
+                    DisplayStep::Dialogue { speaker, text } => {
+                        assert_eq!(speaker, "Alice");
+                        assert_eq!(text, "Hello!");
+                    }
+                    _ => panic!("Expected Dialogue, got {:?}", display_step),
                 }
-                _ => panic!("Expected Dialogue, got {:?}", display_step),
-            },
+            }
             PlayerResult::Ended => panic!("Should not end yet"),
         }
 
@@ -295,18 +295,17 @@ mod tests {
 
         // Second next should return the second dialogue
         match session.next() {
-            PlayerResult::Step { display_step, .. } => match display_step {
-                DisplayStep::Dialogue { speaker, text } => {
-                    assert_eq!(speaker, "Bob");
-                    assert_eq!(text, "Hi!");
+            PlayerResult::Step { display_step, .. } => {
+                match display_step {
+                    DisplayStep::Dialogue { speaker, text } => {
+                        assert_eq!(speaker, "Bob");
+                        assert_eq!(text, "Hi!");
+                    }
+                    _ => panic!("Expected Dialogue, got {:?}", display_step),
                 }
-                _ => panic!("Expected Dialogue, got {:?}", display_step),
-            },
+            }
             PlayerResult::Ended => {
-                eprintln!(
-                    "Session ended at second step. PC: {}",
-                    session.current_state().pc
-                );
+                eprintln!("Session ended at second step. PC: {}", session.current_state().pc);
                 panic!("Should not end yet at second step");
             }
         }
@@ -352,5 +351,195 @@ mod tests {
         let result = session.undo();
         assert!(result.is_some());
         assert_eq!(session.current_state().pc, 0);
+    }
+
+    #[test]
+    fn test_state_history_default() {
+        let history = StateHistory::default();
+        assert_eq!(history.depth(), 0);
+        assert!(!history.can_undo());
+    }
+
+    #[test]
+    fn test_state_history_push_single() {
+        let mut history = StateHistory::new(10);
+        let mut state = State::new();
+        state.pc = 3;
+        
+        history.push(state.clone());
+        assert_eq!(history.depth(), 1);
+        assert!(history.can_undo());
+        
+        let popped = history.pop().unwrap();
+        assert_eq!(popped.pc, 3);
+    }
+
+    #[test]
+    fn test_state_history_boundary_max_size() {
+        let mut history = StateHistory::new(2);
+        
+        let mut state1 = State::new();
+        state1.pc = 1;
+        let mut state2 = State::new();
+        state2.pc = 2;
+        let mut state3 = State::new();
+        state3.pc = 3;
+        
+        history.push(state1);
+        history.push(state2);
+        history.push(state3);
+        
+        // Should only have 2 states (last two)
+        assert_eq!(history.depth(), 2);
+        
+        let popped = history.pop().unwrap();
+        assert_eq!(popped.pc, 3);
+        
+        let popped = history.pop().unwrap();
+        assert_eq!(popped.pc, 2);
+        
+        // First state should be gone
+        assert!(!history.can_undo());
+    }
+
+    #[test]
+    fn test_player_session_is_ended_initial() {
+        let ast = Ast::new(vec![], HashMap::new());
+        let session = PlayerSession::new(ast);
+        
+        // Empty AST means immediately ended
+        assert!(session.is_ended());
+    }
+
+    #[test]
+    fn test_player_session_is_ended_after_completion() {
+        let nodes = vec![
+            AstNode::Say {
+                speaker: "Alice".to_string(),
+                text: "Hello".to_string(),
+            },
+        ];
+        let ast = Ast::new(nodes, HashMap::new());
+        let mut session = PlayerSession::new(ast);
+        
+        assert!(!session.is_ended());
+        
+        // Advance through the scenario
+        let _ = session.next();
+        assert!(!session.is_ended());
+        
+        let _ = session.next();
+        assert!(session.is_ended());
+    }
+
+    #[test]
+    fn test_player_session_multiple_undo() {
+        let nodes = vec![
+            AstNode::Say {
+                speaker: "A".to_string(),
+                text: "First".to_string(),
+            },
+            AstNode::Say {
+                speaker: "B".to_string(),
+                text: "Second".to_string(),
+            },
+            AstNode::Say {
+                speaker: "C".to_string(),
+                text: "Third".to_string(),
+            },
+        ];
+        let ast = Ast::new(nodes, HashMap::new());
+        let mut session = PlayerSession::new(ast);
+        
+        // Advance three times
+        let _ = session.next();
+        let _ = session.next();
+        let _ = session.next();
+        
+        assert_eq!(session.current_state().pc, 3);
+        
+        // Undo twice
+        let result1 = session.undo();
+        assert!(result1.is_some());
+        assert_eq!(session.current_state().pc, 2);
+        
+        let result2 = session.undo();
+        assert!(result2.is_some());
+        assert_eq!(session.current_state().pc, 1);
+        
+        // Should still be able to undo once more
+        assert!(session.can_undo());
+        
+        let result3 = session.undo();
+        assert!(result3.is_some());
+        assert_eq!(session.current_state().pc, 0);
+        
+        // Now we can't undo anymore
+        assert!(!session.can_undo());
+    }
+
+    #[test]
+    fn test_player_session_undo_at_start() {
+        let nodes = vec![
+            AstNode::Say {
+                speaker: "Alice".to_string(),
+                text: "Hello".to_string(),
+            },
+        ];
+        let ast = Ast::new(nodes, HashMap::new());
+        let mut session = PlayerSession::new(ast);
+        
+        // Try to undo without advancing
+        let result = session.undo();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_player_session_current_state() {
+        let nodes = vec![
+            AstNode::Say {
+                speaker: "Alice".to_string(),
+                text: "Hello".to_string(),
+            },
+        ];
+        let ast = Ast::new(nodes, HashMap::new());
+        let mut session = PlayerSession::new(ast);
+        
+        assert_eq!(session.current_state().pc, 0);
+        
+        let _ = session.next();
+        assert_eq!(session.current_state().pc, 1);
+    }
+
+    #[test]
+    fn test_player_result_step_clone() {
+        let display_step = DisplayStep::Dialogue {
+            speaker: "Alice".to_string(),
+            text: "Hi".to_string(),
+        };
+        let effects = Effects::new();
+        
+        let result = PlayerResult::Step {
+            display_step: display_step.clone(),
+            effects: effects.clone(),
+        };
+        
+        let cloned = result.clone();
+        
+        match (result, cloned) {
+            (PlayerResult::Step { display_step: ds1, .. }, PlayerResult::Step { display_step: ds2, .. }) => {
+                assert_eq!(ds1, ds2);
+            }
+            _ => panic!("Expected Step variants"),
+        }
+    }
+
+    #[test]
+    fn test_player_result_ended_clone() {
+        let result = PlayerResult::Ended;
+        let cloned = result.clone();
+        
+        assert!(matches!(result, PlayerResult::Ended));
+        assert!(matches!(cloned, PlayerResult::Ended));
     }
 }
