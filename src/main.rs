@@ -5,7 +5,7 @@ use std::fs;
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
 
-    let usage = "使い方: tsumugai <command> <file> [--debug]\n\
+    let usage = "使い方: tsumugai <command> <file> [--json] [--debug]\n\
                  コマンド: play, check";
 
     if args.len() < 3 {
@@ -16,6 +16,7 @@ fn main() -> anyhow::Result<()> {
     let command = &args[1];
     let file_path = &args[2];
     let debug_mode = args.contains(&"--debug".to_string());
+    let json_mode = args.contains(&"--json".to_string());
 
     let markdown = fs::read_to_string(file_path)
         .map_err(|e| anyhow::anyhow!("ファイルを読み込めません '{}': {}", file_path, e))?;
@@ -25,10 +26,29 @@ fn main() -> anyhow::Result<()> {
             tsumugai::player::run(&markdown, debug_mode)?;
         }
         "check" => {
-            let ast = tsumugai::parser::parse(&markdown)?;
+            let ast = match tsumugai::parser::parse(&markdown) {
+                Ok(ast) => ast,
+                Err(e) => {
+                    if json_mode {
+                        let output =
+                            tsumugai::analyzer::CheckJsonOutput::parse_error(e.to_string());
+                        println!("{}", serde_json::to_string_pretty(&output)?);
+                        std::process::exit(1);
+                    } else {
+                        return Err(e);
+                    }
+                }
+            };
+
             let result = tsumugai::analyzer::analyze(&ast);
 
-            if result.is_clean() {
+            if json_mode {
+                let output = tsumugai::analyzer::CheckJsonOutput::from(&result);
+                println!("{}", serde_json::to_string_pretty(&output)?);
+                if result.has_errors() {
+                    std::process::exit(1);
+                }
+            } else if result.is_clean() {
                 println!("✓ 問題は見つかりませんでした。");
             } else {
                 for issue in &result.issues {
