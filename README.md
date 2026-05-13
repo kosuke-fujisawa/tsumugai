@@ -231,6 +231,7 @@ cargo run -- check assets/scenarios/strange_encounter.md --json
 - [Architecture](docs/ARCHITECTURE.md): アーキテクチャとデータフロー
 - [API](docs/API.md): Core と Host の契約
 - [Development Workflow](docs/DEVELOPMENT_WORKFLOW.md): 開発ワークフロー
+- [Review Guide](docs/REVIEW_GUIDE.md): Rust を読まなくてもレビューできる手引き
 
 ## 設計方針
 
