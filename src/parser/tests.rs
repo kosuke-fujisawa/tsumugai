@@ -99,11 +99,11 @@ Right path.
 "#;
 
     let ast = parse(markdown).unwrap();
-    assert!(ast.nodes.len() >= 1);
+    assert!(!ast.nodes.is_empty());
 
     match &ast.nodes[0] {
         AstNode::Branch { choices } => {
-            assert!(choices.len() >= 1);
+            assert!(!choices.is_empty());
             // The exact parsing may vary based on implementation
         }
         _ => panic!("Expected Branch node"),
@@ -149,7 +149,7 @@ Success!
 "#;
 
     let ast = parse(markdown).unwrap();
-    assert!(ast.nodes.len() >= 1);
+    assert!(!ast.nodes.is_empty());
 
     match &ast.nodes[0] {
         AstNode::JumpIf {

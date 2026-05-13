@@ -1,16 +1,15 @@
-//! Abstract Syntax Tree representation of parsed scenarios
+//! 抽象構文木（AST）の型定義
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Abstract syntax tree representation of a parsed scenario
+/// パース済みシナリオの AST
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Ast {
-    /// Sequence of commands to execute
     pub nodes: Vec<AstNode>,
-    /// Label to index mapping for jumps
+    /// ラベル名 → ノードインデックスのマップ
     pub labels: HashMap<String, usize>,
-    /// Declared conditions (from :::conditions blocks)
+    /// 宣言済み条件名（:::conditions ブロックから）
     pub conditions: std::collections::HashSet<String>,
 }
 
@@ -52,47 +51,51 @@ impl Ast {
     }
 }
 
-/// A single node in the AST representing a command
+/// AST の1ノード（コマンド）
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum AstNode {
-    /// Display spoken text
+    /// 台詞・ナレーション（speaker が空文字ならナレーション）
     Say { speaker: String, text: String },
-    /// Show image on specified layer
+    /// 画像表示
     ShowImage { layer: String, name: String },
-    /// Play background music
+    /// レイヤークリア
+    ClearLayer { layer: String },
+    /// BGM 再生
     PlayBgm { name: String },
-    /// Play sound effect
+    /// SE 再生
     PlaySe { name: String },
-    /// Play movie/video
+    /// ムービー再生
     PlayMovie { name: String },
-    /// Wait for specified duration
+    /// 時間待ち
     Wait { seconds: f32 },
-    /// Present choices to user with jump targets
+    /// ユーザー選択肢
     Branch { choices: Vec<Choice> },
-    /// Unconditional jump to label
+    /// 無条件ジャンプ
     Jump { label: String },
-    /// Conditional jump
+    /// 条件付きジャンプ（比較演算）
     JumpIf {
         var: String,
         cmp: Comparison,
         value: String,
         label: String,
     },
-    /// Set variable value
+    /// 変数セット
     Set { name: String, value: String },
-    /// Modify variable value
+    /// 変数演算
     Modify {
         name: String,
         op: Operation,
         value: String,
     },
-    /// Label marker (no-op during execution)
+    /// ラベル定義（実行時 no-op）
     Label { name: String },
-    /// Clear specified image layer
-    ClearLayer { layer: String },
+    /// シーン境界
+    Scene { name: String },
+    /// 条件付き実行ブロック
+    WhenBlock { condition: Expr, body: Vec<AstNode> },
 }
 
-/// A choice option in a branch command
+/// 選択肢の1項目
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Choice {
     pub id: String,
@@ -101,7 +104,7 @@ pub struct Choice {
     pub condition: Option<String>,
 }
 
-/// Comparison operators for conditional jumps
+/// 比較演算子
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Comparison {
     Equal,
@@ -112,11 +115,30 @@ pub enum Comparison {
     GreaterThanOrEqual,
 }
 
-/// Operations for variable modification
+/// 変数演算の種類
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Operation {
     Add,
     Subtract,
     Multiply,
     Divide,
+}
+
+/// 条件式（WhenBlock および Branch で使用）
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum Expr {
+    Bool(bool),
+    Number(i64),
+    String(String),
+    /// 変数参照
+    Var(String),
+    Equal(Box<Expr>, Box<Expr>),
+    NotEqual(Box<Expr>, Box<Expr>),
+    LessThan(Box<Expr>, Box<Expr>),
+    LessThanOrEqual(Box<Expr>, Box<Expr>),
+    GreaterThan(Box<Expr>, Box<Expr>),
+    GreaterThanOrEqual(Box<Expr>, Box<Expr>),
+    And(Box<Expr>, Box<Expr>),
+    Or(Box<Expr>, Box<Expr>),
+    Not(Box<Expr>),
 }

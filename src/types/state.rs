@@ -6,32 +6,16 @@ use std::collections::HashMap;
 /// Runtime state of the story execution
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct State {
-    /// Program counter - current position in the AST
+    /// Program counter - current position in the IR
     pub pc: usize,
     /// Game variables/flags
     pub flags: HashMap<String, serde_json::Value>,
-    /// Random number generator seed for deterministic execution
-    pub rng_seed: u64,
-    /// Whether we're currently waiting for a user choice
-    pub waiting_for_choice: bool,
-    /// Pending choice options if waiting for branch
-    pub pending_choices: Vec<String>,
-    /// Last label that was reached (for tracking)
-    pub last_label: Option<String>,
 }
 
 impl State {
     /// Create new initial state
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Create state with specific seed
-    pub fn with_seed(seed: u64) -> Self {
-        Self {
-            rng_seed: seed,
-            ..Default::default()
-        }
     }
 
     /// Get variable value as string
@@ -97,34 +81,4 @@ impl State {
         Ok(())
     }
 
-    /// Check if condition is true
-    pub fn check_condition(
-        &self,
-        var: &str,
-        cmp: &crate::types::ast::Comparison,
-        value: &str,
-    ) -> Result<bool, String> {
-        let current = self.get_var(var).unwrap_or_else(|| "0".to_string());
-
-        // Try numeric comparison first
-        if let (Ok(current_num), Ok(value_num)) = (current.parse::<f64>(), value.parse::<f64>()) {
-            use crate::types::ast::Comparison;
-            return Ok(match cmp {
-                Comparison::Equal => (current_num - value_num).abs() < f64::EPSILON,
-                Comparison::NotEqual => (current_num - value_num).abs() >= f64::EPSILON,
-                Comparison::LessThan => current_num < value_num,
-                Comparison::LessThanOrEqual => current_num <= value_num,
-                Comparison::GreaterThan => current_num > value_num,
-                Comparison::GreaterThanOrEqual => current_num >= value_num,
-            });
-        }
-
-        // Fall back to string comparison
-        use crate::types::ast::Comparison;
-        Ok(match cmp {
-            Comparison::Equal => current == value,
-            Comparison::NotEqual => current != value,
-            _ => return Err("Cannot perform numeric comparison on non-numeric values".to_string()),
-        })
-    }
 }

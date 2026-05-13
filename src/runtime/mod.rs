@@ -1,369 +1,555 @@
-//! Runtime execution engine for story scenarios
+//! ランタイム実行エンジン
 //!
-//! This module provides the step function that executes AST nodes and manages state.
+//! # 責務
+//! - AST → IR へのコンパイル（`compile`）
+//! - IR + 状態 + 入力 → 次の状態 + 出力（`step`）
+//!
+//! # 実行モデル
+//! ```text
+//! Markdown → AST → IR(Program) → step(State, Input) → (State, Output)
+//! ```
+//!
+//! # 設計原則
+//! - runtime は IR のみを扱う（Markdown を直接解釈しない）
+//! - `Emit` は Output.events に積むだけ（内容を解釈しない）
+//! - `AwaitChoice` / `AwaitAdvance` で実行を停止し `waiting_for` をセット
+//! - 状態は明示的（隠れた状態を持たない）
+
+pub mod ir;
 
 use crate::types::{
-    ast::{Ast, AstNode},
-    event::Event,
-    output::Output,
+    ast::{Ast, AstNode, Comparison, Expr, Operation},
     state::State,
 };
+use ir::{ChoiceOption, Event, MathOp, Op, Program};
+use std::collections::HashMap;
 
-pub mod debug;
+// ──────────────────────────────────────────────
+// 公開 API 型定義
+// ──────────────────────────────────────────────
 
-#[cfg(test)]
-mod tests;
-
-/// Execute a single step of the story
-///
-/// Takes the current state, AST, and optional event, returns updated state and output
-pub fn step(state: State, ast: &Ast, event: Option<Event>) -> (State, Output) {
-    step_with_debug(state, ast, event, &debug::DebugConfig::default())
+/// runtime への入力
+#[derive(Debug, Clone, PartialEq)]
+pub enum Input {
+    /// 進行（Enter キー相当）
+    Advance,
+    /// 選択肢を選ぶ（`ChoiceOption.id` を指定）
+    SelectChoice(String),
 }
 
-/// Execute a single step with debug configuration
+/// runtime からの出力
+#[derive(Debug, Clone)]
+pub struct Output {
+    /// この step で発生したイベント列（描画・音など）
+    pub events: Vec<Event>,
+    /// 入力待ち状態（None なら続けて step を呼んでよい）
+    pub waiting_for: Option<WaitingType>,
+}
+
+/// 入力待ちの種類
+#[derive(Debug, Clone, PartialEq)]
+pub enum WaitingType {
+    /// Enter 待ち
+    Advance,
+    /// 選択肢待ち（表示に必要な選択肢一覧を含む）
+    Choice(Vec<ChoiceOption>),
+}
+
+impl Output {
+    fn new() -> Self {
+        Self {
+            events: Vec::new(),
+            waiting_for: None,
+        }
+    }
+}
+
+// ──────────────────────────────────────────────
+// コンパイル
+// ──────────────────────────────────────────────
+
+/// AST を IR 命令列（Program）にコンパイルする
 ///
-/// Takes the current state, AST, optional event, and debug config, returns updated state and output
-pub fn step_with_debug(
-    mut state: State,
-    ast: &Ast,
-    event: Option<Event>,
-    debug_config: &debug::DebugConfig,
-) -> (State, Output) {
-    let start_pc = state.pc;
+/// - ラベルを IR インデックスに解決する
+/// - 選択肢 ID を `{scene_name}_choice_{index}` 形式で確定する
+/// - 台詞・ナレーション直後に `AwaitAdvance` を自動挿入する
+pub fn compile(ast: &Ast) -> Program {
+    let mut compiler = Compiler::new();
+    compiler.compile_nodes(&ast.nodes);
+    compiler.resolve()
+}
+
+// ──────────────────────────────────────────────
+// コンパイラ実装（内部）
+// ──────────────────────────────────────────────
+
+/// コンパイル中の未解決命令
+enum PreOp {
+    Resolved(Op),
+    LabelDef(String),
+    Jump(String),
+    Branch { condition: Expr, label: String },
+    AwaitChoice { choices: Vec<PreChoice> },
+}
+
+/// 未解決の選択肢項目
+struct PreChoice {
+    id: String,
+    label: String,
+    target_label: String,
+}
+
+struct Compiler {
+    ops: Vec<PreOp>,
+    current_scene: String,
+    /// WhenBlock のスキップラベル生成用グローバルカウンター
+    label_counter: usize,
+    /// BRANCH ごとの通し番号（同一シーン内の Choice ID 衝突を防ぐ）
+    branch_counter: usize,
+}
+
+impl Compiler {
+    fn new() -> Self {
+        Self {
+            ops: Vec::new(),
+            current_scene: "root".to_string(),
+            label_counter: 0,
+            branch_counter: 0,
+        }
+    }
+
+    fn compile_nodes(&mut self, nodes: &[AstNode]) {
+        for node in nodes {
+            self.compile_node(node);
+        }
+    }
+
+    fn compile_node(&mut self, node: &AstNode) {
+        match node {
+            AstNode::Say { speaker, text } => {
+                self.ops.push(PreOp::Resolved(Op::Emit(Event::Say {
+                    speaker: speaker.clone(),
+                    text: text.clone(),
+                })));
+                // 台詞・ナレーション直後は必ず Enter 待ち
+                self.ops.push(PreOp::Resolved(Op::AwaitAdvance));
+            }
+
+            AstNode::Scene { name } => {
+                self.current_scene = name.clone();
+                self.ops.push(PreOp::Resolved(Op::Emit(Event::SceneStart {
+                    name: name.clone(),
+                })));
+            }
+
+            AstNode::ShowImage { layer, name } => {
+                self.ops.push(PreOp::Resolved(Op::Emit(Event::ShowImage {
+                    layer: layer.clone(),
+                    name: name.clone(),
+                })));
+            }
+
+            AstNode::ClearLayer { layer } => {
+                self.ops.push(PreOp::Resolved(Op::Emit(Event::ClearLayer {
+                    layer: layer.clone(),
+                })));
+            }
+
+            AstNode::PlayBgm { name } => {
+                self.ops.push(PreOp::Resolved(Op::Emit(Event::PlayBgm {
+                    name: name.clone(),
+                })));
+            }
+
+            AstNode::PlaySe { name } => {
+                self.ops.push(PreOp::Resolved(Op::Emit(Event::PlaySe {
+                    name: name.clone(),
+                })));
+            }
+
+            AstNode::PlayMovie { name } => {
+                self.ops.push(PreOp::Resolved(Op::Emit(Event::PlayMovie {
+                    name: name.clone(),
+                })));
+            }
+
+            AstNode::Wait { seconds } => {
+                self.ops.push(PreOp::Resolved(Op::Emit(Event::Wait {
+                    duration: *seconds,
+                })));
+            }
+
+            AstNode::Label { name } => {
+                self.ops.push(PreOp::LabelDef(name.clone()));
+            }
+
+            AstNode::Jump { label } => {
+                self.ops.push(PreOp::Jump(label.clone()));
+            }
+
+            AstNode::JumpIf {
+                var,
+                cmp,
+                value,
+                label,
+            } => {
+                let condition = make_cmp_expr(var, cmp, value);
+                self.ops.push(PreOp::Branch {
+                    condition,
+                    label: label.clone(),
+                });
+            }
+
+            AstNode::Set { name, value } => {
+                self.ops.push(PreOp::Resolved(Op::Set {
+                    key: name.clone(),
+                    value: value.clone(),
+                }));
+            }
+
+            AstNode::Modify { name, op, value } => {
+                let math_op = match op {
+                    Operation::Add => MathOp::Add,
+                    Operation::Subtract => MathOp::Sub,
+                    Operation::Multiply => MathOp::Mul,
+                    Operation::Divide => MathOp::Div,
+                };
+                self.ops.push(PreOp::Resolved(Op::Modify {
+                    key: name.clone(),
+                    op: math_op,
+                    value: value.clone(),
+                }));
+            }
+
+            AstNode::Branch { choices } => {
+                let scene = self.current_scene.clone();
+                let branch_idx = self.branch_counter;
+                self.branch_counter += 1;
+                let pre_choices = choices
+                    .iter()
+                    .enumerate()
+                    .map(|(i, c)| PreChoice {
+                        id: format!("{}_branch_{}_choice_{}", scene, branch_idx, i),
+                        label: c.label.clone(),
+                        target_label: c.target.clone(),
+                    })
+                    .collect();
+                self.ops.push(PreOp::AwaitChoice {
+                    choices: pre_choices,
+                });
+            }
+
+            AstNode::WhenBlock { condition, body } => {
+                // 条件が偽のときボディをスキップするジャンプを挿入
+                // ops.len() ではなくグローバルカウンターを使って衝突を防ぐ
+                let skip_label = format!("__when_end_{}", self.label_counter);
+                self.label_counter += 1;
+                self.ops.push(PreOp::Branch {
+                    condition: Expr::Not(Box::new(condition.clone())),
+                    label: skip_label.clone(),
+                });
+                self.compile_nodes(body);
+                self.ops.push(PreOp::LabelDef(skip_label));
+            }
+        }
+    }
+
+    /// ラベルを解決して最終的な Program を生成する
+    fn resolve(self) -> Program {
+        // パス1: ラベル位置マップを構築（LabelDef を除いたインデックスで計算）
+        let mut label_map: HashMap<String, usize> = HashMap::new();
+        let mut ir_index: usize = 0;
+        for pre_op in &self.ops {
+            match pre_op {
+                PreOp::LabelDef(name) => {
+                    label_map.insert(name.clone(), ir_index);
+                }
+                _ => {
+                    ir_index += 1;
+                }
+            }
+        }
+
+        // パス2: 解決して Program を生成
+        let mut program: Program = Vec::new();
+        for pre_op in self.ops {
+            match pre_op {
+                PreOp::LabelDef(_) => {}
+                PreOp::Resolved(op) => {
+                    program.push(op);
+                }
+                PreOp::Jump(label) => {
+                    let target = label_map.get(&label).copied().unwrap_or(program.len());
+                    program.push(Op::Jump { target });
+                }
+                PreOp::Branch { condition, label } => {
+                    let target = label_map.get(&label).copied().unwrap_or(program.len());
+                    program.push(Op::Branch { condition, target });
+                }
+                PreOp::AwaitChoice { choices } => {
+                    let options = choices
+                        .into_iter()
+                        .map(|c| {
+                            let target_pc = label_map
+                                .get(&c.target_label)
+                                .copied()
+                                .unwrap_or(program.len());
+                            ChoiceOption {
+                                id: c.id,
+                                label: c.label,
+                                target_pc,
+                            }
+                        })
+                        .collect();
+                    program.push(Op::AwaitChoice { options });
+                }
+            }
+        }
+
+        program
+    }
+}
+
+/// 比較演算子から Expr を生成するヘルパー
+fn make_cmp_expr(var: &str, cmp: &Comparison, value: &str) -> Expr {
+    let lhs = Box::new(Expr::Var(var.to_string()));
+    let rhs = Box::new(Expr::String(value.to_string()));
+    match cmp {
+        Comparison::Equal => Expr::Equal(lhs, rhs),
+        Comparison::NotEqual => Expr::NotEqual(lhs, rhs),
+        Comparison::LessThan => Expr::LessThan(lhs, rhs),
+        Comparison::LessThanOrEqual => Expr::LessThanOrEqual(lhs, rhs),
+        Comparison::GreaterThan => Expr::GreaterThan(lhs, rhs),
+        Comparison::GreaterThanOrEqual => Expr::GreaterThanOrEqual(lhs, rhs),
+    }
+}
+
+// ──────────────────────────────────────────────
+// 実行エンジン
+// ──────────────────────────────────────────────
+
+/// 1ステップ実行する
+///
+/// # 動作
+/// 1. 入力がある場合、現在位置の `Await*` 命令を解決して PC を進める
+/// 2. `Await*` に到達するか、プログラム末尾に達するまで Op を処理し続ける
+pub fn step(mut state: State, program: &Program, input: Option<Input>) -> (State, Output) {
     let mut output = Output::new();
 
-    debug::log(
-        debug_config,
-        debug::DebugCategory::Engine,
-        debug::LogLevel::Debug,
-        &format!("[Step] Starting at PC={}", start_pc),
-    );
-
-    // Handle events first
-    if let Some(ref event) = event {
-        debug::log(
-            debug_config,
-            debug::DebugCategory::Flow,
-            debug::LogLevel::Debug,
-            &format!("[Event] Handling event: {:?}", event),
-        );
-        let event_handled = handle_event(&mut state, event, &mut output, ast, debug_config);
-        if event_handled && !output.choices.is_empty() {
-            // If we handled an event AND generated new choices, return early
-            return (state, output);
+    // 入力処理
+    if let Some(ref input) = input {
+        match input {
+            Input::Advance => {
+                if let Some(Op::AwaitAdvance) = program.get(state.pc) {
+                    state.pc += 1;
+                }
+            }
+            Input::SelectChoice(id) => {
+                if let Some(Op::AwaitChoice { options }) = program.get(state.pc)
+                    && let Some(opt) = options.iter().find(|o| &o.id == id)
+                {
+                    state.pc = opt.target_pc;
+                }
+            }
         }
     }
 
-    // If we're waiting for a choice, don't advance until choice is made
-    if state.waiting_for_choice && output.choices.is_empty() {
-        debug::log(
-            debug_config,
-            debug::DebugCategory::Flow,
-            debug::LogLevel::Debug,
-            "[Flow] Waiting for choice, not advancing",
-        );
-        return (state, output);
-    }
+    // Op 処理ループ
+    while let Some(op) = program.get(state.pc) {
+        match op {
+            Op::Emit(event) => {
+                output.events.push(event.clone());
+                state.pc += 1;
+            }
 
-    // Execute current instruction
-    loop {
-        if state.pc >= ast.len() {
-            // End of program
-            debug::log(
-                debug_config,
-                debug::DebugCategory::Engine,
-                debug::LogLevel::Info,
-                &format!("[Engine] Reached end of program at PC={}", state.pc),
-            );
-            break;
-        }
+            Op::AwaitAdvance => {
+                output.waiting_for = Some(WaitingType::Advance);
+                break;
+            }
 
-        let node = match ast.get_node(state.pc) {
-            Some(node) => node,
-            None => break,
-        };
+            Op::AwaitChoice { options } => {
+                output.waiting_for = Some(WaitingType::Choice(options.clone()));
+                break;
+            }
 
-        debug::log(
-            debug_config,
-            debug::DebugCategory::Engine,
-            debug::LogLevel::Trace,
-            &format!("[Engine] Executing PC={} node={:?}", state.pc, node),
-        );
+            Op::Jump { target } => {
+                state.pc = *target;
+            }
 
-        let should_continue = execute_node(&mut state, node, &mut output, ast, debug_config);
+            Op::Branch { condition, target } => {
+                if eval_expr(condition, &state) {
+                    state.pc = *target;
+                } else {
+                    state.pc += 1;
+                }
+            }
 
-        if !should_continue {
-            break;
+            Op::Set { key, value } => {
+                state.set_var(key.clone(), value.clone());
+                state.pc += 1;
+            }
+
+            Op::Modify { key, op, value } => {
+                let ast_op = match op {
+                    MathOp::Add => Operation::Add,
+                    MathOp::Sub => Operation::Subtract,
+                    MathOp::Mul => Operation::Multiply,
+                    MathOp::Div => Operation::Divide,
+                };
+                if let Err(e) = state.modify_var(key, ast_op, value) {
+                    output.events.push(Event::Custom {
+                        tag: "error".to_string(),
+                        params: vec![format!("modify_var failed for '{}': {}", key, e)],
+                    });
+                }
+                state.pc += 1;
+            }
         }
     }
 
     (state, output)
 }
 
-fn handle_event(
-    state: &mut State,
-    event: &Event,
-    output: &mut Output,
-    ast: &Ast,
-    debug_config: &debug::DebugConfig,
-) -> bool {
-    match event {
-        Event::Choice { id } => {
-            if state.waiting_for_choice {
-                // Extract choice index from ID (e.g., "choice_0" -> 0)
-                if let Some(index_str) = id.strip_prefix("choice_")
-                    && let Ok(choice_index) = index_str.parse::<usize>()
-                    && choice_index < state.pending_choices.len()
-                {
-                    // Get the target label for this choice
-                    let target_label = &state.pending_choices[choice_index];
+// ──────────────────────────────────────────────
+// 式評価
+// ──────────────────────────────────────────────
 
-                    // Jump to the target label
-                    if let Some(target_pc) = ast.get_label_index(target_label) {
-                        debug::log(
-                            debug_config,
-                            debug::DebugCategory::Flow,
-                            debug::LogLevel::Debug,
-                            &format!(
-                                "[Branch] Choice {} selected, jumping from PC={} to PC={} (label={})",
-                                choice_index, state.pc, target_pc, target_label
-                            ),
-                        );
-                        state.pc = target_pc;
-                    }
+fn eval_expr(expr: &Expr, state: &State) -> bool {
+    match expr {
+        Expr::Bool(b) => *b,
+        Expr::Number(n) => *n != 0,
+        Expr::String(s) => !s.is_empty(),
+        Expr::Var(name) => match state.get_var(name) {
+            Some(v) => !v.is_empty() && v != "false" && v != "0",
+            None => false,
+        },
+        Expr::Equal(lhs, rhs) => eval_str(lhs, state) == eval_str(rhs, state),
+        Expr::NotEqual(lhs, rhs) => eval_str(lhs, state) != eval_str(rhs, state),
+        Expr::LessThan(lhs, rhs) => eval_num(lhs, state) < eval_num(rhs, state),
+        Expr::LessThanOrEqual(lhs, rhs) => eval_num(lhs, state) <= eval_num(rhs, state),
+        Expr::GreaterThan(lhs, rhs) => eval_num(lhs, state) > eval_num(rhs, state),
+        Expr::GreaterThanOrEqual(lhs, rhs) => eval_num(lhs, state) >= eval_num(rhs, state),
+        Expr::And(lhs, rhs) => eval_expr(lhs, state) && eval_expr(rhs, state),
+        Expr::Or(lhs, rhs) => eval_expr(lhs, state) || eval_expr(rhs, state),
+        Expr::Not(inner) => !eval_expr(inner, state),
+    }
+}
 
-                    // Clear the choice state
-                    state.waiting_for_choice = false;
-                    state.pending_choices.clear();
-
-                    return true; // Event was handled
-                }
+fn eval_str(expr: &Expr, state: &State) -> String {
+    match expr {
+        Expr::Bool(b) => b.to_string(),
+        Expr::Number(n) => n.to_string(),
+        Expr::String(s) => s.clone(),
+        Expr::Var(name) => state.get_var(name).unwrap_or_default(),
+        _ => {
+            if eval_expr(expr, state) {
+                "true".to_string()
+            } else {
+                "false".to_string()
             }
-            false
-        }
-        Event::Continue => {
-            // Just continue execution
-            false
-        }
-        Event::Save { slot: _ } => {
-            // Save handling would be done at a higher level
-            output.add_effect("save".to_string(), None);
-            true
-        }
-        Event::Load { slot: _ } => {
-            // Load handling would be done at a higher level
-            output.add_effect("load".to_string(), None);
-            true
         }
     }
 }
 
-fn execute_node(
-    state: &mut State,
-    node: &AstNode,
-    output: &mut Output,
-    ast: &Ast,
-    debug_config: &debug::DebugConfig,
-) -> bool {
-    match node {
-        AstNode::Say { speaker, text } => {
-            output.add_line(Some(speaker.clone()), text.clone());
-            state.pc += 1;
-            false // Stop here, wait for user input
-        }
-        AstNode::ShowImage { layer, name } => {
-            output.add_effect(
-                "show_image".to_string(),
-                Some(serde_json::json!({
-                    "layer": layer,
-                    "name": name
-                })),
-            );
-            state.pc += 1;
-            false // Stop here to allow UI to process effect
-        }
-        AstNode::PlayBgm { name } => {
-            output.add_effect(
-                "play_bgm".to_string(),
-                Some(serde_json::json!({
-                    "name": name
-                })),
-            );
-            state.pc += 1;
-            false // Stop here to allow UI to process effect
-        }
-        AstNode::PlaySe { name } => {
-            output.add_effect(
-                "play_se".to_string(),
-                Some(serde_json::json!({
-                    "name": name
-                })),
-            );
-            state.pc += 1;
-            false // Stop here to allow UI to process effect
-        }
-        AstNode::PlayMovie { name } => {
-            output.add_effect(
-                "play_movie".to_string(),
-                Some(serde_json::json!({
-                    "name": name
-                })),
-            );
-            state.pc += 1;
-            false // Stop here to allow UI to process effect
-        }
-        AstNode::Wait { seconds } => {
-            output.add_effect(
-                "wait".to_string(),
-                Some(serde_json::json!({
-                    "seconds": seconds
-                })),
-            );
-            state.pc += 1;
-            false // Stop here
-        }
-        AstNode::Branch { choices } => {
-            debug::log(
-                debug_config,
-                debug::DebugCategory::Flow,
-                debug::LogLevel::Debug,
-                &format!(
-                    "[Branch] Presenting {} choices at PC={}",
-                    choices.len(),
-                    state.pc
-                ),
-            );
-            for choice in choices {
-                output.add_choice(choice.id.clone(), choice.label.clone());
-            }
-            state.waiting_for_choice = true;
-            state.pending_choices = choices.iter().map(|c| c.target.clone()).collect();
-            state.pc += 1;
-            false // Stop here, wait for choice
-        }
-        AstNode::Jump { label } => {
-            if let Some(target_pc) = ast.get_label_index(label) {
-                debug::log(
-                    debug_config,
-                    debug::DebugCategory::Flow,
-                    debug::LogLevel::Debug,
-                    &format!(
-                        "[Jump] Jumping from PC={} to PC={} (label={})",
-                        state.pc, target_pc, label
-                    ),
-                );
-                state.pc = target_pc;
+fn eval_num(expr: &Expr, state: &State) -> f64 {
+    eval_str(expr, state).parse::<f64>().unwrap_or(0.0)
+}
+
+// ──────────────────────────────────────────────
+// テスト
+// ──────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{parser::parse, types::state::State};
+
+    #[test]
+    fn 台詞のコンパイルと実行() {
+        let md = "[SAY speaker=Alice]\nこんにちは！\n";
+        let ast = parse(md).unwrap();
+        let program = compile(&ast);
+
+        // Say + AwaitAdvance = 2 命令
+        assert_eq!(program.len(), 2);
+        assert!(matches!(program[0], Op::Emit(Event::Say { .. })));
+        assert!(matches!(program[1], Op::AwaitAdvance));
+
+        // step(None) → Say イベントが来て AwaitAdvance で停止
+        let state = State::new();
+        let (state, output) = step(state, &program, None);
+        assert_eq!(output.events.len(), 1);
+        assert!(matches!(output.waiting_for, Some(WaitingType::Advance)));
+        assert_eq!(state.pc, 1);
+
+        // step(Advance) → AwaitAdvance を抜けてプログラム末尾へ
+        let (state, output) = step(state, &program, Some(Input::Advance));
+        assert!(output.waiting_for.is_none());
+        assert_eq!(state.pc, 2);
+    }
+
+    #[test]
+    fn 選択肢のコンパイルと実行() {
+        let md = r#"
+[BRANCH choice=はい label=yes, choice=いいえ label=no]
+
+[LABEL name=yes]
+[SAY speaker=Alice]
+選んだね。
+
+[LABEL name=no]
+[SAY speaker=Alice]
+選ばなかったね。
+"#;
+        let ast = parse(md).unwrap();
+        let program = compile(&ast);
+
+        // AwaitChoice で停止する
+        let state = State::new();
+        let (state, output) = step(state, &program, None);
+        assert!(matches!(output.waiting_for, Some(WaitingType::Choice(_))));
+
+        // 最初の選択肢を選ぶ
+        let choice_id = if let Some(WaitingType::Choice(opts)) = &output.waiting_for {
+            opts[0].id.clone()
+        } else {
+            panic!("選択肢が返されなかった");
+        };
+
+        let (_, output2) = step(state, &program, Some(Input::SelectChoice(choice_id)));
+        assert!(
+            output2
+                .events
+                .iter()
+                .any(|e| matches!(e, Event::Say { .. }))
+        );
+    }
+
+    #[test]
+    fn 変数セットと条件分岐() {
+        let md = r#"
+[SET name=score value=10]
+[JUMP_IF var=score cmp=ge value=5 label=pass]
+[SAY speaker=Alice]
+失敗。
+
+[LABEL name=pass]
+[SAY speaker=Alice]
+合格！
+"#;
+        let ast = parse(md).unwrap();
+        let program = compile(&ast);
+
+        let state = State::new();
+        let (_, output) = step(state, &program, None);
+
+        // score >= 5 なので「合格！」の台詞が来るはず
+        assert!(output.events.iter().any(|e| {
+            if let Event::Say { text, .. } = e {
+                text.contains("合格")
             } else {
-                // Should not happen if validation passed
-                state.pc += 1;
+                false
             }
-            true // Continue
-        }
-        AstNode::JumpIf {
-            var,
-            cmp,
-            value,
-            label,
-        } => {
-            match state.check_condition(var, cmp, value) {
-                Ok(true) => {
-                    if let Some(target_pc) = ast.get_label_index(label) {
-                        debug::log(
-                            debug_config,
-                            debug::DebugCategory::Flow,
-                            debug::LogLevel::Debug,
-                            &format!(
-                                "[JumpIf] Condition {}={:?} {:?} {} is TRUE, jumping from PC={} to PC={} (label={})",
-                                var,
-                                state.get_var(var),
-                                cmp,
-                                value,
-                                state.pc,
-                                target_pc,
-                                label
-                            ),
-                        );
-                        state.pc = target_pc;
-                    } else {
-                        state.pc += 1;
-                    }
-                }
-                Ok(false) => {
-                    debug::log(
-                        debug_config,
-                        debug::DebugCategory::Flow,
-                        debug::LogLevel::Debug,
-                        &format!(
-                            "[JumpIf] Condition {}={:?} {:?} {} is FALSE, not jumping",
-                            var,
-                            state.get_var(var),
-                            cmp,
-                            value
-                        ),
-                    );
-                    state.pc += 1;
-                }
-                Err(_) => {
-                    // Error in condition evaluation, just continue
-                    debug::log(
-                        debug_config,
-                        debug::DebugCategory::Flow,
-                        debug::LogLevel::Warn,
-                        &format!("[JumpIf] Error evaluating condition for var={}", var),
-                    );
-                    state.pc += 1;
-                }
-            }
-            true // Continue
-        }
-        AstNode::Set { name, value } => {
-            debug::log(
-                debug_config,
-                debug::DebugCategory::Variables,
-                debug::LogLevel::Debug,
-                &format!("[Set] Setting {}={}", name, value),
-            );
-            state.set_var(name.clone(), value.clone());
-            state.pc += 1;
-            true // Continue
-        }
-        AstNode::Modify { name, op, value } => {
-            let old_value = state.get_var(name);
-            let _ = state.modify_var(name, op.clone(), value);
-            let new_value = state.get_var(name);
-            debug::log(
-                debug_config,
-                debug::DebugCategory::Variables,
-                debug::LogLevel::Debug,
-                &format!(
-                    "[Modify] {} {:?} {} : {:?} -> {:?}",
-                    name, op, value, old_value, new_value
-                ),
-            );
-            state.pc += 1;
-            true // Continue
-        }
-        AstNode::Label { name } => {
-            state.last_label = Some(name.clone());
-            output.add_effect(
-                "label".to_string(),
-                Some(serde_json::json!({
-                    "name": name
-                })),
-            );
-            state.pc += 1;
-            true // Continue
-        }
-        AstNode::ClearLayer { layer } => {
-            output.add_effect(
-                "clear_layer".to_string(),
-                Some(serde_json::json!({
-                    "layer": layer
-                })),
-            );
-            state.pc += 1;
-            true // Continue
-        }
+        }));
     }
 }

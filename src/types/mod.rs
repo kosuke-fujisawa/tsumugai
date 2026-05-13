@@ -1,20 +1,10 @@
-//! Core types for the tsumugai library
+//! 基本型定義
 //!
-//! This module contains the fundamental types that form the public API:
-//! - AST: Abstract syntax tree representation of parsed scenarios
-//! - State: Runtime state including program counter and variables
-//! - Event: External events like user choices
-//! - Output: Results of step execution
-//! - Directive: Represents "what happens next" in the scenario
+//! - [`ast`]   : AST（構文木）の型定義
+//! - [`state`] : 実行状態
 
 pub mod ast;
-pub mod directive;
-pub mod event;
-pub mod output;
 pub mod state;
 
 pub use ast::Ast;
-pub use directive::Directive;
-pub use event::Event;
-pub use output::Output;
 pub use state::State;
