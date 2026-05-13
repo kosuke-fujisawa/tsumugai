@@ -1,0 +1,39 @@
+[
+  {
+    "events": [
+      {
+        "Say": {
+          "speaker": "Hero",
+          "text": "Hello, world!"
+        }
+      }
+    ],
+    "input": null,
+    "step": 0,
+    "waiting_for": "Advance"
+  },
+  {
+    "events": [
+      {
+        "Wait": {
+          "duration": 1.0
+        }
+      },
+      {
+        "Say": {
+          "speaker": "Hero",
+          "text": "Goodbye!"
+        }
+      }
+    ],
+    "input": "Advance",
+    "step": 1,
+    "waiting_for": "Advance"
+  },
+  {
+    "events": [],
+    "input": "Advance",
+    "step": 2,
+    "waiting_for": null
+  }
+]

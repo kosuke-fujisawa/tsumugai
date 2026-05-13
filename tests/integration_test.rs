@@ -2,11 +2,80 @@
 //!
 //! parser → runtime の連携を end-to-end でテストする。
 
+use serde_json::{Value, json};
 use tsumugai::{
     parser,
-    runtime::{self, Input, WaitingType, ir::Event},
+    runtime::{self, Input, WaitingType, ir::Event, ir::Program},
     types::state::State,
 };
+
+// ──────────────────────────────────────────────
+// ゴールデンテスト用ヘルパー
+// ──────────────────────────────────────────────
+
+fn input_to_json(input: Option<&Input>) -> Value {
+    match input {
+        None => Value::Null,
+        Some(Input::Advance) => json!("Advance"),
+        Some(Input::SelectChoice(id)) => json!({ "SelectChoice": id }),
+    }
+}
+
+fn waiting_for_to_json(wf: Option<&WaitingType>) -> Value {
+    match wf {
+        None => Value::Null,
+        Some(WaitingType::Advance) => json!("Advance"),
+        Some(WaitingType::Choice(opts)) => {
+            let choices: Vec<Value> = opts
+                .iter()
+                .map(|o| json!({ "id": o.id, "label": o.label }))
+                .collect();
+            json!({ "Choice": choices })
+        }
+        Some(WaitingType::Ended { id, name }) => json!({ "Ended": { "id": id, "name": name } }),
+    }
+}
+
+fn play_scenario(program: &Program, inputs: &[Option<Input>]) -> Vec<Value> {
+    let mut state = State::new();
+    let mut steps = vec![];
+    for (idx, input) in inputs.iter().enumerate() {
+        let (next_state, output) = runtime::step(state, program, input.clone());
+        state = next_state;
+        let events: Vec<Value> = output
+            .events
+            .iter()
+            .map(|e| serde_json::to_value(e).unwrap())
+            .collect();
+        steps.push(json!({
+            "step": idx,
+            "input": input_to_json(input.as_ref()),
+            "events": events,
+            "waiting_for": waiting_for_to_json(output.waiting_for.as_ref()),
+        }));
+    }
+    steps
+}
+
+fn compare_or_update_golden(path: &str, actual: &str) {
+    if std::env::var("UPDATE_GOLDEN").is_ok() {
+        if let Some(parent) = std::path::Path::new(path).parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(path, actual).unwrap();
+        eprintln!("Updated golden file: {path}");
+        return;
+    }
+    match std::fs::read_to_string(path) {
+        Ok(expected) => assert_eq!(
+            actual, expected,
+            "Golden file mismatch: {path}\nRun `UPDATE_GOLDEN=1 cargo test` to update."
+        ),
+        Err(_) => panic!(
+            "Golden file not found: {path}\nRun `UPDATE_GOLDEN=1 cargo test` to create it.\n\nActual output:\n{actual}"
+        ),
+    }
+}
 
 // ──────────────────────────────────────────────
 // 基本動作
@@ -629,4 +698,49 @@ fn 条件付き選択肢_条件偽の選択肢はバイパスできない() {
         state_after.pc, pc_before,
         "条件が偽の選択肢はバイパスできないはず"
     );
+}
+
+// ──────────────────────────────────────────────
+// ゴールデン JSON テスト
+// ──────────────────────────────────────────────
+
+/// simple.md の全ステップ出力が変わっていないことを確認する
+#[test]
+fn golden_simple_events() {
+    let md = include_str!("fixtures/simple.md");
+    let ast = parser::parse(md).unwrap();
+    let program = runtime::compile(&ast);
+
+    let inputs: Vec<Option<Input>> = vec![None, Some(Input::Advance), Some(Input::Advance)];
+    let steps = play_scenario(&program, &inputs);
+    let actual = serde_json::to_string_pretty(&steps).unwrap();
+    compare_or_update_golden("tests/golden/simple.events.json", &actual);
+}
+
+/// branch.md の左右両分岐のステップ出力が変わっていないことを確認する
+#[test]
+fn golden_branch_events() {
+    let md = include_str!("fixtures/branch.md");
+    let ast = parser::parse(md).unwrap();
+    let program = runtime::compile(&ast);
+
+    let left_inputs: Vec<Option<Input>> = vec![
+        None,
+        Some(Input::Advance),
+        Some(Input::SelectChoice("root_branch_0_choice_0".to_string())),
+        Some(Input::Advance),
+    ];
+    let right_inputs: Vec<Option<Input>> = vec![
+        None,
+        Some(Input::Advance),
+        Some(Input::SelectChoice("root_branch_0_choice_1".to_string())),
+        Some(Input::Advance),
+    ];
+
+    let result = json!({
+        "left": play_scenario(&program, &left_inputs),
+        "right": play_scenario(&program, &right_inputs),
+    });
+    let actual = serde_json::to_string_pretty(&result).unwrap();
+    compare_or_update_golden("tests/golden/branch.events.json", &actual);
 }
