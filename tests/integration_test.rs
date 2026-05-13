@@ -426,6 +426,24 @@ fn check_json_parseエラーはstatus_error() {
     assert_eq!(issues[0]["level"], "error");
 }
 
+/// JSON 出力フォーマットが変わっていないことを確認する Golden テスト
+#[test]
+fn check_json_フォーマットが安定している() {
+    let md = "[SAY speaker=Alice]\nこんにちは。\n";
+    let ast = parser::parse(md).unwrap();
+    let result = tsumugai::analyzer::analyze(&ast);
+    let output = tsumugai::analyzer::CheckJsonOutput::from(&result);
+
+    let json = serde_json::to_string_pretty(&output).unwrap();
+    let expected = r#"{
+  "status": "ok",
+  "error_count": 0,
+  "warning_count": 0,
+  "issues": []
+}"#;
+    assert_eq!(json, expected, "JSON フォーマットが意図せず変わっています");
+}
+
 /// 正常なシナリオは analyzer でエラーなし
 #[test]
 fn 正常なシナリオはanalyzerでクリーン() {
