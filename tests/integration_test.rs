@@ -58,7 +58,7 @@ fn play_scenario(program: &Program, inputs: &[Option<Input>]) -> Vec<Value> {
 }
 
 fn compare_or_update_golden(path: &str, actual: &str) {
-    if std::env::var("UPDATE_GOLDEN").is_ok() {
+    if std::env::var("UPDATE_GOLDEN").as_deref() == Ok("1") {
         if let Some(parent) = std::path::Path::new(path).parent() {
             std::fs::create_dir_all(parent).unwrap();
         }
