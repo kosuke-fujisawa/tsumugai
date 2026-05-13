@@ -1,0 +1,108 @@
+{
+  "left": [
+    {
+      "events": [
+        {
+          "Say": {
+            "speaker": "Guide",
+            "text": "Choose your path."
+          }
+        }
+      ],
+      "input": null,
+      "step": 0,
+      "waiting_for": "Advance"
+    },
+    {
+      "events": [],
+      "input": "Advance",
+      "step": 1,
+      "waiting_for": {
+        "Choice": [
+          {
+            "id": "root_branch_0_choice_0",
+            "label": "Left"
+          },
+          {
+            "id": "root_branch_0_choice_1",
+            "label": "Right"
+          }
+        ]
+      }
+    },
+    {
+      "events": [
+        {
+          "Say": {
+            "speaker": "Guide",
+            "text": "You went left."
+          }
+        }
+      ],
+      "input": {
+        "SelectChoice": "root_branch_0_choice_0"
+      },
+      "step": 2,
+      "waiting_for": "Advance"
+    },
+    {
+      "events": [],
+      "input": "Advance",
+      "step": 3,
+      "waiting_for": null
+    }
+  ],
+  "right": [
+    {
+      "events": [
+        {
+          "Say": {
+            "speaker": "Guide",
+            "text": "Choose your path."
+          }
+        }
+      ],
+      "input": null,
+      "step": 0,
+      "waiting_for": "Advance"
+    },
+    {
+      "events": [],
+      "input": "Advance",
+      "step": 1,
+      "waiting_for": {
+        "Choice": [
+          {
+            "id": "root_branch_0_choice_0",
+            "label": "Left"
+          },
+          {
+            "id": "root_branch_0_choice_1",
+            "label": "Right"
+          }
+        ]
+      }
+    },
+    {
+      "events": [
+        {
+          "Say": {
+            "speaker": "Guide",
+            "text": "You went right."
+          }
+        }
+      ],
+      "input": {
+        "SelectChoice": "root_branch_0_choice_1"
+      },
+      "step": 2,
+      "waiting_for": "Advance"
+    },
+    {
+      "events": [],
+      "input": "Advance",
+      "step": 3,
+      "waiting_for": null
+    }
+  ]
+}

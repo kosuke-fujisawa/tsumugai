@@ -8,7 +8,11 @@ Choose your path.
 [SAY speaker=Guide]
 You went left.
 
+[JUMP label=end]
+
 [LABEL name=go_right]
 
 [SAY speaker=Guide]
 You went right.
+
+[LABEL name=end]
