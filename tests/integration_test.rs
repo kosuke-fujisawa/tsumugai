@@ -485,8 +485,16 @@ fn endコマンドがendingと同様に動作する() {
     let state = State::new();
     let (_state, output) = runtime::step(state, &program, None);
 
-    assert!(output.events.iter().any(|e| matches!(e, Event::Ending { id, .. } if id == "bad")));
-    assert!(matches!(output.waiting_for, Some(WaitingType::Ended { .. })));
+    assert!(
+        output
+            .events
+            .iter()
+            .any(|e| matches!(e, Event::Ending { id, .. } if id == "bad"))
+    );
+    assert!(matches!(
+        output.waiting_for,
+        Some(WaitingType::Ended { .. })
+    ));
 }
 
 #[test]
