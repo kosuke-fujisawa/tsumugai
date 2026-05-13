@@ -124,12 +124,156 @@ B
 
     let (_, output) = runtime::step(State::new(), &program, None);
     if let Some(WaitingType::Choice(opts)) = output.waiting_for {
-        // ID は `{scene}_choice_{index}` 形式
+        // ID は `{scene}_branch_{branch_idx}_choice_{choice_idx}` 形式
         assert!(opts[0].id.ends_with("_choice_0"));
         assert!(opts[1].id.ends_with("_choice_1"));
     } else {
         panic!("選択肢が返されなかった");
     }
+}
+
+/// 同一シーン内に複数の BRANCH があっても Choice ID が衝突しない
+#[test]
+fn 同一シーン内複数branchでid衝突しない() {
+    let md = r#"
+# scene: shop
+
+[BRANCH choice=買う label=buy, choice=見るだけ label=look]
+
+[LABEL name=buy]
+[SAY speaker=店主]
+毎度。
+
+[LABEL name=look]
+[BRANCH choice=去る label=leave, choice=もう一度 label=look2]
+
+[LABEL name=leave]
+[SAY speaker=A]
+また来ます。
+
+[LABEL name=look2]
+[SAY speaker=A]
+やっぱり買います。
+"#;
+    let ast = parser::parse(md).unwrap();
+    let program = runtime::compile(&ast);
+
+    let (state, output) = runtime::step(State::new(), &program, None);
+    let opts1 = if let Some(WaitingType::Choice(opts)) = output.waiting_for {
+        opts
+    } else {
+        panic!("1つ目の選択肢が返されなかった");
+    };
+
+    // 1つ目のBRANCH: 「見るだけ」を選んで2つ目のBRANCHへ
+    let (state, output) = runtime::step(
+        state,
+        &program,
+        Some(Input::SelectChoice(opts1[1].id.clone())),
+    );
+    let opts2 = if let Some(WaitingType::Choice(opts)) = output.waiting_for {
+        opts
+    } else {
+        panic!("2つ目の選択肢が返されなかった");
+    };
+
+    // 2つのBRANCHのID群が完全に異なることを確認
+    for id1 in &opts1 {
+        for id2 in &opts2 {
+            assert_ne!(id1.id, id2.id, "Choice IDが衝突: {}", id1.id);
+        }
+    }
+
+    // 2つ目のBRANCHから「去る」を選べることも確認
+    let (_, output) = runtime::step(
+        state,
+        &program,
+        Some(Input::SelectChoice(opts2[0].id.clone())),
+    );
+    let text = output
+        .events
+        .iter()
+        .find_map(|e| {
+            if let tsumugai::runtime::ir::Event::Say { text, .. } = e {
+                Some(text.clone())
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    assert!(text.contains("また来ます"));
+}
+
+/// ネストした WhenBlock が正しく動作する
+#[test]
+fn ネストしたwhenblockが動作する() {
+    let md = r#"
+[SET name=level value=5]
+[SET name=bonus value=true]
+
+:::when level >= 3
+:::when bonus == true
+[SAY speaker=System]
+ボーナス発動！
+:::
+:::
+
+[SAY speaker=System]
+終了
+"#;
+    let ast = parser::parse(md).unwrap();
+    let program = runtime::compile(&ast);
+
+    let (state, output) = runtime::step(State::new(), &program, None);
+    let texts: Vec<String> = output
+        .events
+        .iter()
+        .filter_map(|e| {
+            if let tsumugai::runtime::ir::Event::Say { text, .. } = e {
+                Some(text.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert!(
+        texts.iter().any(|t| t.contains("ボーナス発動")),
+        "ネストwhenが真のとき内側の台詞が出るはず: {:?}",
+        texts
+    );
+
+    // Enter で進めると「終了」が来る
+    let (_, output2) = runtime::step(state, &program, Some(Input::Advance));
+    let has_end = output2.events.iter().any(|e| {
+        if let tsumugai::runtime::ir::Event::Say { text, .. } = e {
+            text.contains("終了")
+        } else {
+            false
+        }
+    });
+    assert!(has_end, "終了台詞が来るはず");
+}
+
+/// modify_var のエラー（文字列変数への数値演算）が Custom error イベントとして返る
+#[test]
+fn modify_varのエラーがeventに積まれる() {
+    let md = r#"
+[SET name=name value=Alice]
+[MODIFY name=name op=add value=1]
+[SAY speaker=System]
+完了
+"#;
+    let ast = parser::parse(md).unwrap();
+    let program = runtime::compile(&ast);
+
+    let (_, output) = runtime::step(State::new(), &program, None);
+    let has_error = output.events.iter().any(|e| {
+        matches!(
+            e,
+            tsumugai::runtime::ir::Event::Custom { tag, .. } if tag == "error"
+        )
+    });
+    assert!(has_error, "文字列への数値演算は error イベントを生成するはず");
 }
 
 // ──────────────────────────────────────────────

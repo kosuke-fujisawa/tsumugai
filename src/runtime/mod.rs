@@ -102,6 +102,10 @@ struct PreChoice {
 struct Compiler {
     ops: Vec<PreOp>,
     current_scene: String,
+    /// WhenBlock のスキップラベル生成用グローバルカウンター
+    label_counter: usize,
+    /// BRANCH ごとの通し番号（同一シーン内の Choice ID 衝突を防ぐ）
+    branch_counter: usize,
 }
 
 impl Compiler {
@@ -109,6 +113,8 @@ impl Compiler {
         Self {
             ops: Vec::new(),
             current_scene: "root".to_string(),
+            label_counter: 0,
+            branch_counter: 0,
         }
     }
 
@@ -217,11 +223,13 @@ impl Compiler {
 
             AstNode::Branch { choices } => {
                 let scene = self.current_scene.clone();
+                let branch_idx = self.branch_counter;
+                self.branch_counter += 1;
                 let pre_choices = choices
                     .iter()
                     .enumerate()
                     .map(|(i, c)| PreChoice {
-                        id: format!("{}_choice_{}", scene, i),
+                        id: format!("{}_branch_{}_choice_{}", scene, branch_idx, i),
                         label: c.label.clone(),
                         target_label: c.target.clone(),
                     })
@@ -233,7 +241,9 @@ impl Compiler {
 
             AstNode::WhenBlock { condition, body } => {
                 // 条件が偽のときボディをスキップするジャンプを挿入
-                let skip_label = format!("__when_end_{}", self.ops.len());
+                // ops.len() ではなくグローバルカウンターを使って衝突を防ぐ
+                let skip_label = format!("__when_end_{}", self.label_counter);
+                self.label_counter += 1;
                 self.ops.push(PreOp::Branch {
                     condition: Expr::Not(Box::new(condition.clone())),
                     label: skip_label.clone(),
@@ -386,7 +396,12 @@ pub fn step(mut state: State, program: &Program, input: Option<Input>) -> (State
                     MathOp::Mul => Operation::Multiply,
                     MathOp::Div => Operation::Divide,
                 };
-                let _ = state.modify_var(key, ast_op, value);
+                if let Err(e) = state.modify_var(key, ast_op, value) {
+                    output.events.push(Event::Custom {
+                        tag: "error".to_string(),
+                        params: vec![format!("modify_var failed for '{}': {}", key, e)],
+                    });
+                }
                 state.pc += 1;
             }
         }

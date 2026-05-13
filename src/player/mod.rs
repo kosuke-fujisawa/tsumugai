@@ -36,7 +36,7 @@ pub fn run(markdown: &str, debug_mode: bool) -> anyhow::Result<()> {
     print_prompt("Enter で開始...");
     read_line()?;
 
-    loop {
+    'main: loop {
         // ─── step を呼ぶ前にスナップショットを保存 ───
         history.push((state.clone(), view.clone()));
 
@@ -79,10 +79,12 @@ pub fn run(markdown: &str, debug_mode: bool) -> anyhow::Result<()> {
                     if input == "b" {
                         match undo(&mut history, &mut state, &mut view) {
                             UndoResult::Success => {
-                                // Undo 後は再表示のため外側ループを再実行
-                                // history から現在位置のスナップショットを取得して表示
+                                // 外側ループで step(None) を再実行して正しく再表示する
+                                // undo() が history.last() を復元済みなので、もう1つ pop して
+                                // 外側ループの push と相殺し、履歴の重複を防ぐ
                                 redisplay_current(&state, &view, debug_mode);
-                                continue;
+                                history.pop();
+                                continue 'main;
                             }
                             UndoResult::NothingToUndo => {
                                 println!("これ以上戻れません。");
@@ -130,7 +132,8 @@ pub fn run(markdown: &str, debug_mode: bool) -> anyhow::Result<()> {
                         match undo(&mut history, &mut state, &mut view) {
                             UndoResult::Success => {
                                 redisplay_current(&state, &view, debug_mode);
-                                continue;
+                                history.pop();
+                                continue 'main;
                             }
                             UndoResult::NothingToUndo => {
                                 println!("これ以上戻れません。");

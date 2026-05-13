@@ -90,7 +90,7 @@ pub enum Event {
 /// 選択肢の1項目
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ChoiceOption {
-    /// 選択肢ID（`{scene_name}_choice_{index}` 形式、compile 時に確定）
+    /// 選択肢ID（`{scene_name}_branch_{branch_index}_choice_{choice_index}` 形式、compile 時に確定）
     pub id: String,
     /// 表示テキスト
     pub label: String,
