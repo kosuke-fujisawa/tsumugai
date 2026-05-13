@@ -71,9 +71,10 @@ fn compare_or_update_golden(path: &str, actual: &str) {
             actual, expected,
             "Golden file mismatch: {path}\nRun `UPDATE_GOLDEN=1 cargo test` to update."
         ),
-        Err(_) => panic!(
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => panic!(
             "Golden file not found: {path}\nRun `UPDATE_GOLDEN=1 cargo test` to create it.\n\nActual output:\n{actual}"
         ),
+        Err(e) => panic!("Failed to read golden file {path}: {e}"),
     }
 }
 
