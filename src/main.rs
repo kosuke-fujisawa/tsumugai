@@ -5,8 +5,14 @@ use std::fs;
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
 
-    let usage = "使い方: tsumugai <command> <file> [--json] [--debug]\n\
-                 コマンド: play, check";
+    let usage = concat!(
+        "使い方: tsumugai <command> <file> [--json] [--debug]\n",
+        "コマンド:\n",
+        "  check <file>         シナリオの静的検証（人間向け出力）\n",
+        "  check <file> --json  シナリオの静的検証（JSON出力）\n",
+        "  play  <file>         シナリオの対話再生\n",
+        "  play  <file> --debug デバッグ情報付きで再生"
+    );
 
     if args.len() < 3 {
         eprintln!("{}", usage);
@@ -63,9 +69,10 @@ fn main() -> anyhow::Result<()> {
                     }
                 }
                 println!(
-                    "\nエラー: {}件  警告: {}件",
+                    "\nエラー: {}件  警告: {}件  情報: {}件",
                     result.error_count(),
-                    result.warning_count()
+                    result.warning_count(),
+                    result.info_count()
                 );
                 if result.has_errors() {
                     std::process::exit(1);
