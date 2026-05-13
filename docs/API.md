@@ -1,216 +1,208 @@
 # API — tsumugai Core ⇄ Host 契約
 
-この文書は、Core が返す **StepResult(JSON)** の契約を定義します。  
-**互換性はこの文書と `schemas/stepresult.schema.json` を基準**に保ちます。
+この文書は、Core が返す **Output** および **Event** の契約を定義します。
 
 ---
 
 ## 1. 実行サイクル（概要）
 
-- `Engine::step()` が 1 ステップ進め、`StepResult` を返す  
-- `next` によりホスト側の待機/選択/終了を指示  
-- 分岐時は `Engine::choose(index)` を呼び戻す
+```text
+parser::parse(markdown)
+  → Ast
+  → runtime::compile(&ast)
+  → Program (IR命令列)
+  → runtime::step(state, &program, input)
+  → (State, Output)
+```
+
+`runtime::step` を繰り返すことでシナリオを進行させます。
+
+- `Output.waiting_for` が `Some` のとき、ホスト側は入力を用意してから次の `step` を呼ぶ
+- `Output.waiting_for` が `None` のとき、そのまま次の `step` を呼んでよい
+- プログラム末尾に達すると `waiting_for = None` のまま返り続ける（終了判定はホスト側で行う）
 
 ---
 
-## 2. Rust 型（参考）
+## 2. Rust 型（公開API）
 
 ```rust
-pub enum NextAction {
-    Next,        // 次ステップへ（Enter等）
-    WaitUser,    // ユーザー入力待ち（Enter等）
-    WaitBranch,  // 分岐選択待ち（choose() 必須）
-    Halt,        // 終了
+// runtime::Input — step への入力
+pub enum Input {
+    Advance,                    // 進行（Enterキー相当）
+    SelectChoice(String),       // 選択肢を選ぶ（ChoiceOption.id を渡す）
 }
 
-#[serde(tag = "type", content = "args")]
-pub enum Directive {
-    Say { speaker: String, text: String },
-    ShowImage { layer: String, path: Option<String> }, // path=None は未解決
-    PlayBgm { path: Option<String> },
-    Wait { seconds: f32 },
-    Branch { choices: Vec<String> },                   // labels は Engine 内部で保持
-    ClearLayer { layer: String },
+// runtime::Output — step の戻り値
+pub struct Output {
+    pub events: Vec<Event>,                 // 発生したイベント列
+    pub waiting_for: Option<WaitingType>,   // 入力待ち状態
 }
 
-pub struct StepResult {
-    pub next: NextAction,
-    pub directives: Vec<Directive>,
+// runtime::WaitingType — 入力待ちの種類
+pub enum WaitingType {
+    Advance,                        // Enter 待ち
+    Choice(Vec<ChoiceOption>),      // 選択肢待ち
 }
-```
-**禁止**：既存 Directive の意味変更／フィールド削除。  
-**許容**：新 Directive の追加、オプショナルフィールド追加。
 
-## 3. JSON 例（dump 出力サンプル）
-
-```json
-{
-  "next": "WaitBranch",
-  "directives": [
-    { "type": "Say", "args": { "speaker": "ハル", "text": "どっちに行く？" } },
-    { "type": "Branch", "args": { "choices": ["右へ", "左へ"] } }
-  ]
+// runtime::ir::ChoiceOption — 選択肢の1項目
+pub struct ChoiceOption {
+    pub id: String,         // 選択肢ID（compile時に確定）
+    pub label: String,      // 表示テキスト
+    pub target_pc: usize,   // ジャンプ先IRインデックス（内部用）
 }
-```
 
-## 4. JSON Schema（抜粋：schemas/stepresult.schema.json）
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "StepResult",
-  "type": "object",
-  "required": ["next", "directives"],
-  "properties": {
-    "next": {
-      "type": "string",
-      "enum": ["Next", "WaitUser", "WaitBranch", "Halt"]
-    },
-    "directives": {
-      "type": "array",
-      "items": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": ["type", "args"],
-            "properties": {
-              "type": { "const": "Say" },
-              "args": {
-                "type": "object",
-                "required": ["speaker", "text"],
-                "properties": {
-                  "speaker": { "type": "string" },
-                  "text": { "type": "string" }
-                },
-                "additionalProperties": false
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": ["type", "args"],
-            "properties": {
-              "type": { "const": "ShowImage" },
-              "args": {
-                "type": "object",
-                "required": ["layer"],
-                "properties": {
-                  "layer": { "type": "string" },
-                  "path": { "type": ["string", "null"] }
-                },
-                "additionalProperties": false
-              }
-            },
-            "additionalProperties": false
-          }
-          /* … PlayBgm / Wait / Branch / ClearLayer を同様に定義 … */
-        ]
-      }
-    }
-  },
-  "additionalProperties": false
-}
-```
-**Schema は 後方互換を守る**。新 Directive を追加する場合は oneOf を追加する。
-
-## 5. エラーと警告
-- **エラー（パース不能・致命的な構文矛盾）**：`Engine::step()` がエラー型で返す
-- **警告（未解決アセット・未定義ラベル）**：`Directive.path=null` などに反映、処理は継続
-
-**必ず 行/列番号 と 修正候補 をログに含めること**
-
-## 6. 受け入れ条件（Core ⇄ Host）
-- Core は **同一 .md から同一 JSON を生成する**（決定性）。
-- Host は **StepResult を 変換なしに反映できる**（画像/BGM/分岐/待機）。
-- API 変更は **Schema/文書→実装→ゴールデン更新** の順で行う。
-
-## 7. 互換性の扱い
-- **マイナー**：後方互換の追加（新 Directive 追加、オプショナル項目の追加）
-- **メジャー**：既存の意味変更や削除（原則禁止。どうしても必要なら移行ガイドと2段リリース）
-
-## 8. 例：分岐の往復
-1.  **Core**: `step()` → `next=WaitBranch`, `Directive::Branch { choices }`
-2.  **Host**: UI で選択 → `choose(index)`
-3.  **Core**: 次の `step()` で分岐先の `Say`/`ShowImage`/… を返す
-
----
-
-## 9. 簡易アーキテクチャ APIリファレンス
-
-簡易アーキテクチャは `tsumugai::facade::Facade` 構造体を通じて利用します。
-JSONではなく、Rustの構造体を直接やり取りするのが特徴です。
-
-### 主な構造体
-
-- **`Facade`**: `Facade::new(markdown: &str)` で初期化し、`next(&mut State)` でシナリオを1ステップ進めます。
-- **`State`**: シナリオの実行状態を保持します。`State::new()` で初期化し、`facade.next()`に渡します。
-- **`Output`**: `facade.next()` の戻り値。次にホストアプリが実行すべきことを示します。
-- **`Event`**: `Output` に含まれる、発生したイベントのリスト（台詞、BGM再生など）。
-
-### `Output` 構造体 (抜粋)
-
-```rust
-pub enum Output {
-    /// 次のステップへ進む
-    Next,
-    /// ユーザーの入力を待つ
-    Wait,
-    /// シナリオの終端
-    Halt,
-    /// 選択肢を提示し、ユーザーの選択を待つ
-    Branch(Vec<String>),
-}
-```
-
-### `Event` 構造体 (抜粋)
-
-```rust
+// runtime::ir::Event — ホストに通知するイベント
 pub enum Event {
-    /// 台詞を表示
-    Say(String, String), // speaker, text
-    /// BGMを再生
-    PlayBgm(String), // path
-    /// 画像を表示
-    ShowImage(String, String), // layer, path
-    // ... 他のイベント
+    Say { speaker: String, text: String },
+    SceneStart { name: String },
+    ShowImage { layer: String, name: String },
+    ClearLayer { layer: String },
+    PlayBgm { name: String },
+    PlaySe { name: String },
+    PlayMovie { name: String },
+    Wait { duration: f32 },
+    Custom { tag: String, params: Vec<String> },
 }
-```
 
-### `State` 構造体 (抜粋)
-
-```rust
+// types::State — シナリオの実行状態
 pub struct State {
-    /// 現在の実行位置
-    current_index: usize,
-    /// ユーザーフラグ
-    flags: HashMap<String, String>,
-    // ... 他の状態
+    pub pc: usize,                              // IR上の現在位置
+    pub flags: HashMap<String, serde_json::Value>, // 変数・フラグ
 }
 ```
 
-### 利用例
+---
+
+## 3. 典型的な使い方
 
 ```rust
-use tsumugai::facade::{Facade, State};
-use tsumugai::types::output::Output;
+use tsumugai::{
+    parser,
+    runtime::{self, Input, WaitingType, ir::Event},
+    types::State,
+};
 
-let markdown = "# scene: start\n[SAY speaker=A] こんにちは";
-let facade = Facade::new(markdown).unwrap();
+let ast = parser::parse(markdown)?;
+let program = runtime::compile(&ast);
 let mut state = State::new();
+let mut input = None;
 
 loop {
-    let (output, events) = facade.next(&mut state);
-    
-    // events を元に描画処理...
-    
-    match output {
-        Output::Next | Output::Wait => { /* ユーザー入力待ち */ },
-        Output::Branch(choices) => {
-            let choice_index = get_user_choice(&choices);
-            state.set_choice(choice_index);
-        },
-        Output::Halt => break,
+    let (new_state, output) = runtime::step(state, &program, input.take());
+    state = new_state;
+
+    for event in &output.events {
+        if let Event::Say { speaker, text } = event {
+            println!("{}: {}", speaker, text);
+        }
+    }
+
+    match output.waiting_for {
+        Some(WaitingType::Advance) => {
+            input = Some(Input::Advance);
+        }
+        Some(WaitingType::Choice(options)) => {
+            let choice_id = options[0].id.clone();
+            input = Some(Input::SelectChoice(choice_id));
+        }
+        None => break,
     }
 }
 ```
+
+---
+
+## 4. 静的解析 API
+
+```rust
+use tsumugai::analyzer::{self, Issue, Level};
+
+let ast = parser::parse(markdown)?;
+let result = analyzer::analyze(&ast);
+
+for issue in &result.issues {
+    match issue.level {
+        Level::Error   => eprintln!("[ERROR] {}", issue.message),
+        Level::Warning => eprintln!("[WARN]  {}", issue.message),
+        Level::Info    => eprintln!("[INFO]  {}", issue.message),
+    }
+}
+
+if result.has_errors() {
+    // シナリオに問題あり
+}
+```
+
+検査内容：
+- 未定義ラベルへのジャンプ
+- 到達不能なラベル（情報として報告）
+- 選択肢に対応するラベルが存在しない
+- 空または1択の BRANCH
+
+---
+
+## 5. JSON 出力例（serde でシリアライズした場合）
+
+### Output（台詞ステップ）
+
+```json
+{
+  "events": [
+    { "Say": { "speaker": "Alice", "text": "こんにちは。" } }
+  ],
+  "waiting_for": { "Advance": null }
+}
+```
+
+### Output（選択肢ステップ）
+
+```json
+{
+  "events": [],
+  "waiting_for": {
+    "Choice": [
+      { "id": "root_branch_0_choice_0", "label": "はい", "target_pc": 3 },
+      { "id": "root_branch_0_choice_1", "label": "いいえ", "target_pc": 6 }
+    ]
+  }
+}
+```
+
+### State
+
+```json
+{
+  "pc": 4,
+  "flags": {
+    "score": 10,
+    "player_name": "Alice"
+  }
+}
+```
+
+---
+
+## 6. エラーと警告
+
+- **パースエラー**：`parser::parse()` が `Err` を返す（`anyhow::Error`）
+- **静的検査の問題**：`analyzer::analyze()` が `AnalysisResult` を返す（`Vec<Issue>`）
+- **実行時エラー**：現時点では `step` は `Result` を返さない。変数演算の失敗は `Event::Custom { tag: "error", .. }` としてイベント列に積まれる
+
+---
+
+## 7. 互換性の考え方
+
+- **後方互換の変更（許容）**：新 Event バリアント追加、`Event` / `ChoiceOption` へのオプショナルフィールド追加
+- **破壊的変更（要調整）**：既存 Event バリアントの意味変更・削除、`Output` / `State` の必須フィールド変更
+
+---
+
+## 8. Roadmap（未実装）
+
+以下は現時点では実装されていません。
+
+- `runtime::step_with_trace` — Trace 付き実行
+- `tsumugai check --json` — JSON 形式の診断出力
+- 構造化 Diagnostic（`rule_id`, `span`, `suggestion` を持つ型）
+- Dry Run / 全分岐探索
+- エンディング到達検証

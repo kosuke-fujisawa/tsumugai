@@ -1,145 +1,241 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/yourusername/tsumugai/schemas/Output.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tsumugai/schemas/Output.schema.json",
   "title": "Tsumugai Runtime Output",
-  "description": "Schema for the output of a single runtime execution step in tsumugai",
+  "description": "runtime::step が返す Output の JSON 表現",
   "type": "object",
-  "required": ["lines", "choices", "effects", "can_save"],
+  "required": ["events", "waiting_for"],
+  "additionalProperties": false,
   "properties": {
-    "lines": {
+    "events": {
       "type": "array",
-      "description": "Lines of dialogue or narrative text to display",
-      "items": {
-        "$ref": "#/definitions/Line"
-      }
+      "description": "このステップで発生したイベント列",
+      "items": { "$ref": "#/$defs/Event" }
     },
-    "choices": {
-      "type": "array",
-      "description": "Available choices for user selection",
-      "items": {
-        "$ref": "#/definitions/Choice"
-      }
-    },
-    "effects": {
-      "type": "array",
-      "description": "Effect tags for the UI layer to handle (sound, images, etc.)",
-      "items": {
-        "$ref": "#/definitions/EffectTag"
-      }
-    },
-    "can_save": {
-      "type": "boolean",
-      "description": "Whether the game state can be saved at this point"
+    "waiting_for": {
+      "description": "入力待ち状態。null なら次の step をそのまま呼んでよい",
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/WaitingType" }
+      ]
     }
   },
-  "definitions": {
-    "Line": {
-      "type": "object",
-      "required": ["speaker", "text"],
-      "properties": {
-        "speaker": {
-          "type": ["string", "null"],
-          "description": "Speaker name (null for narrative text)"
+  "$defs": {
+    "Event": {
+      "description": "ホスト側に通知するイベント（serde の外部タグ形式）",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["Say"],
+          "additionalProperties": false,
+          "properties": {
+            "Say": {
+              "type": "object",
+              "required": ["speaker", "text"],
+              "additionalProperties": false,
+              "properties": {
+                "speaker": { "type": "string" },
+                "text": { "type": "string" }
+              }
+            }
+          }
         },
-        "text": {
-          "type": "string",
-          "description": "The text content"
+        {
+          "type": "object",
+          "required": ["SceneStart"],
+          "additionalProperties": false,
+          "properties": {
+            "SceneStart": {
+              "type": "object",
+              "required": ["name"],
+              "additionalProperties": false,
+              "properties": {
+                "name": { "type": "string" }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["ShowImage"],
+          "additionalProperties": false,
+          "properties": {
+            "ShowImage": {
+              "type": "object",
+              "required": ["layer", "name"],
+              "additionalProperties": false,
+              "properties": {
+                "layer": { "type": "string" },
+                "name": { "type": "string" }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["ClearLayer"],
+          "additionalProperties": false,
+          "properties": {
+            "ClearLayer": {
+              "type": "object",
+              "required": ["layer"],
+              "additionalProperties": false,
+              "properties": {
+                "layer": { "type": "string" }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["PlayBgm"],
+          "additionalProperties": false,
+          "properties": {
+            "PlayBgm": {
+              "type": "object",
+              "required": ["name"],
+              "additionalProperties": false,
+              "properties": {
+                "name": { "type": "string" }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["PlaySe"],
+          "additionalProperties": false,
+          "properties": {
+            "PlaySe": {
+              "type": "object",
+              "required": ["name"],
+              "additionalProperties": false,
+              "properties": {
+                "name": { "type": "string" }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["PlayMovie"],
+          "additionalProperties": false,
+          "properties": {
+            "PlayMovie": {
+              "type": "object",
+              "required": ["name"],
+              "additionalProperties": false,
+              "properties": {
+                "name": { "type": "string" }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["Wait"],
+          "additionalProperties": false,
+          "properties": {
+            "Wait": {
+              "type": "object",
+              "required": ["duration"],
+              "additionalProperties": false,
+              "properties": {
+                "duration": { "type": "number" }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["Custom"],
+          "additionalProperties": false,
+          "properties": {
+            "Custom": {
+              "type": "object",
+              "required": ["tag", "params"],
+              "additionalProperties": false,
+              "properties": {
+                "tag": { "type": "string" },
+                "params": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
         }
-      }
+      ]
     },
-    "Choice": {
+    "WaitingType": {
+      "description": "入力待ちの種類",
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "進行入力待ち（Enter 待ち）",
+          "required": ["Advance"],
+          "additionalProperties": false,
+          "properties": {
+            "Advance": { "type": "null" }
+          }
+        },
+        {
+          "type": "object",
+          "description": "選択肢入力待ち",
+          "required": ["Choice"],
+          "additionalProperties": false,
+          "properties": {
+            "Choice": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/ChoiceOption" }
+            }
+          }
+        }
+      ]
+    },
+    "ChoiceOption": {
       "type": "object",
-      "required": ["id", "label"],
+      "required": ["id", "label", "target_pc"],
+      "additionalProperties": false,
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for this choice"
+          "description": "選択肢ID（compile時に確定した一意のID）"
         },
         "label": {
           "type": "string",
-          "description": "Display text for the choice"
-        }
-      }
-    },
-    "EffectTag": {
-      "type": "object",
-      "required": ["tag", "opts"],
-      "properties": {
-        "tag": {
-          "type": "string",
-          "description": "Effect type identifier",
-          "enum": [
-            "play_bgm",
-            "play_se",
-            "show_image",
-            "clear_layer",
-            "play_movie",
-            "wait",
-            "label",
-            "save",
-            "load"
-          ]
+          "description": "表示テキスト"
         },
-        "opts": {
-          "type": ["object", "null"],
-          "description": "Optional parameters for the effect",
-          "properties": {
-            "name": {
-              "type": "string",
-              "description": "Resource name (for bgm, se, image, movie)"
-            },
-            "layer": {
-              "type": "string",
-              "description": "Layer name (for images)"
-            },
-            "seconds": {
-              "type": "number",
-              "description": "Duration in seconds (for wait)"
-            }
-          }
+        "target_pc": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "ジャンプ先のIRインデックス"
         }
       }
     }
   },
   "examples": [
     {
-      "lines": [
-        {
-          "speaker": "Alice",
-          "text": "Hello, world!"
-        }
+      "events": [
+        { "Say": { "speaker": "Alice", "text": "こんにちは。" } }
       ],
-      "choices": [],
-      "effects": [],
-      "can_save": true
+      "waiting_for": { "Advance": null }
     },
     {
-      "lines": [],
-      "choices": [
-        {
-          "id": "choice_0",
-          "label": "Go left"
-        },
-        {
-          "id": "choice_1",
-          "label": "Go right"
-        }
-      ],
-      "effects": [],
-      "can_save": true
+      "events": [],
+      "waiting_for": {
+        "Choice": [
+          { "id": "root_branch_0_choice_0", "label": "はい", "target_pc": 3 },
+          { "id": "root_branch_0_choice_1", "label": "いいえ", "target_pc": 6 }
+        ]
+      }
     },
     {
-      "lines": [],
-      "choices": [],
-      "effects": [
-        {
-          "tag": "play_bgm",
-          "opts": {
-            "name": "intro.mp3"
-          }
-        }
+      "events": [
+        { "PlayBgm": { "name": "battle.ogg" } },
+        { "SceneStart": { "name": "battle" } }
       ],
-      "can_save": true
+      "waiting_for": null
     }
   ]
 }
