@@ -45,6 +45,9 @@ pub enum Op {
         value: String,
     },
 
+    /// シナリオ終了（エンディング到達後に実行を停止する）
+    Halt,
+
     // ──────────────────────────────
     // イベント生成
     // runtime はこれを Output に積むだけで内容を解釈しない
@@ -82,6 +85,9 @@ pub enum Event {
 
     /// 時間待ち（実際に sleep するかはプレイヤー側の判断）
     Wait { duration: f32 },
+
+    /// エンディング到達
+    Ending { id: String, name: String },
 
     /// 拡張コマンド
     Custom { tag: String, params: Vec<String> },

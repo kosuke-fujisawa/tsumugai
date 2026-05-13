@@ -87,8 +87,8 @@ impl ViewState {
                         .push(format!("カスタム: {} {:?}", tag, params));
                 }
 
-                // Say は ViewState には影響しない（player 側で表示）
-                Event::Say { .. } => {}
+                // Say / Ending は ViewState には影響しない（player 側で表示）
+                Event::Say { .. } | Event::Ending { .. } => {}
             }
         }
 

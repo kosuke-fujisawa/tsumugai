@@ -53,6 +53,8 @@ pub enum WaitingType {
     Advance,
     /// 選択肢待ち（表示に必要な選択肢一覧を含む）
     Choice(Vec<ChoiceOption>),
+    /// エンディング到達（シナリオ終了）
+    Ended { id: String, name: String },
 }
 
 impl Output {
@@ -239,6 +241,15 @@ impl Compiler {
                 });
             }
 
+            AstNode::Ending { id, name } => {
+                let display_name = name.clone().unwrap_or_else(|| id.clone());
+                self.ops.push(PreOp::Resolved(Op::Emit(Event::Ending {
+                    id: id.clone(),
+                    name: display_name,
+                })));
+                self.ops.push(PreOp::Resolved(Op::Halt));
+            }
+
             AstNode::WhenBlock { condition, body } => {
                 // 条件が偽のときボディをスキップするジャンプを挿入
                 // ops.len() ではなくグローバルカウンターを使って衝突を防ぐ
@@ -382,6 +393,19 @@ pub fn step(mut state: State, program: &Program, input: Option<Input>) -> (State
                 } else {
                     state.pc += 1;
                 }
+            }
+
+            Op::Halt => {
+                let ended = output.events.iter().find_map(|e| {
+                    if let Event::Ending { id, name } = e {
+                        Some((id.clone(), name.clone()))
+                    } else {
+                        None
+                    }
+                });
+                let (id, name) = ended.unwrap_or_default();
+                output.waiting_for = Some(WaitingType::Ended { id, name });
+                break;
             }
 
             Op::Set { key, value } => {

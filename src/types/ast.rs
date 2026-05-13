@@ -93,6 +93,8 @@ pub enum AstNode {
     Scene { name: String },
     /// 条件付き実行ブロック
     WhenBlock { condition: Expr, body: Vec<AstNode> },
+    /// エンディング到達（シナリオ終端を明示する）
+    Ending { id: String, name: Option<String> },
 }
 
 /// 選択肢の1項目

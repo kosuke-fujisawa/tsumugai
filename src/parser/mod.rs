@@ -210,6 +210,11 @@ impl MarkdownParser {
                 let layer = self.require_param(&params, "layer", command_name)?;
                 Ok(AstNode::ClearLayer { layer })
             }
+            "ENDING" | "END" => {
+                let id = self.require_param(&params, "id", command_name)?;
+                let name = params.get("name").and_then(|v| v.first()).cloned();
+                Ok(AstNode::Ending { id, name })
+            }
             _ => anyhow::bail!(
                 "Unknown command '{}' at line {}",
                 command_name,
