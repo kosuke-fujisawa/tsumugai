@@ -85,6 +85,24 @@ Rust コードを読めなくても、仕様と挙動を確認できる開発プ
 
 9. 対応すべきものがなくなれば merge する
 
+## CI 失敗時の対応
+
+CI は `cargo fmt --check` → `cargo clippy --all-targets -- -D warnings` → `cargo test` の順に実行されます。
+
+| 失敗ステップ | 確認すること | ローカルコマンド |
+|---|---|---|
+| Format check | フォーマットが崩れている | `cargo fmt` |
+| Clippy check | lint 警告がある | `cargo clippy --all-targets -- -D warnings` |
+| Tests | テストが失敗している | `cargo test -- --nocapture` |
+
+ローカルで全ステップを通してから PR を出してください。ローカルで通れば CI も通ります。
+
+```bash
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test
+```
+
 ## コード設計の判断基準
 
 tsumugai-core では、過度に高度なRust設計よりも、LLMと人間が追跡しやすい構造を優先します。

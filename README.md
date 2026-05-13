@@ -220,6 +220,24 @@ cargo run -- check assets/scenarios/strange_encounter.md
 
 ---
 
+## 開発・CI
+
+### ローカル確認コマンド
+
+PR 前に以下を実行してください。
+
+```bash
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test
+```
+
+CI（GitHub Actions）も同じコマンドを実行します。ローカルで通れば CI も通ります。
+
+詳細な開発ワークフローは [docs/DEVELOPMENT_WORKFLOW.md](docs/DEVELOPMENT_WORKFLOW.md) を参照してください。
+
+---
+
 ## ライセンス
 
 MIT License
