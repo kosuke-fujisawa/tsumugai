@@ -16,6 +16,7 @@
 //! - 状態は明示的（隠れた状態を持たない）
 
 pub mod ir;
+pub mod trace;
 
 use crate::types::{
     ast::{Ast, AstNode, Comparison, Expr, Operation},
