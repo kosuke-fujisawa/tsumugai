@@ -273,7 +273,10 @@ fn modify_varのエラーがeventに積まれる() {
             tsumugai::runtime::ir::Event::Custom { tag, .. } if tag == "error"
         )
     });
-    assert!(has_error, "文字列への数値演算は error イベントを生成するはず");
+    assert!(
+        has_error,
+        "文字列への数値演算は error イベントを生成するはず"
+    );
 }
 
 // ──────────────────────────────────────────────

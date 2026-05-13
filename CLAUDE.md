@@ -1,122 +1,160 @@
 # CLAUDE.md
 
-この文書は `tsumugai` 開発と利用のためのガイドラインです。  
-LLM（Claude, ChatGPT など）にプロンプトを与える際に参照することで、統一された出力と開発体験を確保します。
+この文書は、Claude Code などの LLM エージェントが `tsumugai` を開発するときに必ず参照する行動指針です。
 
----
+tsumugai の主要ユーザーは、Rust やコード読解に詳しいとは限りません。それでも仕様・挙動・出力に対するレビューは実施したい、という前提で開発します。
 
-## 🎯 開発設計方針
+## 最優先方針
 
-### 新アーキテクチャ（2024年実装完了）
-`tsumugai` は DDD/クリーンアーキテクチャから、よりシンプルで保守しやすい3モジュール構成に移行完了しました。
+tsumugai では、テクニカルな設計美よりも次を優先します。
 
-#### 新モジュール構成
-- **`parser/`** - Markdown DSL → AST 変換
-  - `parse(markdown: &str) -> Result<Ast>` 関数を提供
-  - AST の妥当性検証（未定義ラベル検出など）
+- デバッグしやすいこと
+- レビューしやすいこと
+- LLM に原因分析を依頼しやすいこと
+- 入力 Markdown と出力結果の対応が追跡できること
+- コードを読まなくても挙動を確認できること
 
-- **`runtime/`** - AST 実行と状態管理
-  - `step(state: State, ast: &Ast, event: Option<Event>) -> (State, Output)` 関数
-  - ステートレスな実行エンジン
-  - 1ステップずつの確定的実行
+レビューの単位は Rust コードだけではありません。入力 Markdown、出力 Event、Diagnostic、Trace、DryRunReport、Golden JSON、CLI 出力、テスト結果もレビュー対象です。
 
-- **`storage/`** - セーブ/ロード機能
-  - `save(state: &State) -> Result<Vec<u8>>` でJSON形式保存
-  - `load(bytes: &[u8]) -> Result<State>` で復元
-  - バージョン管理対応済み
+## 現在の責務分離
 
-#### 統一API
-```rust
-// 新しいシンプルAPI
-use tsumugai::{parser, runtime, storage, types::{State, Event}};
+現行の主経路は次の通りです。
 
-let ast = parser::parse(markdown)?;
-let mut state = State::new();
-let (new_state, output) = runtime::step(state, &ast, None);
-let save_data = storage::save(&new_state)?;
+```text
+Markdown
+  -> parser::parse
+  -> Ast
+  -> runtime::compile
+  -> IR Program
+  -> runtime::step
+  -> Output { events, waiting_for }
 ```
 
-### 設計原則
-- **TDD / テストファースト**
-  - 必ず `cargo test` を先に書く。
-  - ユニットテストと統合テストを両輪で活用する。
+主要モジュール:
 
-- **DRY 原則 & tidy first**
-  - 明確な重複はまとめる。
-  - ただし過剰抽象化は避け、まず動かしてから整理する。
+- `parser`: Markdown DSL を AST に変換する
+- `analyzer`: AST を静的検証する
+- `runtime`: AST を IR にコンパイルし、State/Input から Output を返す
+- `player`: CUI の参照実装
+- `types`: AST / State などの基本型
 
-- **関心の分離 (Separation of Concerns)**
-  - モジュールは責務ごとに分割する。
-  - テストもモジュール境界で切る。
+runtime は Markdown を直接読みません。parser は実行状態を持ちません。表示、音声再生、UI、アセットロードは core の責務ではありません。
 
-- **単一責任原則 (Single Responsibility Principle)**
-  - 各モジュールは一つの理由でのみ変更される。
-  - 例：文法拡張で `parser` が変わる、実行仕様変更で `runtime` が変わる。
+## コード設計の制約
 
-- **品質ゲート (Quality Gate)**
-  - コミット前に `cargo fmt` と `cargo clippy -- -D warnings` を実行し、修正する。
+LLM と人間が追跡しやすい Rust を優先します。
 
----
+優先するもの:
 
-## 📝 シナリオ生成ルール
+- enum / struct / 関数中心の単純な設計
+- 明示的な `State`
+- 入出力が分かる純粋関数に近い形
+- 小さな責務分離
+- 具体的な型名と分かりやすいモジュール名
+- 失敗時に原因が分かるエラーと Diagnostic
 
-### 基本フォーマット
-- シナリオは Markdown で書く。
-- シーンラベルは `# scene: NAME`
-- コマンドは `[COMMAND key=value ...]`
-- コメントは `<!-- -->` で LLM にも人間にも読みやすく残す。
+避けるもの:
 
-### サポートされるコマンド
-- `[SAY speaker=...]` 台詞
-- `[PLAY_BGM name=...]` BGM 再生
-- `[SHOW_IMAGE name=...]` 画像表示
-- `[PLAY_MOVIE name=...]` ムービー再生
-- `[WAIT 2s]` 待機
-- `[BRANCH choice=... label=...]` 選択肢分岐
-- `[IF flag=... value=...]` 条件分岐
-- `[SET flag=... value=...]` 内部状態変更
+- 不要な trait 階層
+- generic の乱用
+- macro の多用
+- core logic への早すぎる async 導入
+- 複雑な DI
+- 挙動が追いにくい抽象化
+- コードを読まないと仕様が分からない変更
 
-### 制約
-- 出力はシナリオ本体のみ。説明文は不要。
-- パラメータは必ず `key=value` 形式。
-- 英語・日本語の混在可。
-- 演出はタグで表現するが、描画実装は UI 側の責務。
+抽象化は、実際の重複や複雑さを減らす場合だけ導入します。
 
----
+## 変更時に必要なレビュー材料
 
-## 📦 出力テンプレート
+挙動を変える変更では、可能な限り次のいずれかを追加・更新します。
 
-```markdown
-# scene: intro
+- 入力 Markdown 例
+- 出力 Event 例
+- Diagnostic 例
+- Trace 例
+- DryRunReport 例
+- Golden JSON
+- CLI 実行例
+- テストケース
+- README / docs の説明
 
-[SAY speaker=Alice]
-Welcome to this world.
+PR や最終報告では、Rust コードを読まなくても何が変わったか分かるように説明します。
 
-[PLAY_BGM name=intro.mp3]
+## Diagnostic 方針
 
-[WAIT 1.5s]
+エラーや警告は、最終的に構造化 Diagnostic として扱える形を目指します。
 
-[SAY speaker=Bob]
-はじめようか？
+Diagnostic は以下を持つ想定です。
 
-[BRANCH choice=Start label=start, choice=Exit label=end]
-```
+- `rule_id`
+- `severity`
+- `message`
+- `span`
+- `related_spans`
+- `suggestion`
 
----
+単なる opaque な文字列エラーに閉じ込めないでください。ユーザーや LLM が「どこを、なぜ、どう直すか」を判断できる情報を優先します。
 
-## ✅ テスト方針
+## CLI / JSON / ログ方針
 
-### テスト戦略
-- **ユニットテスト**: 各モジュールごと（parser, runtime, storage）
-- **統合テスト**: シナリオを通しで実行し、出力JSONをgolden testで比較
-- **回帰テスト**: セーブデータの互換性を常に検証
+人間向け出力と機械向け JSON 出力を分けます。
 
-### テスト実行
+将来的な CLI 方針:
+
 ```bash
-# 全テスト実行
-cargo test
+tsumugai check scenario.md
+tsumugai check scenario.md --json
 
-# 品質ゲート
-cargo fmt
-cargo clippy -- -D warnings
+tsumugai trace scenario.md
+tsumugai trace scenario.md --json
+
+tsumugai dry-run scenario.md
+tsumugai dry-run scenario.md --json
 ```
+
+JSON 出力は、CI、Golden テスト、LLM へのデバッグ依頼に使える安定した形を目指します。エラー時も形式が崩れないようにします。
+
+## テストと品質ゲート
+
+変更後は原則として以下を確認します。
+
+```bash
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test
+```
+
+将来的に重視するテスト:
+
+- Golden JSON 比較
+- CLI 出力のスナップショット
+- サンプルシナリオの `check`
+- サンプルシナリオの `dry-run`
+- README サンプルの doctest
+
+テストを削除・弱体化する変更は慎重に扱い、理由を明記してください。
+
+## ドキュメント更新
+
+挙動、API、CLI、設計方針を変えた場合は、README または `docs/` を更新します。
+
+特に参照する文書:
+
+- `docs/CONCEPT.md`: 存在意義と責務境界
+- `docs/ARCHITECTURE.md`: アーキテクチャ
+- `docs/API.md`: Core と Host の契約
+- `docs/DEVELOPMENT_WORKFLOW.md`: 開発・レビュー・CI 方針
+
+ドキュメントと実装がズレると、非Rustユーザーのレビューが困難になります。ズレを見つけたら、小さくても修正してください。
+
+## 最終報告の方針
+
+作業完了時は、次を簡潔に報告します。
+
+- 何を変えたか
+- どのファイルを変えたか
+- どの検証を通したか
+- 未対応や注意点があるか
+
+ユーザーがコードを読まなくても判断できる説明を優先します。
