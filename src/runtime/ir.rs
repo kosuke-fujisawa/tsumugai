@@ -102,6 +102,8 @@ pub struct ChoiceOption {
     pub label: String,
     /// ジャンプ先の IR インデックス（ラベル解決済み）
     pub target_pc: usize,
+    /// 表示条件（None なら常に表示）
+    pub condition: Option<Expr>,
 }
 
 /// 変数演算の種類
