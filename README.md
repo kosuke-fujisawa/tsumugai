@@ -174,10 +174,41 @@ fn main() -> anyhow::Result<()> {
 ```bash
 cargo run -- play assets/scenarios/strange_encounter.md
 cargo run -- check assets/scenarios/strange_encounter.md
+cargo run -- check assets/scenarios/strange_encounter.md --json
 ```
 
 - `play`: CUI プレイヤーで実行
 - `check`: analyzer で静的検査
+- `check --json`: JSON 形式で検査結果を出力（CI・LLM連携用）
+
+`check --json` の出力例（問題なし）:
+
+```json
+{
+  "status": "ok",
+  "error_count": 0,
+  "warning_count": 0,
+  "issues": []
+}
+```
+
+`check --json` の出力例（エラーあり）:
+
+```json
+{
+  "status": "error",
+  "error_count": 1,
+  "warning_count": 0,
+  "issues": [
+    {
+      "level": "error",
+      "message": "ラベル 'end' へのジャンプが定義されていません"
+    }
+  ]
+}
+```
+
+エラー時は exit code 1 を返します。JSON 形式はパースエラー時でも崩れません。
 
 ---
 

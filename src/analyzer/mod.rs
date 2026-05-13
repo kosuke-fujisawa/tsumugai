@@ -9,10 +9,12 @@
 //! - 選択肢に対応するラベルが存在しない
 
 use crate::types::ast::{Ast, AstNode};
+use serde::Serialize;
 use std::collections::HashSet;
 
 /// 検査レベル
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Level {
     /// エラー：シナリオが正しく動作しない
     Error,
@@ -23,10 +25,46 @@ pub enum Level {
 }
 
 /// 検査で発見した1件の問題
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Issue {
     pub level: Level,
     pub message: String,
+}
+
+/// `--json` フラグ用の出力型
+#[derive(Debug, Serialize)]
+pub struct CheckJsonOutput {
+    /// "ok" または "error"
+    pub status: &'static str,
+    pub error_count: usize,
+    pub warning_count: usize,
+    pub issues: Vec<Issue>,
+}
+
+impl CheckJsonOutput {
+    /// パースエラーを JSON 出力に変換する
+    pub fn parse_error(message: String) -> Self {
+        Self {
+            status: "error",
+            error_count: 1,
+            warning_count: 0,
+            issues: vec![Issue {
+                level: Level::Error,
+                message,
+            }],
+        }
+    }
+}
+
+impl From<&AnalysisResult> for CheckJsonOutput {
+    fn from(result: &AnalysisResult) -> Self {
+        Self {
+            status: if result.has_errors() { "error" } else { "ok" },
+            error_count: result.error_count(),
+            warning_count: result.warning_count(),
+            issues: result.issues.clone(),
+        }
+    }
 }
 
 impl Issue {

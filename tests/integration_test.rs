@@ -352,6 +352,98 @@ fn エフェクトイベントが出力される() {
 // analyzer
 // ──────────────────────────────────────────────
 
+// ──────────────────────────────────────────────
+// check --json
+// ──────────────────────────────────────────────
+
+/// 正常シナリオの JSON 出力は status="ok"、issues=[] になる
+#[test]
+fn check_json_正常シナリオはstatus_ok() {
+    let md = r#"
+[SAY speaker=Alice]
+こんにちは。
+
+[BRANCH choice=はい label=yes, choice=いいえ label=no]
+
+[LABEL name=yes]
+[SAY speaker=Alice]
+よかった！
+
+[LABEL name=no]
+[SAY speaker=Alice]
+残念。
+"#;
+    let ast = parser::parse(md).unwrap();
+    let result = tsumugai::analyzer::analyze(&ast);
+    let output = tsumugai::analyzer::CheckJsonOutput::from(&result);
+
+    let json = serde_json::to_string(&output).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(v["status"], "ok");
+    assert_eq!(v["error_count"], 0);
+    assert!(v["issues"].is_array());
+}
+
+/// 警告があるとき status="ok" のまま warning_count が反映される
+#[test]
+fn check_json_警告ありはstatus_ok_with_warnings() {
+    // 選択肢1つの BRANCH → warning
+    let md = r#"
+[BRANCH choice=進む label=go]
+
+[LABEL name=go]
+[SAY speaker=A]
+進む
+"#;
+    let ast = parser::parse(md).unwrap();
+    let result = tsumugai::analyzer::analyze(&ast);
+    let output = tsumugai::analyzer::CheckJsonOutput::from(&result);
+
+    let json = serde_json::to_string(&output).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(v["status"], "ok");
+    assert!(v["warning_count"].as_u64().unwrap() > 0);
+    let issues = v["issues"].as_array().unwrap();
+    assert!(issues.iter().any(|i| i["level"] == "warning"));
+}
+
+/// パースエラー時の JSON 出力が valid JSON で status="error" になる
+#[test]
+fn check_json_parseエラーはstatus_error() {
+    let output = tsumugai::analyzer::CheckJsonOutput::parse_error(
+        "Undefined label 'missing' referenced".to_string(),
+    );
+
+    let json = serde_json::to_string(&output).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(v["status"], "error");
+    assert_eq!(v["error_count"], 1);
+    let issues = v["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0]["level"], "error");
+}
+
+/// JSON 出力フォーマットが変わっていないことを確認する Golden テスト
+#[test]
+fn check_json_フォーマットが安定している() {
+    let md = "[SAY speaker=Alice]\nこんにちは。\n";
+    let ast = parser::parse(md).unwrap();
+    let result = tsumugai::analyzer::analyze(&ast);
+    let output = tsumugai::analyzer::CheckJsonOutput::from(&result);
+
+    let json = serde_json::to_string_pretty(&output).unwrap();
+    let expected = r#"{
+  "status": "ok",
+  "error_count": 0,
+  "warning_count": 0,
+  "issues": []
+}"#;
+    assert_eq!(json, expected, "JSON フォーマットが意図せず変わっています");
+}
+
 /// 正常なシナリオは analyzer でエラーなし
 #[test]
 fn 正常なシナリオはanalyzerでクリーン() {
