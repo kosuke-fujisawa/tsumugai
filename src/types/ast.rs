@@ -11,6 +11,9 @@ pub struct Ast {
     pub labels: HashMap<String, usize>,
     /// 宣言済み条件名（:::conditions ブロックから）
     pub conditions: std::collections::HashSet<String>,
+    /// ノードインデックス → ソース行番号（1-origin）。パーサーが設定する
+    #[serde(default, skip_serializing)]
+    pub node_lines: Vec<usize>,
 }
 
 impl Ast {
@@ -19,6 +22,7 @@ impl Ast {
             nodes,
             labels,
             conditions: std::collections::HashSet::new(),
+            node_lines: Vec::new(),
         }
     }
 
@@ -31,7 +35,13 @@ impl Ast {
             nodes,
             labels,
             conditions,
+            node_lines: Vec::new(),
         }
+    }
+
+    pub fn with_node_lines(mut self, node_lines: Vec<usize>) -> Self {
+        self.node_lines = node_lines;
+        self
     }
 
     pub fn get_label_index(&self, label: &str) -> Option<usize> {
