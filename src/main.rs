@@ -57,7 +57,10 @@ fn main() -> anyhow::Result<()> {
                         tsumugai::analyzer::Level::Warning => "警告",
                         tsumugai::analyzer::Level::Info => "情報",
                     };
-                    println!("[{}] {}", level, issue.message);
+                    println!("[{}][{}] {}", level, issue.rule_id, issue.message);
+                    if let Some(suggestion) = &issue.suggestion {
+                        println!("  提案: {}", suggestion);
+                    }
                 }
                 println!(
                     "\nエラー: {}件  警告: {}件",

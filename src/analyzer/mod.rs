@@ -24,11 +24,25 @@ pub enum Level {
     Info,
 }
 
-/// 検査で発見した1件の問題
+/// ソースコード上の位置（行・列は 1-origin）
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Span {
+    pub line: usize,
+    pub column: usize,
+}
+
+/// 検査で発見した1件の問題（Diagnostic）
+///
+/// `rule_id` でルール種別を機械的に識別できる。
+/// `span` は将来的にパーサーが行番号を付与したときに利用する（現在は None）。
+/// `suggestion` があれば修正方法をユーザーに提示する。
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Issue {
+    pub rule_id: &'static str,
     pub level: Level,
     pub message: String,
+    pub span: Option<Span>,
+    pub suggestion: Option<String>,
 }
 
 /// `--json` フラグ用の出力型
@@ -49,8 +63,11 @@ impl CheckJsonOutput {
             error_count: 1,
             warning_count: 0,
             issues: vec![Issue {
+                rule_id: "parse_error",
                 level: Level::Error,
                 message,
+                span: None,
+                suggestion: None,
             }],
         }
     }
@@ -68,25 +85,39 @@ impl From<&AnalysisResult> for CheckJsonOutput {
 }
 
 impl Issue {
-    fn error(msg: impl Into<String>) -> Self {
+    fn error(rule_id: &'static str, msg: impl Into<String>) -> Self {
         Self {
+            rule_id,
             level: Level::Error,
             message: msg.into(),
+            span: None,
+            suggestion: None,
         }
     }
 
-    fn warning(msg: impl Into<String>) -> Self {
+    fn warning(rule_id: &'static str, msg: impl Into<String>) -> Self {
         Self {
+            rule_id,
             level: Level::Warning,
             message: msg.into(),
+            span: None,
+            suggestion: None,
         }
     }
 
-    fn info(msg: impl Into<String>) -> Self {
+    fn info(rule_id: &'static str, msg: impl Into<String>) -> Self {
         Self {
+            rule_id,
             level: Level::Info,
             message: msg.into(),
+            span: None,
+            suggestion: None,
         }
+    }
+
+    fn with_suggestion(mut self, suggestion: impl Into<String>) -> Self {
+        self.suggestion = Some(suggestion.into());
+        self
     }
 }
 
@@ -141,24 +172,45 @@ fn check_label_references(ast: &Ast, defined: &HashSet<&str>, result: &mut Analy
     for node in &ast.nodes {
         match node {
             AstNode::Jump { label } if !defined.contains(label.as_str()) => {
-                result.issues.push(Issue::error(format!(
-                    "未定義ラベル '{}' へのジャンプが存在します",
-                    label
-                )));
+                result.issues.push(
+                    Issue::error(
+                        "undefined_label",
+                        format!("未定義ラベル '{}' へのジャンプが存在します", label),
+                    )
+                    .with_suggestion(format!(
+                        "'[LABEL name={}]' を追加するか、ジャンプ先を修正してください",
+                        label
+                    )),
+                );
             }
             AstNode::JumpIf { label, .. } if !defined.contains(label.as_str()) => {
-                result.issues.push(Issue::error(format!(
-                    "未定義ラベル '{}' への条件ジャンプが存在します",
-                    label
-                )));
+                result.issues.push(
+                    Issue::error(
+                        "undefined_label",
+                        format!("未定義ラベル '{}' への条件ジャンプが存在します", label),
+                    )
+                    .with_suggestion(format!(
+                        "'[LABEL name={}]' を追加するか、ジャンプ先を修正してください",
+                        label
+                    )),
+                );
             }
             AstNode::Branch { choices } => {
                 for choice in choices {
                     if !defined.contains(choice.target.as_str()) {
-                        result.issues.push(Issue::error(format!(
-                            "選択肢 '{}' のジャンプ先ラベル '{}' が存在しません",
-                            choice.label, choice.target
-                        )));
+                        result.issues.push(
+                            Issue::error(
+                                "undefined_label",
+                                format!(
+                                    "選択肢 '{}' のジャンプ先ラベル '{}' が存在しません",
+                                    choice.label, choice.target
+                                ),
+                            )
+                            .with_suggestion(format!(
+                                "'[LABEL name={}]' を追加するか、選択肢のラベル参照を修正してください",
+                                choice.target
+                            )),
+                        );
                     }
                 }
             }
@@ -191,10 +243,10 @@ fn check_reachability(ast: &Ast, _defined: &HashSet<&str>, result: &mut Analysis
     // 定義されているが一度も参照されないラベルは情報として報告
     for label in ast.labels.keys() {
         if !referenced.contains(label.as_str()) {
-            result.issues.push(Issue::info(format!(
-                "ラベル '{}' はどこからも参照されていません",
-                label
-            )));
+            result.issues.push(Issue::info(
+                "unreferenced_label",
+                format!("ラベル '{}' はどこからも参照されていません", label),
+            ));
         }
     }
 }
@@ -204,12 +256,16 @@ fn check_empty_branches(ast: &Ast, result: &mut AnalysisResult) {
     for node in &ast.nodes {
         if let AstNode::Branch { choices } = node {
             if choices.is_empty() {
-                result.issues.push(Issue::error(
-                    "BRANCH 命令に選択肢が1つもありません".to_string(),
-                ));
+                result.issues.push(
+                    Issue::error("empty_branch", "BRANCH 命令に選択肢が1つもありません")
+                        .with_suggestion(
+                            "choice=テキスト label=ラベル名 の形式で選択肢を追加してください",
+                        ),
+                );
             } else if choices.len() == 1 {
                 result.issues.push(Issue::warning(
-                    "BRANCH 命令の選択肢が1つしかありません（分岐になっていません）".to_string(),
+                    "single_choice_branch",
+                    "BRANCH 命令の選択肢が1つしかありません（分岐になっていません）",
                 ));
             }
         }
