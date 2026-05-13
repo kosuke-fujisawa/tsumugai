@@ -158,6 +158,13 @@ impl AnalysisResult {
             .filter(|i| i.level == Level::Warning)
             .count()
     }
+
+    pub fn info_count(&self) -> usize {
+        self.issues
+            .iter()
+            .filter(|i| i.level == Level::Info)
+            .count()
+    }
 }
 
 /// AST を解析して問題を返す
