@@ -517,3 +517,116 @@ fn 正常なシナリオはanalyzerでクリーン() {
     let result = tsumugai::analyzer::analyze(&ast);
     assert!(!result.has_errors());
 }
+
+// ──────────────────────────────────────────────
+// 条件付き選択肢
+// ──────────────────────────────────────────────
+
+/// 条件が真の選択肢は表示され、偽の選択肢は表示されない
+#[test]
+fn 条件付き選択肢_条件が偽の選択肢は非表示() {
+    // has_sword が設定されていない状態 → if=has_sword の選択肢は表示されない
+    // パーサーは if= を choice インデックス順に割り当てるので
+    // 最初の choice に条件を付ける形式: choice=剣で戦う if=has_sword label=fight
+    let md = r#"
+[BRANCH choice=剣で戦う if=has_sword label=fight, choice=逃げる label=run]
+
+[LABEL name=fight]
+[SAY speaker=主人公]
+戦った！
+
+[LABEL name=run]
+[SAY speaker=主人公]
+逃げた！
+"#;
+    let ast = parser::parse(md).unwrap();
+    let program = runtime::compile(&ast);
+
+    let state = State::new(); // has_sword は未設定
+    let (_, output) = runtime::step(state, &program, None);
+
+    let opts = if let Some(WaitingType::Choice(opts)) = output.waiting_for {
+        opts
+    } else {
+        panic!("選択肢が返されなかった");
+    };
+
+    assert_eq!(opts.len(), 1, "条件が偽の選択肢は除外されるはず");
+    assert_eq!(opts[0].label, "逃げる");
+}
+
+/// 条件が真になると選択肢が表示される
+#[test]
+fn 条件付き選択肢_条件が真の選択肢は表示される() {
+    let md = r#"
+[SET name=has_sword value=true]
+[BRANCH choice=剣で戦う if=has_sword label=fight, choice=逃げる label=run]
+
+[LABEL name=fight]
+[SAY speaker=主人公]
+戦った！
+
+[LABEL name=run]
+[SAY speaker=主人公]
+逃げた！
+"#;
+    let ast = parser::parse(md).unwrap();
+    let program = runtime::compile(&ast);
+
+    let state = State::new();
+    let (_, output) = runtime::step(state, &program, None);
+
+    let opts = if let Some(WaitingType::Choice(opts)) = output.waiting_for {
+        opts
+    } else {
+        panic!("選択肢が返されなかった");
+    };
+
+    assert_eq!(opts.len(), 2, "条件が真なので両方の選択肢が表示されるはず");
+}
+
+/// 条件が偽の選択肢 ID を直接送っても無視される（バイパス防止）
+#[test]
+fn 条件付き選択肢_条件偽の選択肢はバイパスできない() {
+    let md = r#"
+[BRANCH choice=剣で戦う if=has_sword label=fight, choice=逃げる label=run]
+
+[LABEL name=fight]
+[SAY speaker=主人公]
+戦った！
+
+[LABEL name=run]
+[SAY speaker=主人公]
+逃げた！
+"#;
+    let ast = parser::parse(md).unwrap();
+    let program = runtime::compile(&ast);
+
+    // has_sword 未設定で fight の選択肢 ID を直接送る
+    let state = State::new();
+    let (state, output) = runtime::step(state, &program, None);
+    let fight_id = if let Some(WaitingType::Choice(_opts)) = &output.waiting_for {
+        // 表示されていない fight の ID を IR から直接取得する
+        use tsumugai::runtime::ir::Op;
+        if let Some(Op::AwaitChoice { options }) = program.get(state.pc) {
+            options
+                .iter()
+                .find(|o| o.label == "剣で戦う")
+                .unwrap()
+                .id
+                .clone()
+        } else {
+            panic!("AwaitChoice 命令がない");
+        }
+    } else {
+        panic!("選択肢待ちでない");
+    };
+
+    // 条件が偽の ID を送ってもジャンプしない（PC はそのまま）
+    let pc_before = state.pc;
+    let (state_after, _) = runtime::step(state, &program, Some(Input::SelectChoice(fight_id)));
+    assert_eq!(
+        state_after.pc, pc_before,
+        "条件が偽の選択肢はバイパスできないはず"
+    );
+}

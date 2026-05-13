@@ -99,6 +99,7 @@ struct PreChoice {
     id: String,
     label: String,
     target_label: String,
+    condition: Option<String>,
 }
 
 struct Compiler {
@@ -234,6 +235,7 @@ impl Compiler {
                         id: format!("{}_branch_{}_choice_{}", scene, branch_idx, i),
                         label: c.label.clone(),
                         target_label: c.target.clone(),
+                        condition: c.condition.clone(),
                     })
                     .collect();
                 self.ops.push(PreOp::AwaitChoice {
@@ -309,6 +311,7 @@ impl Compiler {
                                 id: c.id,
                                 label: c.label,
                                 target_pc,
+                                condition: c.condition.map(Expr::Var),
                             }
                         })
                         .collect();
@@ -357,7 +360,12 @@ pub fn step(mut state: State, program: &Program, input: Option<Input>) -> (State
             }
             Input::SelectChoice(id) => {
                 if let Some(Op::AwaitChoice { options }) = program.get(state.pc)
-                    && let Some(opt) = options.iter().find(|o| &o.id == id)
+                    && let Some(opt) = options.iter().find(|o| {
+                        &o.id == id
+                            && o.condition
+                                .as_ref()
+                                .is_none_or(|cond| eval_expr(cond, &state))
+                    })
                 {
                     state.pc = opt.target_pc;
                 }
@@ -379,7 +387,16 @@ pub fn step(mut state: State, program: &Program, input: Option<Input>) -> (State
             }
 
             Op::AwaitChoice { options } => {
-                output.waiting_for = Some(WaitingType::Choice(options.clone()));
+                let visible: Vec<ChoiceOption> = options
+                    .iter()
+                    .filter(|o| {
+                        o.condition
+                            .as_ref()
+                            .is_none_or(|cond| eval_expr(cond, &state))
+                    })
+                    .cloned()
+                    .collect();
+                output.waiting_for = Some(WaitingType::Choice(visible));
                 break;
             }
 
