@@ -15,11 +15,12 @@
 
 ```rust
 pub struct Issue {
-    pub rule_id: &'static str,   // ルール種別（機械的識別用）
-    pub level: Level,            // Error / Warning / Info
-    pub message: String,         // 人間向けの説明
-    pub span: Option<Span>,      // ソース上の位置（将来実装）
-    pub suggestion: Option<String>, // 修正提案（任意）
+    pub rule_id: &'static str,       // ルール種別（機械的識別用）
+    pub level: Level,                // Error / Warning / Info
+    pub message: String,             // 人間向けの説明
+    pub span: Option<Span>,          // 主要な位置（将来実装）
+    pub related_spans: Vec<Span>,    // 関連位置（将来実装）
+    pub suggestion: Option<String>,  // 修正提案（任意）
 }
 
 pub struct Span {
@@ -68,6 +69,7 @@ pub struct Span {
       "level": "error",
       "message": "未定義ラベル 'good_end' へのジャンプが存在します",
       "span": null,
+      "related_spans": [],
       "suggestion": "'[LABEL name=good_end]' を追加するか、ジャンプ先を修正してください"
     }
   ]
@@ -78,7 +80,7 @@ pub struct Span {
 
 ## 5. CLIでの人間向け表示
 
-```
+```text
 [エラー][undefined_label] 未定義ラベル 'good_end' へのジャンプが存在します
   提案: '[LABEL name=good_end]' を追加するか、ジャンプ先を修正してください
 ```
@@ -98,4 +100,4 @@ pub struct Span {
 - `rule_id` で LLM・CI がフィルタ・集計できるようにする
 - `message` は日本語で人間が読める説明にする
 - `suggestion` は省略可能だが、エラー系には極力付ける
-- `span` は将来のために `Option` として予約し、現時点では `null`
+- `span` / `related_spans` は将来のために型として予約し、現時点ではそれぞれ `null` / `[]`

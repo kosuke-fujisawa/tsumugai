@@ -34,7 +34,7 @@ pub struct Span {
 /// 検査で発見した1件の問題（Diagnostic）
 ///
 /// `rule_id` でルール種別を機械的に識別できる。
-/// `span` は将来的にパーサーが行番号を付与したときに利用する（現在は None）。
+/// `span` / `related_spans` は将来的にパーサーが行番号を付与したときに利用する（現在は None / []）。
 /// `suggestion` があれば修正方法をユーザーに提示する。
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Issue {
@@ -42,6 +42,7 @@ pub struct Issue {
     pub level: Level,
     pub message: String,
     pub span: Option<Span>,
+    pub related_spans: Vec<Span>,
     pub suggestion: Option<String>,
 }
 
@@ -67,6 +68,7 @@ impl CheckJsonOutput {
                 level: Level::Error,
                 message,
                 span: None,
+                related_spans: vec![],
                 suggestion: None,
             }],
         }
@@ -91,6 +93,7 @@ impl Issue {
             level: Level::Error,
             message: msg.into(),
             span: None,
+            related_spans: vec![],
             suggestion: None,
         }
     }
@@ -101,6 +104,7 @@ impl Issue {
             level: Level::Warning,
             message: msg.into(),
             span: None,
+            related_spans: vec![],
             suggestion: None,
         }
     }
@@ -111,6 +115,7 @@ impl Issue {
             level: Level::Info,
             message: msg.into(),
             span: None,
+            related_spans: vec![],
             suggestion: None,
         }
     }
