@@ -116,6 +116,12 @@ pub fn run(markdown: &str, debug_mode: bool) -> anyhow::Result<()> {
                 }
             }
 
+            Some(WaitingType::Ended { ref id, ref name }) => {
+                history.pop();
+                print_scenario_ending(id, name);
+                break;
+            }
+
             Some(WaitingType::Choice(ref options)) => {
                 // 選択肢待ち
                 print_choices(options);
@@ -266,6 +272,13 @@ fn print_choices(options: &[crate::runtime::ir::ChoiceOption]) {
 fn print_ending() {
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("          THE END");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+}
+
+fn print_scenario_ending(id: &str, name: &str) {
+    println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("  エンディング: {}", name);
+    println!("  (id: {})", id);
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 }
 

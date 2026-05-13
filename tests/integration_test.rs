@@ -445,6 +445,50 @@ fn check_json_フォーマットが安定している() {
 }
 
 /// 正常なシナリオは analyzer でエラーなし
+/// ENDING コマンドでシナリオが終了しエンディングIDが出力に含まれる
+#[test]
+fn endingコマンドでシナリオが終了する() {
+    let md = r#"
+[SAY speaker=Alice]
+これが最後の台詞。
+
+[ENDING id=good name=グッドエンド]
+"#;
+    let ast = parser::parse(md).unwrap();
+    let program = runtime::compile(&ast);
+
+    // 1回目: Say + AwaitAdvance
+    let state = State::new();
+    let (state, output) = runtime::step(state, &program, None);
+    assert!(matches!(output.waiting_for, Some(WaitingType::Advance)));
+
+    // Enter で進む → Ending イベントが発生し、Ended で停止
+    let (_state, output) = runtime::step(state, &program, Some(Input::Advance));
+
+    assert!(output.events.iter().any(|e| matches!(
+        e,
+        Event::Ending { id, name } if id == "good" && name == "グッドエンド"
+    )));
+    assert!(matches!(
+        output.waiting_for,
+        Some(WaitingType::Ended { ref id, ref name }) if id == "good" && name == "グッドエンド"
+    ));
+}
+
+/// END コマンド（ENDINGの別名）も動作する
+#[test]
+fn endコマンドがendingと同様に動作する() {
+    let md = "[END id=bad]\n";
+    let ast = parser::parse(md).unwrap();
+    let program = runtime::compile(&ast);
+
+    let state = State::new();
+    let (_state, output) = runtime::step(state, &program, None);
+
+    assert!(output.events.iter().any(|e| matches!(e, Event::Ending { id, .. } if id == "bad")));
+    assert!(matches!(output.waiting_for, Some(WaitingType::Ended { .. })));
+}
+
 #[test]
 fn 正常なシナリオはanalyzerでクリーン() {
     let md = r#"
