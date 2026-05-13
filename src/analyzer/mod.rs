@@ -102,21 +102,17 @@ pub fn analyze(ast: &Ast) -> AnalysisResult {
 fn check_label_references(ast: &Ast, defined: &HashSet<&str>, result: &mut AnalysisResult) {
     for node in &ast.nodes {
         match node {
-            AstNode::Jump { label } => {
-                if !defined.contains(label.as_str()) {
-                    result.issues.push(Issue::error(format!(
-                        "未定義ラベル '{}' へのジャンプが存在します",
-                        label
-                    )));
-                }
+            AstNode::Jump { label } if !defined.contains(label.as_str()) => {
+                result.issues.push(Issue::error(format!(
+                    "未定義ラベル '{}' へのジャンプが存在します",
+                    label
+                )));
             }
-            AstNode::JumpIf { label, .. } => {
-                if !defined.contains(label.as_str()) {
-                    result.issues.push(Issue::error(format!(
-                        "未定義ラベル '{}' への条件ジャンプが存在します",
-                        label
-                    )));
-                }
+            AstNode::JumpIf { label, .. } if !defined.contains(label.as_str()) => {
+                result.issues.push(Issue::error(format!(
+                    "未定義ラベル '{}' への条件ジャンプが存在します",
+                    label
+                )));
             }
             AstNode::Branch { choices } => {
                 for choice in choices {
