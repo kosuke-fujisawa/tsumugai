@@ -2,13 +2,13 @@
 
 tsumugai（つむがい）は、  
 **Markdown で書かれたノベルゲーム用シナリオを解析し、  
-「物語がどう進行するか」を順に解釈・検証する  
-Rust 製のシナリオパース＆チェッカーライブラリ**です。
+実行前に意味を確定し、検証し、再利用可能にする  
+Rust 製の semantic runtime / シナリオチェッカーライブラリ**です。
 
 描画・音声再生・UI 操作は行いません。  
 代わりに、
 
-> **「次に何が起こるのか」「指定は足りているのか」**
+> **「次に何が起こるのか」「分岐や条件は正しいのか」**
 
 を、構造化されたデータとして返します。
 
@@ -17,12 +17,14 @@ Rust 製のシナリオパース＆チェッカーライブラリ**です。
 ## これは何か？（一言で）
 
 > **ノベルゲーム用シナリオのための  
-> シナリオチェッカー付き多機能パースエンジン**
+> 検証可能な意味実行基盤**
 
 - ゲームエンジンではありません
 - UI や演出は含みません
-- シナリオを **上から順に解釈するステートマシン**です
-- 実行もでき、**ドライラン（検証）にも使えます**
+- Markdown を AST / IR に変換し、意味を確定してから実行します
+- 実行・静的検証・将来的なドライラン検証に使えるコアです
+
+詳しい思想と責務境界は [docs/CONCEPT.md](docs/CONCEPT.md) を参照してください。
 
 ---
 
@@ -39,10 +41,10 @@ tsumugai は Markdown 形式のシナリオを読み取り、
 - 条件付き分岐（フラグ・論理式）
 - シナリオ進行上の状態
 
-### 2. 「次に起こること」を Directive として返却
+### 2. 「次に起こること」を Event として返却
 
 tsumugai は、  
-**描画や再生を行う代わりに「Directive（指示）」を返します。**
+**描画や再生を行う代わりに「Event（意味イベント）」を返します。**
 
 例：
 
@@ -51,24 +53,23 @@ tsumugai は、
 - 次はこのラベルにジャンプする
 - ユーザー入力を待つ
 
-### 3. チェック・検証（ドライラン）
+### 3. チェック・検証
 
 **静的検証（parser::check）**:
 - 条件の宣言と使用の整合性チェック
 - 未定義条件の使用を警告
 - 宣言されたが未使用の条件を警告
 
-**包括的 Linter（lint モジュール）**:
-- **構文チェック**: コマンドパラメータの検証
-- **参照整合性**: 未定義ラベル・条件の検出
-- **品質チェック**: 連続WAIT、重複BGM、長文テキストの警告
-- **フロー分析**: 到達不能コード、無限ループの検出
+**静的解析（analyzer）**:
+- 未定義ラベルの検出
+- 未参照ラベルの検出
+- 選択肢の基本検査
 
-**デバッグログ（runtime::step_with_debug）**:
-- プログラムカウンタ、実行ステップの詳細ログ
-- 分岐・ジャンプの追跡
-- 変数状態の監視
-- 環境変数 `TSUMUGAI_DEBUG` で有効化
+**今後強化する検証**:
+- 全分岐ドライラン
+- エンディング到達検証
+- 無限ループ・最大深度超過の検出
+- 修正候補付き Diagnostic
 
 👉 **「動かさなくても問題点が分かる」**のが特徴です。
 
@@ -91,83 +92,76 @@ tsumugai の責務は、あくまで
 ↓
 tsumugai
 ↓
-[ 解釈結果 / Directive / ワーニング ]
+[ Event / Diagnostic / DryRunReport ]
 ↓
 あなたのアプリケーション
 ```
 
 ---
 
-想定している利用者
-	•	Rust でノベルゲームを作りたいエンジニア
-	•	UI・演出は自分で制御したい
-	•	シナリオを Markdown / Git 管理したい
-	•	LLM（ChatGPT / Claude 等）で
-シナリオ生成・修正・レビューを回したい
-	•	「書いたシナリオが正しいか」を自動で確認したい
+## 想定している利用者
+
+- Rust でノベルゲームを作りたいエンジニア
+- UI・演出は自分で制御したい開発者
+- シナリオを Markdown / Git で管理したいチーム
+- LLM でシナリオ生成・修正・レビューを回したい人
+- 書いたシナリオが正しいかを自動で確認したい人
 
 完成済みノベルゲームエンジンの代替ではありません。
 
-⸻
+---
 
-## 最小の使用例（新API）
+## 最小の使用例
 
-### シンプルAPI（推奨）
+### ライブラリ API
 
 ```rust
-use tsumugai::{parser, runtime, types::{State, Event}};
+use tsumugai::{
+    parser,
+    runtime::{self, Input, WaitingType, ir::Event},
+    types::State,
+};
 
 fn main() -> anyhow::Result<()> {
     let scenario = r#"
 [SAY speaker=Alice]
 こんにちは。
 
-[BRANCH choice=進む choice=戻る]
+[BRANCH choice=進む label=go, choice=戻る label=back]
 
-[LABEL name=進む]
+[LABEL name=go]
 [SAY speaker=Alice]
 前に進みましょう。
 
-[LABEL name=戻る]
+[LABEL name=back]
 [SAY speaker=Alice]
 戻りましょう。
 "#;
 
-    // 1. パース
     let ast = parser::parse(scenario)?;
-
-    // 2. 初期状態
+    let program = runtime::compile(&ast);
     let mut state = State::new();
+    let mut input = None;
 
-    // 3. ステップ実行
     loop {
-        let (new_state, output) = runtime::step(state, &ast, None);
+        let (new_state, output) = runtime::step(state, &program, input.take());
         state = new_state;
 
-        // セリフを表示
-        for line in &output.lines {
-            if let Some(speaker) = &line.speaker {
-                println!("{}: {}", speaker, line.text);
-            } else {
-                println!("{}", line.text);
+        for event in &output.events {
+            if let Event::Say { speaker, text } = event {
+                println!("{}: {}", speaker, text);
             }
         }
 
-        // 選択肢がある場合
-        if !output.choices.is_empty() {
-            for (i, choice) in output.choices.iter().enumerate() {
-                println!("  {}. {}", i + 1, choice.label);
+        match output.waiting_for {
+            Some(WaitingType::Advance) => {
+                input = Some(Input::Advance);
             }
-
-            // ユーザー入力（ここでは固定で最初を選択）
-            let event = Event::Choice { id: "choice_0".to_string() };
-            let (new_state, _) = runtime::step(state, &ast, Some(event));
-            state = new_state;
-        }
-
-        // プログラム終了チェック
-        if state.pc >= ast.len() {
-            break;
+            Some(WaitingType::Choice(options)) => {
+                let choice_id = options[0].id.clone();
+                input = Some(Input::SelectChoice(choice_id));
+            }
+            None => break,
         }
     }
 
@@ -175,63 +169,57 @@ fn main() -> anyhow::Result<()> {
 }
 ```
 
-### 従来API（互換性維持）
+### CLI
 
-```rust
-use tsumugai::application::engine::Engine;
-
-fn main() -> anyhow::Result<()> {
-    let scenario = r#"
-[SAY speaker=Alice]
-こんにちは。
-"#;
-
-    let mut engine = Engine::from_markdown(scenario)?;
-
-    let result = engine.step()?;
-
-    for directive in &result.directives {
-        println!("{:?}", directive);
-    }
-
-    Ok(())
-}
+```bash
+cargo run -- play assets/scenarios/strange_encounter.md
+cargo run -- check assets/scenarios/strange_encounter.md
 ```
 
-	•	描画はすべて println!
-	•	tsumugai は 「何をすべきか」だけを返す
-	•	実際の表示・演出はアプリ側の責務
+- `play`: CUI プレイヤーで実行
+- `check`: analyzer で静的検査
 
-⸻
+---
 
 ## シナリオ形式
-	•	標準的な Markdown ファイル
-	•	見出し・コメントが使える
-	•	人間にも LLM にも読みやすい
-	•	独自タグは最小限
+
+- 標準的な Markdown ファイル
+- 見出し・コメントが使える
+- 人間にも LLM にも読みやすい
+- 独自タグは最小限
 
 👉 「ライターが書きやすいこと」を最優先
 
 詳細な記法は docs/ を参照してください。
 
-⸻
+---
+
+## ドキュメント
+
+- [Concept](docs/CONCEPT.md): 存在意義、設計思想、責務境界
+- [Architecture](docs/ARCHITECTURE.md): アーキテクチャとデータフロー
+- [API](docs/API.md): Core と Host の契約
+- [Development Workflow](docs/DEVELOPMENT_WORKFLOW.md): 開発ワークフロー
 
 ## 設計方針
-	•	テストファースト（TDD）
-	•	最小責務・単純な構造
-	•	シナリオ解釈と検証に特化
-	•	ライブラリは静かに振る舞う
-	•	実装より「意味」を返す
 
-⸻
+- テストファースト（TDD）
+- 最小責務・単純な構造
+- シナリオ解釈と検証に特化
+- ライブラリは静かに振る舞う
+- 実装より「意味」を返す
+
+---
 
 ## tsumugai が目指すもの
-	•	これさえあれば シナリオの正しさは確認できる
-	•	実行にもチェックにも使える
-	•	LLM フレンドリーなノベルゲーム開発基盤
 
-⸻
+- これさえあればシナリオの正しさを確認できる
+- 実行にもチェックにも使える
+- LLM フレンドリーなノベルゲーム開発基盤
+- Bevy / iOS / Web / CUI などに接続できる意味コア
 
-ライセンス
+---
+
+## ライセンス
 
 MIT License
