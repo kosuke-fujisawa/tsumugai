@@ -20,6 +20,7 @@ struct MarkdownParser {
     lines: Vec<String>,
     current_line: usize,
     nodes: Vec<AstNode>,
+    node_lines: Vec<usize>,
     labels: HashMap<String, usize>,
     conditions: std::collections::HashSet<String>,
 }
@@ -31,6 +32,7 @@ impl MarkdownParser {
             lines,
             current_line: 0,
             nodes: Vec::new(),
+            node_lines: Vec::new(),
             labels: HashMap::new(),
             conditions: std::collections::HashSet::new(),
         }
@@ -46,11 +48,10 @@ impl MarkdownParser {
         // Second pass: validate labels
         self.validate_labels()?;
 
-        Ok(Ast::with_conditions(
-            self.nodes,
-            self.labels,
-            self.conditions,
-        ))
+        Ok(
+            Ast::with_conditions(self.nodes, self.labels, self.conditions)
+                .with_node_lines(self.node_lines),
+        )
     }
 
     fn parse_line(&mut self) -> anyhow::Result<()> {
@@ -82,6 +83,7 @@ impl MarkdownParser {
                 self.labels.insert(name.clone(), self.nodes.len());
             }
 
+            self.node_lines.push(self.current_line + 1); // 1-origin
             self.nodes.push(node);
         }
 

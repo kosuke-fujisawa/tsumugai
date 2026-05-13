@@ -34,7 +34,7 @@ pub struct Span {
 /// 検査で発見した1件の問題（Diagnostic）
 ///
 /// `rule_id` でルール種別を機械的に識別できる。
-/// `span` / `related_spans` は将来的にパーサーが行番号を付与したときに利用する（現在は None / []）。
+/// `span` はパーサーが行番号を記録したノードに対して設定される（1-origin）。
 /// `suggestion` があれば修正方法をユーザーに提示する。
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Issue {
@@ -124,6 +124,11 @@ impl Issue {
         self.suggestion = Some(suggestion.into());
         self
     }
+
+    fn with_span(mut self, span: Option<Span>) -> Self {
+        self.span = span;
+        self
+    }
 }
 
 /// 解析結果
@@ -179,9 +184,16 @@ pub fn analyze(ast: &Ast) -> AnalysisResult {
     result
 }
 
+fn node_span(ast: &Ast, idx: usize) -> Option<Span> {
+    ast.node_lines
+        .get(idx)
+        .map(|&line| Span { line, column: 1 })
+}
+
 /// ジャンプ先ラベルの存在確認
 fn check_label_references(ast: &Ast, defined: &HashSet<&str>, result: &mut AnalysisResult) {
-    for node in &ast.nodes {
+    for (idx, node) in ast.nodes.iter().enumerate() {
+        let span = node_span(ast, idx);
         match node {
             AstNode::Jump { label } if !defined.contains(label.as_str()) => {
                 result.issues.push(
@@ -189,6 +201,7 @@ fn check_label_references(ast: &Ast, defined: &HashSet<&str>, result: &mut Analy
                         "undefined_label",
                         format!("未定義ラベル '{}' へのジャンプが存在します", label),
                     )
+                    .with_span(span)
                     .with_suggestion(format!(
                         "'[LABEL name={}]' を追加するか、ジャンプ先を修正してください",
                         label
@@ -201,6 +214,7 @@ fn check_label_references(ast: &Ast, defined: &HashSet<&str>, result: &mut Analy
                         "undefined_label",
                         format!("未定義ラベル '{}' への条件ジャンプが存在します", label),
                     )
+                    .with_span(span)
                     .with_suggestion(format!(
                         "'[LABEL name={}]' を追加するか、ジャンプ先を修正してください",
                         label
@@ -218,6 +232,7 @@ fn check_label_references(ast: &Ast, defined: &HashSet<&str>, result: &mut Analy
                                     choice.label, choice.target
                                 ),
                             )
+                            .with_span(span.clone())
                             .with_suggestion(format!(
                                 "'[LABEL name={}]' を追加するか、選択肢のラベル参照を修正してください",
                                 choice.target
@@ -253,32 +268,41 @@ fn check_reachability(ast: &Ast, _defined: &HashSet<&str>, result: &mut Analysis
     }
 
     // 定義されているが一度も参照されないラベルは情報として報告
-    for label in ast.labels.keys() {
+    for (label, &node_idx) in &ast.labels {
         if !referenced.contains(label.as_str()) {
-            result.issues.push(Issue::info(
-                "unreferenced_label",
-                format!("ラベル '{}' はどこからも参照されていません", label),
-            ));
+            let span = node_span(ast, node_idx);
+            result.issues.push(
+                Issue::info(
+                    "unreferenced_label",
+                    format!("ラベル '{}' はどこからも参照されていません", label),
+                )
+                .with_span(span),
+            );
         }
     }
 }
 
 /// 空の選択肢チェック
 fn check_empty_branches(ast: &Ast, result: &mut AnalysisResult) {
-    for node in &ast.nodes {
+    for (idx, node) in ast.nodes.iter().enumerate() {
         if let AstNode::Branch { choices } = node {
+            let span = node_span(ast, idx);
             if choices.is_empty() {
                 result.issues.push(
                     Issue::error("empty_branch", "BRANCH 命令に選択肢が1つもありません")
+                        .with_span(span)
                         .with_suggestion(
                             "choice=テキスト label=ラベル名 の形式で選択肢を追加してください",
                         ),
                 );
             } else if choices.len() == 1 {
-                result.issues.push(Issue::warning(
-                    "single_choice_branch",
-                    "BRANCH 命令の選択肢が1つしかありません（分岐になっていません）",
-                ));
+                result.issues.push(
+                    Issue::warning(
+                        "single_choice_branch",
+                        "BRANCH 命令の選択肢が1つしかありません（分岐になっていません）",
+                    )
+                    .with_span(span),
+                );
             }
         }
     }

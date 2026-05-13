@@ -68,6 +68,9 @@ fn main() -> anyhow::Result<()> {
                         tsumugai::analyzer::Level::Info => "情報",
                     };
                     println!("[{}][{}] {}", level, issue.rule_id, issue.message);
+                    if let Some(span) = &issue.span {
+                        println!("  位置: {}行目", span.line);
+                    }
                     if let Some(suggestion) = &issue.suggestion {
                         println!("  提案: {}", suggestion);
                     }
