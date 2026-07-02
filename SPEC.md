@@ -239,6 +239,7 @@ error[broken-link]: リンク先が見つかりません
 | rule_id | severity | 内容 |
 |---|---|---|
 | `missing-scene-id` | error | front matter に `id` がない |
+| `invalid-frontmatter` | error | front matter の YAML が解析できない、または値が文字列でない |
 | `duplicate-scene-id` | error | シーン ID がプロジェクト内で重複 |
 | `duplicate-anchor` | error | 同一ファイル内で H2 アンカー名が重複 |
 | `empty-anchor` | error | H2 見出しから導出したアンカー名が空になる |
