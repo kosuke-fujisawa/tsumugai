@@ -132,6 +132,15 @@ fn 未知のfront_matterキーはwarningになる() {
     let parsed = parse("---\nid: t\nbgv: x\n---\n\n# t\n\n本文。\n");
     assert_eq!(rule_ids(&parsed), vec!["unknown-frontmatter-key"]);
     assert!(parsed.diagnostics[0].message.contains("bgv"));
+    // span はキーが書かれている実際の行を指す
+    assert_eq!(parsed.diagnostics[0].span, Some(Span { line: 3 }));
+}
+
+#[test]
+fn 文字列でない値のspanはキーの行を指す() {
+    let parsed = parse("---\nid: t\nbgm:\n  - a.ogg\n---\n\n# t\n\n本文。\n");
+    assert_eq!(rule_ids(&parsed), vec!["invalid-frontmatter"]);
+    assert_eq!(parsed.diagnostics[0].span, Some(Span { line: 3 }));
 }
 
 #[test]
@@ -231,6 +240,16 @@ fn urlスキームの飛び先はbroken_linkになる() {
 }
 
 #[test]
+fn mdでないファイルへの飛び先はbroken_linkになる() {
+    let parsed = parse_body("- [画像へ](image.png)\n- [歩く](#a)");
+    assert_eq!(rule_ids(&parsed), vec!["broken-link"]);
+    assert!(parsed.diagnostics[0].message.contains(".md"));
+    // ジャンプ段落でも同様
+    let parsed = parse_body("[メモへ](notes.txt)");
+    assert_eq!(rule_ids(&parsed), vec!["broken-link"]);
+}
+
+#[test]
 fn パーセントエンコードされたアンカーはデコードして解決される() {
     let parsed = parse_body("- [選ぶ](#%E9%81%B8%E6%8A%9E%E8%82%A2)");
     assert_eq!(parsed.diagnostics, vec![]);
@@ -272,6 +291,12 @@ fn h1が2つあるとinvalid_h1になる() {
     let parsed = parse("---\nid: t\n---\n\n# 一つ目\n\n# 二つ目\n\n本文。\n");
     assert_eq!(rule_ids(&parsed), vec!["invalid-h1"]);
     assert_eq!(parsed.diagnostics[0].related_spans.len(), 1);
+}
+
+#[test]
+fn h2セクションの直後のh1もinvalid_h1になる() {
+    let parsed = parse("---\nid: t\n---\n\n## セクション\n\n本文。\n\n# タイトル\n\n続き。\n");
+    assert!(rule_ids(&parsed).contains(&"invalid-h1"));
 }
 
 #[test]

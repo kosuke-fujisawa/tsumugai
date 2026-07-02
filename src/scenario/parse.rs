@@ -235,12 +235,13 @@ impl<'a> SceneParser<'a> {
                 );
                 continue;
             };
+            let key_line = fm_key_line(yaml, key);
             match key {
                 "id" | "background" | "bgm" => {
                     let Some(s) = val.as_str() else {
                         self.error(
                             "invalid-frontmatter",
-                            2,
+                            key_line,
                             format!("front matter の `{key}` は文字列で書いてください"),
                         );
                         continue;
@@ -254,7 +255,7 @@ impl<'a> SceneParser<'a> {
                 unknown => {
                     self.warning(
                         "unknown-frontmatter-key",
-                        2,
+                        key_line,
                         format!(
                             "front matter の `{unknown}` は v1 では定義されていないキーです（使えるのは id / background / bgm）"
                         ),
@@ -363,7 +364,10 @@ impl<'a> SceneParser<'a> {
                     )
                     .related_spans
                     .push(super::Span { line: first });
-                } else if !self.scene.lead.is_empty() || !self.scene.sections.is_empty() {
+                } else if !self.scene.lead.is_empty()
+                    || !self.scene.sections.is_empty()
+                    || self.current_section.is_some()
+                {
                     self.error(
                         "invalid-h1",
                         line,
@@ -730,6 +734,23 @@ impl<'a> SceneParser<'a> {
         };
         let file = (!file_part.is_empty()).then(|| file_part.to_string());
         let anchor = anchor_part.map(percent_decode).filter(|a| !a.is_empty());
+        // 飛び先にできるファイルは Markdown（.md）のみ（SPEC 4.3）
+        if let Some(f) = &file {
+            let is_markdown = Path::new(f)
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
+            if !is_markdown {
+                self.error(
+                    "broken-link",
+                    line,
+                    format!(
+                        "「{href}」は飛び先にできません。Markdown ファイル（.md）またはアンカー（#見出し）を指定してください"
+                    ),
+                );
+                return None;
+            }
+        }
         if file.is_none() && anchor.is_none() {
             self.error(
                 "broken-link",
@@ -844,6 +865,24 @@ fn legacy_command(text: &str) -> Option<(String, String)> {
         _ => "SPEC.md 11.1 の対応表を参照して v1 記法に書き換えてください".to_string(),
     };
     Some((message, suggestion))
+}
+
+/// front matter 内でキーが書かれている行番号を返す
+///
+/// serde_yaml は位置情報を持たないため、生テキストを走査する。
+/// yaml はソースの 2 行目から始まる前提。見つからなければ 2 を返す。
+fn fm_key_line(yaml: &str, key: &str) -> usize {
+    for (i, line) in yaml.lines().enumerate() {
+        let found = line
+            .trim_start()
+            .strip_prefix(key)
+            .and_then(|rest| rest.trim_start().strip_prefix(':'))
+            .is_some();
+        if found {
+            return i + 2;
+        }
+    }
+    2
 }
 
 /// unsupported-element の警告メッセージ用の要素名
