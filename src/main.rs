@@ -1,21 +1,24 @@
 //! tsumugai CLI エントリーポイント
 
 use std::fs;
+use std::path::Path;
 use tsumugai::runtime::ir::Event;
 use tsumugai::runtime::trace::RuntimeTrace;
+use tsumugai::scenario;
 
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
 
     let usage = concat!(
-        "使い方: tsumugai <command> <file> [--json] [--debug]\n",
+        "使い方: tsumugai <command> <path> [options]\n",
         "コマンド:\n",
-        "  check <file>         シナリオの静的検証（人間向け出力）\n",
-        "  check <file> --json  シナリオの静的検証（JSON出力）\n",
-        "  trace <file>         シナリオの実行トレース（先頭選択肢を自動選択）\n",
-        "  trace <file> --json  シナリオの実行トレース（JSON出力）\n",
-        "  play  <file>         シナリオの対話再生\n",
-        "  play  <file> --debug デバッグ情報付きで再生"
+        "  check <path>   シナリオの静的検査（ファイルまたはディレクトリ）\n",
+        "      --format human|json|sarif  出力形式（既定: human）\n",
+        "      --no-assets                background / bgm の実在チェックを省略\n",
+        "  trace <file>   シナリオの実行トレース（旧記法。#77 で v1 記法に対応予定）\n",
+        "      --json                     JSON 出力\n",
+        "  play  <file>   シナリオの対話再生（旧記法）\n",
+        "      --debug                    デバッグ情報付きで再生"
     );
 
     if args.len() < 3 {
@@ -28,65 +31,26 @@ fn main() -> anyhow::Result<()> {
     let debug_mode = args.contains(&"--debug".to_string());
     let json_mode = args.contains(&"--json".to_string());
 
-    let markdown = fs::read_to_string(file_path)
-        .map_err(|e| anyhow::anyhow!("ファイルを読み込めません '{}': {}", file_path, e))?;
-
     match command.as_str() {
         "play" => {
+            let markdown = read_markdown(file_path)?;
             tsumugai::player::run(&markdown, debug_mode)?;
         }
         "check" => {
-            let ast = match tsumugai::parser::parse(&markdown) {
-                Ok(ast) => ast,
-                Err(e) => {
-                    if json_mode {
-                        let output =
-                            tsumugai::analyzer::CheckJsonOutput::parse_error(e.to_string());
-                        println!("{}", serde_json::to_string_pretty(&output)?);
-                        std::process::exit(1);
-                    } else {
-                        return Err(e);
-                    }
-                }
+            let (format, options) = parse_check_args(&args[3..], usage);
+            let result = scenario::check_path(Path::new(file_path), &options);
+            let rendered = match format {
+                CheckFormat::Human => scenario::render_human(&result),
+                CheckFormat::Json => scenario::render_json(&result),
+                CheckFormat::Sarif => scenario::render_sarif(&result),
             };
-
-            let result = tsumugai::analyzer::analyze(&ast);
-
-            if json_mode {
-                let output = tsumugai::analyzer::CheckJsonOutput::from(&result);
-                println!("{}", serde_json::to_string_pretty(&output)?);
-                if result.has_errors() {
-                    std::process::exit(1);
-                }
-            } else if result.is_clean() {
-                println!("✓ 問題は見つかりませんでした。");
-            } else {
-                for issue in &result.issues {
-                    let level = match issue.level {
-                        tsumugai::analyzer::Level::Error => "エラー",
-                        tsumugai::analyzer::Level::Warning => "警告",
-                        tsumugai::analyzer::Level::Info => "情報",
-                    };
-                    println!("[{}][{}] {}", level, issue.rule_id, issue.message);
-                    if let Some(span) = &issue.span {
-                        println!("  位置: {}行目", span.line);
-                    }
-                    if let Some(suggestion) = &issue.suggestion {
-                        println!("  提案: {}", suggestion);
-                    }
-                }
-                println!(
-                    "\nエラー: {}件  警告: {}件  情報: {}件",
-                    result.error_count(),
-                    result.warning_count(),
-                    result.info_count()
-                );
-                if result.has_errors() {
-                    std::process::exit(1);
-                }
+            println!("{}", rendered);
+            if result.has_errors() {
+                std::process::exit(1);
             }
         }
         "trace" => {
+            let markdown = read_markdown(file_path)?;
             let ast = match tsumugai::parser::parse(&markdown) {
                 Ok(ast) => ast,
                 Err(e) => {
@@ -131,6 +95,47 @@ fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn read_markdown(file_path: &str) -> anyhow::Result<String> {
+    fs::read_to_string(file_path)
+        .map_err(|e| anyhow::anyhow!("ファイルを読み込めません '{}': {}", file_path, e))
+}
+
+enum CheckFormat {
+    Human,
+    Json,
+    Sarif,
+}
+
+fn parse_check_args(rest: &[String], usage: &str) -> (CheckFormat, scenario::CheckOptions) {
+    let mut format = CheckFormat::Human;
+    let mut options = scenario::CheckOptions::default();
+    let mut iter = rest.iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--format" => {
+                format = match iter.next().map(String::as_str) {
+                    Some("human") => CheckFormat::Human,
+                    Some("json") => CheckFormat::Json,
+                    Some("sarif") => CheckFormat::Sarif,
+                    other => {
+                        eprintln!(
+                            "--format には human / json / sarif を指定してください（指定: {}）",
+                            other.unwrap_or("なし")
+                        );
+                        std::process::exit(1);
+                    }
+                };
+            }
+            "--no-assets" => options.check_assets = false,
+            other => {
+                eprintln!("不明なオプション: {}\n{}", other, usage);
+                std::process::exit(1);
+            }
+        }
+    }
+    (format, options)
 }
 
 fn print_trace_human(trace: &RuntimeTrace) {

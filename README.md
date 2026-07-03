@@ -172,43 +172,30 @@ fn main() -> anyhow::Result<()> {
 ### CLI
 
 ```bash
-cargo run -- play assets/scenarios/strange_encounter.md
-cargo run -- check assets/scenarios/strange_encounter.md
-cargo run -- check assets/scenarios/strange_encounter.md --json
+cargo run -- check examples/spring                    # ディレクトリごと静的検査
+cargo run -- check examples/spring/scenario/spring_001.md
+cargo run -- check examples/spring --format json      # CI・LLM 連携用 JSON
+cargo run -- check examples/spring --format sarif     # GitHub Code Scanning 用 SARIF
+cargo run -- play assets/scenarios/strange_encounter.md   # 対話再生（旧記法）
 ```
 
-- `play`: CUI プレイヤーで実行
-- `check`: analyzer で静的検査
-- `check --json`: JSON 形式で検査結果を出力（CI・LLM連携用）
+- `check`: v1 記法（SPEC.md）の静的検査。構文・リンク切れ・話者名の書き間違い・シーン ID 重複・アセット実在などを一括検出する
+- すべての指摘は「どこが・なぜ・どう直すか」を含み、最初のエラーで止まらず全件報告する（SPEC 6.1「Diagnostic は学習教材である」）
 
-`check --json` の出力例（問題なし）:
+人間向け出力の例（アンカーの書き間違い）:
 
-```json
-{
-  "status": "ok",
-  "error_count": 0,
-  "warning_count": 0,
-  "issues": []
-}
+```text
+error[broken-link]: このファイルに「run-togather」という見出し（##）はありません。よく似た「## run-together」があります。`[一緒に走る](#run-together)` の間違いではありませんか？
+  --> scenario/spring_001.md:9
+   |
+ 9 | - [一緒に走る](#run-togather)
+   |
+   = help: [一緒に走る](#run-together)
+
+エラー: 1件  警告: 0件（1 ファイルを検査）
 ```
 
-`check --json` の出力例（エラーあり）:
-
-```json
-{
-  "status": "error",
-  "error_count": 1,
-  "warning_count": 0,
-  "issues": [
-    {
-      "level": "error",
-      "message": "ラベル 'end' へのジャンプが定義されていません"
-    }
-  ]
-}
-```
-
-エラー時は exit code 1 を返します。JSON 形式はパースエラー時でも崩れません。
+エラー時は exit code 1 を返します（警告のみなら 0）。JSON / SARIF はエラー時でも形式が崩れません。出力形式の詳細は [docs/CLI_OUTPUT.md](docs/CLI_OUTPUT.md) を参照してください。
 
 ---
 
