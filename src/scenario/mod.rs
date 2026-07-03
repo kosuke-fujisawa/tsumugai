@@ -27,6 +27,7 @@ mod characters;
 mod check;
 mod diagnostic;
 mod parse;
+mod project;
 mod report;
 #[cfg(test)]
 mod tests;
