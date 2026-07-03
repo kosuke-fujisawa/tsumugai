@@ -2,8 +2,6 @@
 
 use std::fs;
 use std::path::Path;
-use tsumugai::runtime::ir::Event;
-use tsumugai::runtime::trace::RuntimeTrace;
 use tsumugai::scenario;
 
 fn main() -> anyhow::Result<()> {
@@ -15,8 +13,10 @@ fn main() -> anyhow::Result<()> {
         "  check <path>   シナリオの静的検査（ファイルまたはディレクトリ）\n",
         "      --format human|json|sarif  出力形式（既定: human）\n",
         "      --no-assets                background / bgm の実在チェックを省略\n",
-        "  trace <file>   シナリオの実行トレース（旧記法。#77 で v1 記法に対応予定）\n",
-        "      --json                     JSON 出力\n",
+        "  trace <file>   シナリオを 1 経路ぶん自動実行して表示（SPEC 5.1）\n",
+        "      --choices 1,3,1            選択肢で選ぶ番号（ブロック内の並び順、1 始まり）\n",
+        "      --format human|json        出力形式（既定: human）。--json は --format json と同じ\n",
+        "      --no-assets                background / bgm の実在チェックを省略\n",
         "  play  <file>   シナリオの対話再生（旧記法）\n",
         "      --debug                    デバッグ情報付きで再生"
     );
@@ -29,7 +29,6 @@ fn main() -> anyhow::Result<()> {
     let command = &args[1];
     let file_path = &args[2];
     let debug_mode = args.contains(&"--debug".to_string());
-    let json_mode = args.contains(&"--json".to_string());
 
     match command.as_str() {
         "play" => {
@@ -50,42 +49,16 @@ fn main() -> anyhow::Result<()> {
             }
         }
         "trace" => {
-            let markdown = read_markdown(file_path)?;
-            let ast = match tsumugai::parser::parse(&markdown) {
-                Ok(ast) => ast,
-                Err(e) => {
-                    if json_mode {
-                        let trace = tsumugai::runtime::trace::RuntimeTrace {
-                            total_steps: 0,
-                            truncated: false,
-                            steps: vec![],
-                        };
-                        let output = tsumugai::runtime::trace::TraceJsonOutput {
-                            status: "error",
-                            trace,
-                        };
-                        println!("{}", serde_json::to_string_pretty(&output)?);
-                        std::process::exit(1);
-                    } else {
-                        return Err(e);
-                    }
-                }
-            };
-
-            let program = tsumugai::runtime::compile(&ast);
-            let trace = tsumugai::runtime::trace::trace_linear(&program);
-
-            if json_mode {
-                let output = tsumugai::runtime::trace::TraceJsonOutput {
-                    status: "ok",
-                    trace,
-                };
-                println!("{}", serde_json::to_string_pretty(&output)?);
+            let (json, options) = parse_trace_args(&args[3..], usage);
+            let result = scenario::trace_path(Path::new(file_path), &options);
+            let rendered = if json {
+                scenario::render_trace_json(&result)
             } else {
-                print_trace_human(&trace);
-                if trace.truncated {
-                    eprintln!("警告: ステップ数の上限に達したため打ち切られました。");
-                }
+                scenario::render_trace_human(&result)
+            };
+            println!("{}", rendered);
+            if result.has_errors() {
+                std::process::exit(1);
             }
         }
         _ => {
@@ -138,57 +111,52 @@ fn parse_check_args(rest: &[String], usage: &str) -> (CheckFormat, scenario::Che
     (format, options)
 }
 
-fn print_trace_human(trace: &RuntimeTrace) {
-    println!("=== Runtime Trace ({} steps) ===\n", trace.total_steps);
-    for step in &trace.steps {
-        println!(
-            "Step {} (pc {} → {})",
-            step.step_no, step.pc_before, step.pc_after
-        );
-        if let Some(input) = &step.input {
-            println!("  Input   : {}", input);
-        } else {
-            println!("  Input   : (初回実行)");
-        }
-        if step.events.is_empty() {
-            println!("  Events  : (なし)");
-        } else {
-            for event in &step.events {
-                println!("  Event   : {}", describe_event(event));
+/// trace の引数を解釈する。返り値は (JSON 出力か, オプション)
+fn parse_trace_args(rest: &[String], usage: &str) -> (bool, scenario::TraceOptions) {
+    let mut json = false;
+    let mut options = scenario::TraceOptions::default();
+    let mut iter = rest.iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--choices" => {
+                let Some(list) = iter.next() else {
+                    eprintln!(
+                        "--choices には選択番号をカンマ区切りで指定してください（例: --choices 1,3,1）"
+                    );
+                    std::process::exit(1);
+                };
+                options.choices = list
+                    .split(',')
+                    .map(|s| match s.trim().parse::<usize>() {
+                        Ok(n) if n >= 1 => n,
+                        _ => {
+                            eprintln!(
+                                "--choices の「{}」が選択番号として読めません。選択肢ブロック内の並び順を 1 始まりの数字で指定してください（例: --choices 1,3,1）",
+                                s.trim()
+                            );
+                            std::process::exit(1);
+                        }
+                    })
+                    .collect();
             }
-        }
-        if step.state_diff.var_changes.is_empty() {
-            println!("  State   : (変化なし)");
-        } else {
-            for change in &step.state_diff.var_changes {
-                match &change.before {
-                    None => println!("  State   : {} = {} (新規)", change.key, change.after),
-                    Some(before) => {
-                        println!("  State   : {} {} → {}", change.key, before, change.after)
-                    }
+            "--json" => json = true,
+            "--format" => match iter.next().map(String::as_str) {
+                Some("human") => json = false,
+                Some("json") => json = true,
+                other => {
+                    eprintln!(
+                        "trace の --format には human / json を指定してください（指定: {}）",
+                        other.unwrap_or("なし")
+                    );
+                    std::process::exit(1);
                 }
+            },
+            "--no-assets" => options.check_assets = false,
+            other => {
+                eprintln!("不明なオプション: {}\n{}", other, usage);
+                std::process::exit(1);
             }
         }
-        match &step.waiting_for {
-            None => println!("  Waiting : (終了)"),
-            Some(w) => println!("  Waiting : {}", w),
-        }
-        println!();
     }
-}
-
-fn describe_event(event: &Event) -> String {
-    match event {
-        Event::Say { speaker, text } if speaker.is_empty() => format!("Narration: {}", text),
-        Event::Say { speaker, text } => format!("Say({}): {}", speaker, text),
-        Event::SceneStart { name } => format!("SceneStart: {}", name),
-        Event::ShowImage { layer, name } => format!("ShowImage: {} / {}", layer, name),
-        Event::ClearLayer { layer } => format!("ClearLayer: {}", layer),
-        Event::PlayBgm { name } => format!("PlayBgm: {}", name),
-        Event::PlaySe { name } => format!("PlaySe: {}", name),
-        Event::PlayMovie { name } => format!("PlayMovie: {}", name),
-        Event::Wait { duration } => format!("Wait: {}s", duration),
-        Event::Ending { id, name } => format!("Ending: {} ({})", name, id),
-        Event::Custom { tag, params } => format!("Custom[{}]: {}", tag, params.join(", ")),
-    }
+    (json, options)
 }

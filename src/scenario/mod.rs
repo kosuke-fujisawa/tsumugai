@@ -31,13 +31,15 @@ mod project;
 mod report;
 #[cfg(test)]
 mod tests;
+mod trace;
 
 pub use anchor::{percent_decode, slugify};
 pub use characters::{Characters, find_characters_file, load_characters};
 pub use check::{CheckOptions, CheckResult, check_path};
 pub use diagnostic::{Diagnostic, Severity, Span};
 pub use parse::{FrontMatterSpans, Parsed, parse_file, parse_str};
-pub use report::{render_human, render_json, render_sarif};
+pub use report::{render_human, render_json, render_sarif, render_trace_human, render_trace_json};
+pub use trace::{Trace, TraceChoice, TraceEnd, TraceOptions, TraceResult, TraceStep, trace_path};
 
 use serde::Serialize;
 use std::path::PathBuf;
