@@ -90,6 +90,20 @@ fn 存在しないファイルへのリンクはbroken_linkと類似ファイル
 }
 
 #[test]
+fn 絶対パスの参照はリンクもアセットも拒否される() {
+    // SPEC 2章: tsumugai が読むのは相対パスで参照されるファイルだけ。
+    // 絶対パスは実在の有無にかかわらず error に倒す
+    let result = check("absolute_path/scene.md");
+    assert_eq!(rule_ids(&result), vec!["missing-asset", "broken-link"]);
+    for diag in &result.diagnostics {
+        assert!(diag.message.contains("絶対パス"), "{}", diag.message);
+        assert!(diag.message.contains("相対パス"), "{}", diag.message);
+    }
+    // 絶対パスのリンク先は検査対象（閉包）にも加えない
+    assert_eq!(result.files.len(), 1);
+}
+
+#[test]
 fn h1タイトルへのリンクはbroken_linkでh2だけが分岐先だと案内される() {
     let result = check("h1_link/scene.md");
     assert_eq!(rule_ids(&result), vec!["broken-link"]);

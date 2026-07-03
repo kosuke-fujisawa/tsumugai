@@ -197,15 +197,15 @@ fn load_project(seeds: Vec<PathBuf>, diagnostics: &mut Vec<Diagnostic>) -> Vec<L
                 continue;
             }
         };
-        // リンク先の .md も検査対象に加える（閉包）。実在しないファイルは
-        // check_links が broken-link として報告する
+        // リンク先の .md も検査対象に加える（閉包）。実在しない・絶対パスの
+        // ファイルは check_links が broken-link として報告する
         for (_, target, _) in scene_links(&parsed.scene) {
-            if let Some(file) = &target.file {
-                let resolved = resolve_sibling(&display, file);
-                if resolved.is_file() && resolved.extension().and_then(|e| e.to_str()) == Some("md")
-                {
-                    queue.push_back(resolved);
-                }
+            if let Some(file) = &target.file
+                && let Some(resolved) = resolve_sibling(&display, file)
+                && resolved.is_file()
+                && resolved.extension().and_then(|e| e.to_str()) == Some("md")
+            {
+                queue.push_back(resolved);
             }
         }
         scenes.push(LoadedScene {
@@ -217,12 +217,19 @@ fn load_project(seeds: Vec<PathBuf>, diagnostics: &mut Vec<Diagnostic>) -> Vec<L
     scenes
 }
 
-/// シーンファイルからの相対パスを解決する
-fn resolve_sibling(scene_path: &Path, relative: &str) -> PathBuf {
-    scene_path
-        .parent()
-        .unwrap_or_else(|| Path::new(""))
-        .join(relative)
+/// シーンファイルからの相対パスを解決する。
+/// tsumugai が読むのは相対パスで参照されるファイルだけ（SPEC 2章）なので、
+/// 絶対パスは解決せず None を返す（呼び出し側が broken-link / missing-asset に倒す）
+fn resolve_sibling(scene_path: &Path, relative: &str) -> Option<PathBuf> {
+    if Path::new(relative).is_absolute() {
+        return None;
+    }
+    Some(
+        scene_path
+            .parent()
+            .unwrap_or_else(|| Path::new(""))
+            .join(relative),
+    )
 }
 
 /// シーン内のすべてのリンク（ジャンプ + 選択肢項目）を (ラベル, 飛び先, 行) で列挙する
@@ -303,7 +310,17 @@ fn check_one_link(
     let target_scene: &LoadedScene = match &target.file {
         None => scene,
         Some(file) => {
-            let resolved = resolve_sibling(&scene.path, file);
+            let Some(resolved) = resolve_sibling(&scene.path, file) else {
+                diagnostics.push(Diagnostic::error(
+                    "broken-link",
+                    &scene.path,
+                    line,
+                    format!(
+                        "リンク先「{file}」は絶対パスです。飛び先にできるのは、このファイルからの相対パスで参照できるプロジェクト内の .md だけです（SPEC 2章）"
+                    ),
+                ));
+                return;
+            };
             if !resolved.is_file() {
                 let mut diag = Diagnostic::error(
                     "broken-link",
@@ -452,7 +469,18 @@ fn check_assets(scenes: &[LoadedScene], diagnostics: &mut Vec<Diagnostic>) {
         ];
         for (key, value, span) in entries {
             let Some(value) = value else { continue };
-            let resolved = resolve_sibling(&scene.path, value);
+            let Some(resolved) = resolve_sibling(&scene.path, value) else {
+                diagnostics.push(Diagnostic::error(
+                    "missing-asset",
+                    &scene.path,
+                    span.unwrap_or(1),
+                    format!(
+                        "{key} の「{value}」は絶対パスです。{} からの相対パスで書いてください（SPEC 2章）",
+                        scene.path.display()
+                    ),
+                ));
+                continue;
+            };
             if resolved.is_file() {
                 continue;
             }
@@ -646,10 +674,14 @@ fn check_unreachable(scenes: &[LoadedScene], diagnostics: &mut Vec<Diagnostic>) 
             };
             let canon = match &target.file {
                 None => scene.canon.clone(),
-                Some(file) => match resolve_sibling(&scene.path, file).canonicalize() {
-                    Ok(c) => c,
-                    Err(_) => continue, // broken-link 報告済み
-                },
+                Some(file) => {
+                    let resolved =
+                        resolve_sibling(&scene.path, file).and_then(|r| r.canonicalize().ok());
+                    match resolved {
+                        Some(c) => c,
+                        None => continue, // broken-link 報告済み
+                    }
+                }
             };
             linked.insert((canon, anchor.clone()));
         }

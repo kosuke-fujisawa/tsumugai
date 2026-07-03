@@ -74,7 +74,7 @@ fn render_one(
                 .map(|s| s.lines().map(String::from).collect())
         })
         .as_ref()
-        .and_then(|lines| lines.get(span.line - 1))
+        .and_then(|lines| span.line.checked_sub(1).and_then(|i| lines.get(i)))
         .cloned();
     if let Some(text) = source_line {
         let _ = writeln!(out, "{:width$} |", "");
@@ -220,5 +220,52 @@ fn rule_summary(rule_id: &str) -> &'static str {
         "unknown-directive" => "HTML コメントの未知の制御キー",
         "io-error" => "ファイルの読み込みに失敗した（記法ではなく環境の問題）",
         _ => "tsumugai check の診断",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::rule_summary;
+
+    /// SPEC 6章のルール表（error 12種 + warning 12種）+ CLI レベルの io-error。
+    /// ルールを追加したら SPEC → この一覧 → rule_summary の順に更新する
+    const ALL_RULE_IDS: [&str; 25] = [
+        "missing-scene-id",
+        "invalid-frontmatter",
+        "duplicate-scene-id",
+        "duplicate-anchor",
+        "empty-anchor",
+        "invalid-h1",
+        "broken-link",
+        "invalid-choice-item",
+        "empty-choice-label",
+        "missing-asset",
+        "legacy-command",
+        "invalid-characters-file",
+        "undefined-character",
+        "implicit-fallthrough",
+        "missing-title",
+        "linkless-list",
+        "inline-link",
+        "setext-heading",
+        "unsupported-element",
+        "missing-characters-file",
+        "unreachable-section",
+        "deep-heading",
+        "unknown-frontmatter-key",
+        "unknown-directive",
+        "io-error",
+    ];
+
+    #[test]
+    fn 全ルールにsarif用の個別説明がある() {
+        let fallback = rule_summary("__unknown_rule__");
+        for rule_id in ALL_RULE_IDS {
+            assert_ne!(
+                rule_summary(rule_id),
+                fallback,
+                "{rule_id} の説明が rule_summary に未登録"
+            );
+        }
     }
 }
