@@ -1,147 +1,176 @@
 # CLI 出力方針
 
-tsumugai の CLI は **人間向け出力** と **機械向け JSON 出力** を分けます。
+tsumugai の CLI は **人間向け出力** と **機械向け出力（JSON / SARIF）** を分けます。
 
 ---
 
 ## コマンド一覧
 
 ```bash
-# シナリオの静的検証
-tsumugai check scenario.md           # 人間向け出力
-tsumugai check scenario.md --json    # 機械向け JSON 出力
+# シナリオの静的検査（v1 記法。ファイルまたはディレクトリ）
+tsumugai check <path>
+tsumugai check <path> --format json    # 機械向け JSON
+tsumugai check <path> --format sarif   # GitHub Code Scanning 向け SARIF 2.1.0
+tsumugai check <path> --no-assets      # background / bgm の実在チェックを省略
 
-# シナリオの対話再生
+# シナリオの実行トレース（旧記法。#77 で v1 記法に対応予定）
+tsumugai trace scenario.md
+tsumugai trace scenario.md --json
+
+# シナリオの対話再生（旧記法）
 tsumugai play scenario.md
-tsumugai play scenario.md --debug    # デバッグ情報付き
+tsumugai play scenario.md --debug
 ```
 
-> `trace` / `dry-run` コマンドは将来追加予定（Issue #38, #40）。
+## check の検査対象
+
+- **ファイルを指定**: そのファイルと、リンク（選択肢・ジャンプ）で辿れる `.md` を 1 つのプロジェクトとして検査する
+- **ディレクトリを指定**: 配下のすべての `.md`（`README.md` を除く）を 1 つのプロジェクトとして検査する
+
+検査ルールは [SPEC.md 6章](../SPEC.md) の Diagnostic ルール表が正です。すべての Diagnostic は「どこが（ファイルと行）・なぜ（説明）・どう直すか（提案）」を含みます（SPEC 6.1「Diagnostic は学習教材である」）。
 
 ---
 
-## check コマンド：人間向け出力
+## check：人間向け出力
 
-### 問題なし（正常）
+rustc 風のフォーマットで、入力 Markdown の該当行を引用して表示します。
+
+### 問題なし
 
 ```text
-✓ 問題は見つかりませんでした。
+✓ 問題は見つかりませんでした。（2 ファイルを検査）
 ```
 
 - 終了コード: **0**
 
----
-
-### 問題あり（エラー・警告・情報）
+### 問題あり
 
 ```text
-[エラー][undefined_label] 未定義ラベル 'good_end' へのジャンプが存在します
-  提案: '[LABEL name=good_end]' を追加するか、ジャンプ先を修正してください
-[警告][single_choice_branch] BRANCH 命令の選択肢が1つしかありません（分岐になっていません）
-[情報][unreferenced_label] ラベル 'unused' はどこからも参照されていません
+error[broken-link]: このファイルに「run-togather」という見出し（##）はありません。よく似た「## run-together」があります。`[一緒に走る](#run-together)` の間違いではありませんか？
+  --> scenario/spring_001.md:9
+   |
+ 9 | - [一緒に走る](#run-togather)
+   |
+   = help: [一緒に走る](#run-together)
+   = note: 関連する行: 13
 
-エラー: 1件  警告: 1件  情報: 1件
+エラー: 1件  警告: 0件（1 ファイルを検査）
 ```
 
-- `[レベル][rule_id] メッセージ` の形式
-- 提案がある場合は次行にインデントして `提案: ...` を表示
-- サマリー行はエラー・警告・情報の件数を表示
-- 終了コード: エラーあり → **1**、エラーなし → **0**
+- `severity[rule_id]: メッセージ` → 位置（`--> ファイル:行`）→ 入力行の引用 → `= help:`（機械的に適用できる書き換え例）→ `= note:`（関連する行）
+- 最初のエラーで止まらず、検出できたすべての Diagnostic をまとめて報告する
+- 終了コード: エラーあり → **1**、警告のみ → **0**
 
 ---
 
-## check コマンド：JSON 出力（`--json`）
-
-### 問題なし
-
-```json
-{
-  "status": "ok",
-  "error_count": 0,
-  "warning_count": 0,
-  "issues": []
-}
-```
-
-### 問題あり（エラー）
+## check：JSON 出力（`--format json`）
 
 ```json
 {
   "status": "error",
+  "files": ["scenario/spring_001.md"],
   "error_count": 1,
   "warning_count": 0,
-  "issues": [
+  "diagnostics": [
     {
-      "rule_id": "undefined_label",
-      "level": "error",
-      "message": "未定義ラベル 'good_end' へのジャンプが存在します",
-      "span": null,
-      "related_spans": [],
-      "suggestion": "'[LABEL name=good_end]' を追加するか、ジャンプ先を修正してください"
+      "rule_id": "broken-link",
+      "severity": "error",
+      "message": "このファイルに「run-togather」という見出し（##）はありません。よく似た「## run-together」があります。`[一緒に走る](#run-together)` の間違いではありませんか？",
+      "file": "scenario/spring_001.md",
+      "span": { "line": 9 },
+      "related_spans": [{ "line": 13 }],
+      "suggestion": "[一緒に走る](#run-together)"
     }
   ]
 }
 ```
 
-### パースエラー時
-
-```json
-{
-  "status": "error",
-  "error_count": 1,
-  "warning_count": 0,
-  "issues": [
-    {
-      "rule_id": "parse_error",
-      "level": "error",
-      "message": "Undefined label 'missing' referenced in scenario",
-      "span": null,
-      "related_spans": [],
-      "suggestion": null
-    }
-  ]
-}
-```
-
-- パースエラーでも JSON 形式は崩れない
-- `status` は `"ok"` または `"error"`（`"warning"` はなく、警告のみなら `"ok"`）
-- 終了コード: `status == "error"` → **1**、それ以外 → **0**
-
----
-
-## JSON スキーマ（check）
+### スキーマ
 
 ```json
 {
   "status": "ok" | "error",
+  "files": [string],
   "error_count": number,
   "warning_count": number,
-  "issues": [
+  "diagnostics": [
     {
       "rule_id": string,
-      "level": "error" | "warning" | "info",
+      "severity": "error" | "warning",
       "message": string,
-      "span": { "line": number, "column": number } | null,
-      "related_spans": [{ "line": number, "column": number }],
+      "file": string,
+      "span": { "line": number } | null,
+      "related_spans": [{ "line": number }],
       "suggestion": string | null
     }
   ]
 }
 ```
 
-`span` は現時点では常に `null`（パーサーが行番号を付与するようになれば有効化）。
+- `status` は `"ok"` または `"error"`（警告のみなら `"ok"`）
+- 入力パスが存在しない・読めない場合も JSON の形式は崩れず、`rule_id: "io-error"` の diagnostic として報告される
+- 終了コード: `status == "error"` → **1**、それ以外 → **0**
+
+---
+
+## check：SARIF 出力（`--format sarif`）
+
+GitHub Code Scanning に取り込める SARIF 2.1.0 を出力します。
+
+```json
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "tsumugai",
+          "version": "0.1.0",
+          "informationUri": "https://github.com/kosuke-fujisawa/tsumugai",
+          "rules": [
+            {
+              "id": "broken-link",
+              "shortDescription": { "text": "選択肢・ジャンプのリンク先が解決できない" },
+              "helpUri": "https://github.com/kosuke-fujisawa/tsumugai/blob/main/SPEC.md"
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "broken-link",
+          "level": "error",
+          "message": { "text": "…（message に suggestion を併記）…" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "scenario/spring_001.md" },
+                "region": { "startLine": 9 }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+GitHub Actions での利用例:
+
+```yaml
+- run: cargo run -- check scenario/ --format sarif > results.sarif || true
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: results.sarif
+```
 
 ---
 
 ## rule_id 一覧（check）
 
-| rule_id | level | 説明 |
-|---|---|---|
-| `parse_error` | error | パース失敗（構文エラー） |
-| `undefined_label` | error | 未定義ラベルへのジャンプ・分岐参照 |
-| `empty_branch` | error | BRANCH 命令に選択肢がない |
-| `single_choice_branch` | warning | BRANCH 命令の選択肢が1つだけ |
-| `unreferenced_label` | info | どこからも参照されないラベル |
+SPEC.md 6章のルール表（error 12種 + warning 12種）が正です。CLI はこれに加えて、記法ではなく環境の問題を表す `io-error`（error。ファイルが存在しない・読めない）を使います。
 
 ---
 
@@ -150,8 +179,8 @@ tsumugai play scenario.md --debug    # デバッグ情報付き
 | 状況 | 終了コード |
 |---|---|
 | 問題なし | 0 |
-| 警告・情報のみ（エラーなし） | 0 |
-| エラーあり | 1 |
+| 警告のみ（エラーなし） | 0 |
+| エラーあり（io-error 含む） | 1 |
 | 不明なコマンド / 引数不足 | 1 |
 
 ---
@@ -159,13 +188,10 @@ tsumugai play scenario.md --debug    # デバッグ情報付き
 ## 将来の拡張（予定）
 
 ```bash
-tsumugai trace scenario.md
-tsumugai trace scenario.md --json
-
-tsumugai dry-run scenario.md
-tsumugai dry-run scenario.md --json
+tsumugai trace scenario.md --json     # v1 記法対応（#77）
+tsumugai routes scenario.md --json    # 全分岐探索・エンディング網羅（#78）
+tsumugai fmt scenario.md              # 推測整形（#86）
+tsumugai compile scenario.md --target renpy  # Ren'Py 変換（#79）
 ```
 
-- `trace`: ステップ実行のトレースログ（Issue #38）
-- `dry-run`: 全分岐探索・エンディング網羅レポート（Issue #40）
-- いずれも `--json` で機械向け出力を提供する方針
+- `compile` / `trace` / `routes` も実行前に check と同じ検査を行い、error があれば同じ形式で報告する方針（SPEC 6.1）

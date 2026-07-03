@@ -16,6 +16,17 @@ use std::path::Path;
 pub struct Parsed {
     pub scene: Scene,
     pub diagnostics: Vec<Diagnostic>,
+    /// front matter の各キーの行番号。check が missing-asset /
+    /// duplicate-scene-id の span を付けるのに使う
+    pub front_matter_spans: FrontMatterSpans,
+}
+
+/// front matter のキーごとの行番号（1-origin、ファイル全体での行）
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct FrontMatterSpans {
+    pub id: Option<usize>,
+    pub background: Option<usize>,
+    pub bgm: Option<usize>,
 }
 
 /// ファイルを読み込んでパースする
@@ -32,6 +43,7 @@ pub fn parse_str(source: &str, path: &Path) -> Parsed {
     Parsed {
         scene: p.scene,
         diagnostics: p.diagnostics,
+        front_matter_spans: p.fm_spans,
     }
 }
 
@@ -54,6 +66,7 @@ struct SceneParser<'a> {
     current_section: Option<Section>,
     /// H1 を見た行（invalid-h1 判定用）
     title_line: Option<usize>,
+    fm_spans: FrontMatterSpans,
 }
 
 impl<'a> SceneParser<'a> {
@@ -81,6 +94,7 @@ impl<'a> SceneParser<'a> {
             diagnostics: Vec::new(),
             current_section: None,
             title_line: None,
+            fm_spans: FrontMatterSpans::default(),
         }
     }
 
@@ -197,6 +211,21 @@ impl<'a> SceneParser<'a> {
     }
 
     fn read_front_matter_yaml(&mut self, yaml: &str) {
+        // 各トップレベルキーの行番号（front matter は 1 行目の `---` から
+        // 始まるので、yaml の i 行目 = ファイルの 2 + i 行目）
+        let mut key_lines: std::collections::HashMap<&str, usize> =
+            std::collections::HashMap::new();
+        for (i, line) in yaml.lines().enumerate() {
+            if line.starts_with([' ', '\t']) || line.trim().is_empty() {
+                continue;
+            }
+            if let Some((key, _)) = line.split_once(':') {
+                let key = key.trim().trim_matches(['"', '\'']);
+                key_lines.entry(key).or_insert(2 + i);
+            }
+        }
+        let line_of_key = |key: &str| key_lines.get(key).copied().unwrap_or(2);
+
         let value: serde_yaml::Value = match serde_yaml::from_str(yaml) {
             Ok(v) => v,
             Err(e) => {
@@ -237,24 +266,34 @@ impl<'a> SceneParser<'a> {
             };
             match key {
                 "id" | "background" | "bgm" => {
+                    let line = line_of_key(key);
                     let Some(s) = val.as_str() else {
                         self.error(
                             "invalid-frontmatter",
-                            2,
+                            line,
                             format!("front matter の `{key}` は文字列で書いてください"),
                         );
                         continue;
                     };
                     match key {
-                        "id" => self.scene.id = Some(s.to_string()),
-                        "background" => self.scene.background = Some(s.to_string()),
-                        _ => self.scene.bgm = Some(s.to_string()),
+                        "id" => {
+                            self.scene.id = Some(s.to_string());
+                            self.fm_spans.id = Some(line);
+                        }
+                        "background" => {
+                            self.scene.background = Some(s.to_string());
+                            self.fm_spans.background = Some(line);
+                        }
+                        _ => {
+                            self.scene.bgm = Some(s.to_string());
+                            self.fm_spans.bgm = Some(line);
+                        }
                     }
                 }
                 unknown => {
                     self.warning(
                         "unknown-frontmatter-key",
-                        2,
+                        line_of_key(unknown),
                         format!(
                             "front matter の `{unknown}` は v1 では定義されていないキーです（使えるのは id / background / bgm）"
                         ),

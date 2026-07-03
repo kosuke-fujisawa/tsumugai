@@ -1,7 +1,10 @@
-//! v1 記法（SPEC.md）のシーンモデルとパーサー
+//! v1 記法（SPEC.md）のシーンモデル・パーサー・検査
 //!
-//! 一般 Markdown 準拠のシナリオ記法 v1 を解析し、[`Scene`] を構築する。
-//! 旧 `parser`（括弧コマンド記法）は runtime/analyzer の移行完了（#76〜#78）
+//! 一般 Markdown 準拠のシナリオ記法 v1 を解析して [`Scene`] を構築し
+//! （[`parse_str`] / [`parse_file`]）、プロジェクト全体の意味論検査
+//! （[`check_path`]）と検査結果の出力（[`render_human`] / [`render_json`] /
+//! [`render_sarif`]）を提供する。
+//! 旧 `parser`（括弧コマンド記法）は runtime の移行完了（#77〜#78）
 //! まで並存し、その後撤去される。
 //!
 //! # 設計方針（SPEC 6.1）
@@ -21,15 +24,19 @@
 
 mod anchor;
 mod characters;
+mod check;
 mod diagnostic;
 mod parse;
+mod report;
 #[cfg(test)]
 mod tests;
 
 pub use anchor::{percent_decode, slugify};
 pub use characters::{Characters, find_characters_file, load_characters};
+pub use check::{CheckOptions, CheckResult, check_path};
 pub use diagnostic::{Diagnostic, Severity, Span};
-pub use parse::{Parsed, parse_file, parse_str};
+pub use parse::{FrontMatterSpans, Parsed, parse_file, parse_str};
+pub use report::{render_human, render_json, render_sarif};
 
 use serde::Serialize;
 use std::path::PathBuf;

@@ -1,5 +1,7 @@
 # Diagnostic — 構造化エラー・警告の設計方針
 
+> **注（v1 記法対応後）**: `tsumugai check` は現在、v1 記法（SPEC.md）の `scenario::Diagnostic`（`rule_id` / `severity` / `message` / `file` / `span` / `related_spans` / `suggestion`）を使います。ルール一覧は SPEC.md 6章、CLI の出力形式は [CLI_OUTPUT.md](CLI_OUTPUT.md) が正です。以下は旧記法パイプライン（`analyzer::Issue`）の設計文書で、runtime の v1 移行（#77〜#78）完了後に撤去されます。
+
 この文書は、`tsumugai` の静的検査結果（`analyzer::Issue`）の型設計と JSON 出力形式を定義します。
 
 ---
