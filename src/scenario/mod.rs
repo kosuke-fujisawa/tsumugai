@@ -26,6 +26,7 @@ mod anchor;
 mod characters;
 mod check;
 mod diagnostic;
+mod exec;
 mod parse;
 mod project;
 mod report;
