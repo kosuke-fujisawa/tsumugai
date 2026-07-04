@@ -204,9 +204,9 @@ if result.has_errors() {
 - 構造化 Diagnostic（`rule_id`, `span`, `suggestion` を持つ型）— `scenario::Diagnostic`
 - `tsumugai check --format json|sarif` — JSON / SARIF 形式の診断出力
 - `tsumugai trace --choices` — 経路の再現（[TRACE.md](TRACE.md)）
+- `tsumugai routes` — 全分岐探索・到達可能性の報告（[ROUTES.md](ROUTES.md)）
 
 未実装:
 
-- `tsumugai routes` — 全分岐探索・エンディング網羅（#78）
 - `tsumugai fmt` — 推測整形（#86）
 - `tsumugai compile --target renpy` — Ren'Py 変換（#79）
