@@ -6,7 +6,9 @@
 //! （到達不能・経路数上限・循環・深度超過・check エラー）の入力例に使う。
 
 use std::path::Path;
-use tsumugai::scenario::{RouteEnd, RoutesOptions, render_routes_human, render_routes_json, routes_path};
+use tsumugai::scenario::{
+    RouteEnd, RoutesOptions, render_routes_human, render_routes_json, routes_path,
+};
 
 fn spring() -> &'static Path {
     Path::new("examples/spring/scenario/spring_001.md")
@@ -26,7 +28,10 @@ fn options(max_routes: usize, max_depth: usize) -> RoutesOptions {
 fn spring例で4経路すべてを発見しendingを網羅する() {
     let result = routes_path(spring(), &RoutesOptions::default());
     assert!(!result.check.has_errors());
-    let report = result.report.as_ref().expect("check が通れば report は返る");
+    let report = result
+        .report
+        .as_ref()
+        .expect("check が通れば report は返る");
 
     assert_eq!(report.routes.len(), 4);
     assert!(!report.truncated);
@@ -41,7 +46,10 @@ fn spring例で4経路すべてを発見しendingを網羅する() {
 
     let mut reached = report.reached_endings.clone();
     reached.sort();
-    assert_eq!(reached, vec!["calm_route", "childhood_route", "sprint_route"]);
+    assert_eq!(
+        reached,
+        vec!["calm_route", "childhood_route", "sprint_route"]
+    );
     assert!(report.unreached_endings.is_empty());
     assert!(report.unreachable_scenes.is_empty());
 }
@@ -96,12 +104,9 @@ fn 循環はcircular_routeとしてerror扱いになる() {
     assert_eq!(report.routes.len(), 1);
     assert!(matches!(report.routes[0].end, RouteEnd::Circular));
     assert!(result.has_errors());
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.rule_id == "circular-route" && d.severity == tsumugai::scenario::Severity::Error)
-    );
+    assert!(report.diagnostics.iter().any(
+        |d| d.rule_id == "circular-route" && d.severity == tsumugai::scenario::Severity::Error
+    ));
 }
 
 #[test]
