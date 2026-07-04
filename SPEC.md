@@ -222,6 +222,8 @@ tsumugai trace scenario.md --choices 1,3,1
 - 実行前に check と同じ検査を行い、error があれば実行せず check と同じ形式で報告する（→ 6.1）
 - 無限ループ保護として実行ステップ数に上限を設ける。上限到達は error として報告する（ループの静的検出は routes の責務）
 
+## 6. check が検出する Diagnostic ルール
+
 `tsumugai check` は本仕様の違反を構造化 Diagnostic（`rule_id` / `severity` / `message` / `span` / `suggestion`）として報告する。
 
 check は Markdown ファイルまたはディレクトリを受け取る。ディレクトリの場合は配下のすべての `.md` を 1 つのプロジェクトとして検査し、`duplicate-scene-id` などのファイル横断検査が全体に効く。ただし `README.md`（大文字小文字を区別しない）はプロジェクトの説明文書でありシーンではないため、ディレクトリ走査からは除外する（ファイルとして明示指定した場合や、シーンからリンクされている場合は検査する）。ファイル単体の場合は、そのファイルとリンクで辿れる範囲を検査対象とする。
