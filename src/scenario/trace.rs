@@ -9,10 +9,11 @@
 //! - [`check_path`] と同じく infallible。入出力エラーも Diagnostic として
 //!   [`TraceResult`] に含め、JSON 出力の形式を崩さない
 
+use super::Block;
 use super::check::{CheckOptions, CheckResult, check_path};
 use super::diagnostic::Severity;
-use super::project::{LoadedScene, file_level, load_project, resolve_sibling};
-use super::{Block, LinkTarget, Scene};
+use super::exec::{Cursor, GotoResult, goto, segment_blocks, target_string};
+use super::project::{LoadedScene, file_level, load_project};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
@@ -205,13 +206,6 @@ pub fn trace_path(path: &Path, options: &TraceOptions) -> TraceResult {
 
 // ---------------------------------------------------------------- 実行
 
-/// 実行位置。seg 0 = リード部、seg n = sections[n-1]
-struct Cursor {
-    scene: usize,
-    seg: usize,
-    block: usize,
-}
-
 fn run(scenes: &[LoadedScene], options: &TraceOptions) -> Trace {
     let mut steps: Vec<TraceStep> = Vec::new();
     let mut next_choice = 0usize;
@@ -284,7 +278,8 @@ fn run(scenes: &[LoadedScene], options: &TraceOptions) -> Trace {
                     label: label.clone(),
                     target: target_string(target),
                 });
-                goto(&mut cursor, &mut steps, scenes, target);
+                let result = goto(&mut cursor, scenes, target);
+                push_goto(&mut steps, scenes, &cursor, result);
             }
             Block::Choices { items, line } => {
                 let shown: Vec<TraceChoice> = items
@@ -323,7 +318,8 @@ fn run(scenes: &[LoadedScene], options: &TraceOptions) -> Trace {
                     options: shown,
                     selected: Some(given),
                 });
-                goto(&mut cursor, &mut steps, scenes, &target);
+                let result = goto(&mut cursor, scenes, &target);
+                push_goto(&mut steps, scenes, &cursor, result);
             }
         }
     };
@@ -336,47 +332,18 @@ fn run(scenes: &[LoadedScene], options: &TraceOptions) -> Trace {
     }
 }
 
-/// リンク先へ実行位置を移す。実行前検査（broken-link）を通っているため
-/// 解決は失敗しない
-fn goto(
-    cursor: &mut Cursor,
+/// [`goto`] の結果を trace のステップ列に反映する
+fn push_goto(
     steps: &mut Vec<TraceStep>,
     scenes: &[LoadedScene],
-    target: &LinkTarget,
+    cursor: &Cursor,
+    result: GotoResult,
 ) {
-    let scene_idx = match &target.file {
-        None => cursor.scene,
-        Some(file) => {
-            let canon = resolve_sibling(&scenes[cursor.scene].path, file)
-                .and_then(|p| p.canonicalize().ok())
-                .expect("check 済みのリンク先ファイルは解決できる");
-            scenes
-                .iter()
-                .position(|s| s.canon == canon)
-                .expect("check 済みのリンク先ファイルは読み込み済み")
-        }
-    };
-    let entered_new_scene = scene_idx != cursor.scene || target.file.is_some();
-    if entered_new_scene {
-        push_scene_enter(steps, &scenes[scene_idx]);
+    if let Some(idx) = result.entered_scene {
+        push_scene_enter(steps, &scenes[idx]);
     }
-    cursor.scene = scene_idx;
-    cursor.block = 0;
-    match &target.anchor {
-        None => {
-            cursor.seg = 0;
-        }
-        Some(anchor) => {
-            let section_idx = scenes[scene_idx]
-                .parsed
-                .scene
-                .sections
-                .iter()
-                .position(|s| s.anchor == *anchor)
-                .expect("check 済みのアンカーは解決できる");
-            cursor.seg = section_idx + 1;
-            push_section_enter(steps, &scenes[scene_idx], section_idx);
-        }
+    if let Some(section_idx) = result.entered_section {
+        push_section_enter(steps, &scenes[cursor.scene], section_idx);
     }
 }
 
@@ -399,22 +366,4 @@ fn push_section_enter(steps: &mut Vec<TraceStep>, loaded: &LoadedScene, section_
         heading: section.heading.clone(),
         anchor: section.anchor.clone(),
     });
-}
-
-fn segment_blocks(scene: &Scene, seg: usize) -> &[Block] {
-    if seg == 0 {
-        &scene.lead
-    } else {
-        &scene.sections[seg - 1].blocks
-    }
-}
-
-/// 飛び先をソースの表記（`#anchor` / `file.md` / `file.md#anchor`）に戻す
-fn target_string(target: &LinkTarget) -> String {
-    match (&target.file, &target.anchor) {
-        (Some(file), Some(anchor)) => format!("{file}#{anchor}"),
-        (Some(file), None) => file.clone(),
-        (None, Some(anchor)) => format!("#{anchor}"),
-        (None, None) => String::new(),
-    }
 }

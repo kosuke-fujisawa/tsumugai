@@ -9,6 +9,8 @@
 
 use super::check::CheckResult;
 use super::diagnostic::{Diagnostic, Severity};
+use super::exec::format_choices;
+use super::routes::{RouteEnd, RoutesResult};
 use super::trace::{TraceEnd, TraceResult, TraceStep};
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -286,6 +288,110 @@ pub fn render_trace_json(result: &TraceResult) -> String {
         "warning_count": result.check.warning_count(),
         "diagnostics": result.check.diagnostics,
         "trace": result.trace,
+    });
+    serde_json::to_string_pretty(&value).expect("JSON のシリアライズは失敗しない")
+}
+
+// --------------------------------------------------------- routes 人間向け
+
+/// routes の人間向け出力（SPEC 5.2）
+///
+/// 実行前検査が error のときは check とまったく同じ出力になる（trace と
+/// 同じく SPEC 6.1 の原則）。check の warning と routes 由来の Diagnostic
+/// （circular-route 等）は同じ一覧にまとめて表示する
+pub fn render_routes_human(result: &RoutesResult) -> String {
+    let Some(report) = &result.report else {
+        return render_human(&result.check);
+    };
+    let merged = CheckResult {
+        files: result.check.files.clone(),
+        diagnostics: result
+            .check
+            .diagnostics
+            .iter()
+            .chain(report.diagnostics.iter())
+            .cloned()
+            .collect(),
+    };
+    let mut out = render_human(&merged);
+    out.push('\n');
+    let _ = writeln!(out, "=== Routes: {} ===", result.file.display());
+    for (i, route) in report.routes.iter().enumerate() {
+        let choices = format_choices(&route.choices);
+        let choices_display = if choices.is_empty() {
+            "(選択なし)".to_string()
+        } else {
+            format!("--choices {choices}")
+        };
+        let end = match &route.end {
+            RouteEnd::Ending { id } => format!("エンディング「{id}」"),
+            RouteEnd::EndOfFile => "ファイル末尾（暗黙の終了）".to_string(),
+            RouteEnd::Circular => "循環".to_string(),
+            RouteEnd::MaxDepthExceeded { max_depth } => format!("深度超過（上限 {max_depth}）"),
+        };
+        let _ = writeln!(out, "Route {}: {choices_display} → {end}", i + 1);
+    }
+    out.push('\n');
+    let _ = writeln!(out, "発見した経路数: {}", report.routes.len());
+    if report.reached_endings.is_empty() {
+        let _ = writeln!(out, "到達可能 Ending: (なし)");
+    } else {
+        let _ = writeln!(
+            out,
+            "到達可能 Ending: {}",
+            report.reached_endings.join("、")
+        );
+    }
+    if !report.unreached_endings.is_empty() {
+        let _ = writeln!(
+            out,
+            "到達不能 Ending: {}",
+            report.unreached_endings.join("、")
+        );
+    }
+    if !report.unreachable_scenes.is_empty() {
+        let list: Vec<String> = report
+            .unreachable_scenes
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect();
+        let _ = writeln!(out, "到達不能シーン: {}", list.join("、"));
+    }
+    if report.truncated {
+        let _ = writeln!(
+            out,
+            "注意: 経路数の上限に達したため、探索を打ち切りました（結果は不完全な可能性があります）"
+        );
+    }
+    out
+}
+
+// ------------------------------------------------------------ routes JSON
+
+/// routes の機械向け JSON 出力。check の JSON の上位互換で、`file` と
+/// `report` が加わる。`diagnostics` / `error_count` / `warning_count` は
+/// check の Diagnostic と routes 由来の Diagnostic を合算した値
+pub fn render_routes_json(result: &RoutesResult) -> String {
+    let mut diagnostics = result.check.diagnostics.clone();
+    if let Some(report) = &result.report {
+        diagnostics.extend(report.diagnostics.iter().cloned());
+    }
+    let error_count = diagnostics
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .count();
+    let warning_count = diagnostics
+        .iter()
+        .filter(|d| d.severity == Severity::Warning)
+        .count();
+    let value = json!({
+        "status": if result.has_errors() { "error" } else { "ok" },
+        "file": result.file,
+        "files": result.check.files,
+        "error_count": error_count,
+        "warning_count": warning_count,
+        "diagnostics": diagnostics,
+        "report": result.report,
     });
     serde_json::to_string_pretty(&value).expect("JSON のシリアライズは失敗しない")
 }
