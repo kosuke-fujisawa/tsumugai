@@ -20,6 +20,9 @@ fn main() -> anyhow::Result<()> {
         "  routes <file>  全分岐を探索し到達可能性を報告（SPEC 5.2）\n",
         "      --format human|json        出力形式（既定: human）\n",
         "      --no-assets                background / bgm の実在チェックを省略\n",
+        "  fmt   <file>   よくある書き方を推測して v1 記法へ整形する（SPEC 7章）\n",
+        "      --write                    整形結果をファイルに書き戻す（既定は表示のみ）\n",
+        "      --format human|json        出力形式（既定: human）\n",
         "  play  <file>   シナリオの対話再生（旧記法）\n",
         "      --debug                    デバッグ情報付きで再生"
     );
@@ -73,6 +76,24 @@ fn main() -> anyhow::Result<()> {
                 scenario::render_routes_human(&result)
             };
             println!("{}", rendered);
+            if result.has_errors() {
+                std::process::exit(1);
+            }
+        }
+        "fmt" => {
+            let (json, write) = parse_fmt_args(&args[3..], usage);
+            let result = scenario::fmt_path(Path::new(file_path));
+            let rendered = if json {
+                scenario::render_fmt_json(&result)
+            } else {
+                scenario::render_fmt_human(&result)
+            };
+            println!("{}", rendered);
+            if write && result.has_changes() {
+                fs::write(file_path, &result.formatted).map_err(|e| {
+                    anyhow::anyhow!("ファイルに書き戻せません '{}': {}", file_path, e)
+                })?;
+            }
             if result.has_errors() {
                 std::process::exit(1);
             }
@@ -204,4 +225,33 @@ fn parse_routes_args(rest: &[String], usage: &str) -> (bool, scenario::RoutesOpt
         }
     }
     (json, options)
+}
+
+/// fmt の引数を解釈する。返り値は (JSON 出力か, --write が指定されたか)
+fn parse_fmt_args(rest: &[String], usage: &str) -> (bool, bool) {
+    let mut json = false;
+    let mut write = false;
+    let mut iter = rest.iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--write" => write = true,
+            "--json" => json = true,
+            "--format" => match iter.next().map(String::as_str) {
+                Some("human") => json = false,
+                Some("json") => json = true,
+                other => {
+                    eprintln!(
+                        "fmt の --format には human / json を指定してください（指定: {}）",
+                        other.unwrap_or("なし")
+                    );
+                    std::process::exit(1);
+                }
+            },
+            other => {
+                eprintln!("不明なオプション: {}\n{}", other, usage);
+                std::process::exit(1);
+            }
+        }
+    }
+    (json, write)
 }
