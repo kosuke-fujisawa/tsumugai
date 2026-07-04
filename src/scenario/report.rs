@@ -9,6 +9,7 @@
 
 use super::check::CheckResult;
 use super::diagnostic::{Diagnostic, Severity};
+use super::trace::{TraceEnd, TraceResult, TraceStep};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fmt::Write as _;
@@ -114,6 +115,179 @@ fn severity_word(severity: Severity) -> &'static str {
         Severity::Error => "error",
         Severity::Warning => "warning",
     }
+}
+
+// ---------------------------------------------------------- trace 人間向け
+
+/// trace の人間向け出力（SPEC 5.1）
+///
+/// 実行前検査が error のときは check とまったく同じ出力になる（SPEC 6.1:
+/// どのコマンドから入っても同じ指摘に到達できる）。warning は経路の前に
+/// 見せてから経路を表示する。
+pub fn render_trace_human(result: &TraceResult) -> String {
+    let Some(trace) = &result.trace else {
+        return render_human(&result.check);
+    };
+    let mut out = String::new();
+    if !result.check.diagnostics.is_empty() {
+        out.push_str(&render_human(&result.check));
+        out.push('\n');
+    }
+    let _ = writeln!(out, "=== Trace: {} ===", result.file.display());
+    for step in &trace.steps {
+        render_trace_step(&mut out, step);
+    }
+    out.push('\n');
+    render_trace_end(&mut out, trace);
+    out
+}
+
+fn render_trace_step(out: &mut String, step: &TraceStep) {
+    match step {
+        TraceStep::SceneEnter {
+            file,
+            id,
+            title,
+            background,
+            bgm,
+        } => {
+            let id = id.as_deref().unwrap_or("(id なし)");
+            let title = title.as_deref().unwrap_or("(タイトルなし)");
+            let _ = writeln!(out, "\n▶ シーン {id}「{title}」 ({})", file.display());
+            if let Some(background) = background {
+                let _ = writeln!(out, "      background: {background}");
+            }
+            if let Some(bgm) = bgm {
+                let _ = writeln!(out, "      bgm: {bgm}");
+            }
+        }
+        TraceStep::SectionEnter { line, heading, .. } => {
+            let _ = writeln!(out, "  ── セクション「{heading}」（{line} 行目）");
+        }
+        TraceStep::Narration { line, text, .. } => {
+            let _ = writeln!(out, "  {line:>4}| {text}");
+        }
+        TraceStep::Dialogue {
+            line,
+            speaker,
+            text,
+            ..
+        } => {
+            let _ = writeln!(out, "  {line:>4}| {speaker}: {text}");
+        }
+        TraceStep::Choice {
+            line,
+            options,
+            selected,
+            ..
+        } => {
+            let _ = writeln!(out, "  {line:>4}| 選択肢:");
+            for (i, option) in options.iter().enumerate() {
+                let _ = writeln!(
+                    out,
+                    "          {}. [{}]({})",
+                    i + 1,
+                    option.label,
+                    option.target
+                );
+            }
+            match selected {
+                Some(n) => {
+                    let label = &options[n - 1].label;
+                    let _ = writeln!(out, "        → {n} を選択「{label}」");
+                }
+                None => {
+                    let _ = writeln!(out, "        → （入力待ちで停止）");
+                }
+            }
+        }
+        TraceStep::Jump {
+            line,
+            label,
+            target,
+            ..
+        } => {
+            let _ = writeln!(out, "  {line:>4}| ジャンプ → [{label}]({target})");
+        }
+        TraceStep::Ending { line, id, .. } => {
+            let _ = writeln!(out, "  {line:>4}| エンディング: {id}");
+        }
+    }
+}
+
+fn render_trace_end(out: &mut String, trace: &super::trace::Trace) {
+    match &trace.end {
+        TraceEnd::Ending { id } => {
+            let _ = writeln!(out, "結果: エンディング「{id}」に到達しました");
+        }
+        TraceEnd::EndOfFile => {
+            let _ = writeln!(
+                out,
+                "結果: ファイル末尾に到達して終了しました（明示的なエンディングなし）"
+            );
+        }
+        TraceEnd::AwaitingChoice => {
+            let mut example: Vec<String> = trace
+                .choices_requested
+                .iter()
+                .map(usize::to_string)
+                .collect();
+            example.push("1".to_string());
+            let _ = writeln!(
+                out,
+                "結果: 選択肢の入力待ちで停止しました。--choices に選択番号を足すと先へ進めます（例: --choices {}）",
+                example.join(",")
+            );
+        }
+        TraceEnd::InvalidChoice { given, available } => {
+            let _ = writeln!(
+                out,
+                "結果: エラー: 選択番号 {given} はこの選択肢にありません。1〜{available} から選んでください"
+            );
+        }
+        TraceEnd::Truncated { max_steps } => {
+            let _ = writeln!(
+                out,
+                "結果: エラー: {max_steps} ステップを超えたため打ち切りました。ジャンプが同じ場所を回り続けていないか確認してください"
+            );
+        }
+    }
+    if trace.choices_used > 0 {
+        let used: Vec<String> = trace.choices_requested[..trace.choices_used]
+            .iter()
+            .map(usize::to_string)
+            .collect();
+        let _ = writeln!(out, "入力した選択肢: --choices {}", used.join(","));
+    }
+    if trace.choices_used < trace.choices_requested.len() {
+        let unused: Vec<String> = trace.choices_requested[trace.choices_used..]
+            .iter()
+            .map(usize::to_string)
+            .collect();
+        let _ = writeln!(
+            out,
+            "未使用の選択番号: {}（実行が終了したため使われませんでした）",
+            unused.join(",")
+        );
+    }
+}
+
+// ------------------------------------------------------------ trace JSON
+
+/// trace の機械向け JSON 出力（docs/CLI_OUTPUT.md のスキーマ）。
+/// check の JSON の上位互換で、`file` と `trace` が加わる。
+/// 実行前検査が error・入出力エラーのときも同じ形式を保つ（`trace` が null）
+pub fn render_trace_json(result: &TraceResult) -> String {
+    let value = json!({
+        "status": if result.has_errors() { "error" } else { "ok" },
+        "file": result.file,
+        "files": result.check.files,
+        "error_count": result.check.error_count(),
+        "warning_count": result.check.warning_count(),
+        "diagnostics": result.check.diagnostics,
+        "trace": result.trace,
+    });
+    serde_json::to_string_pretty(&value).expect("JSON のシリアライズは失敗しない")
 }
 
 // ------------------------------------------------------------------- JSON

@@ -197,12 +197,16 @@ if result.has_errors() {
 
 ---
 
-## 8. Roadmap（未実装）
+## 8. Roadmap
 
-以下は現時点では実装されていません。
+実装済み（v1 記法パイプライン。`scenario` モジュール）:
 
-- `runtime::step_with_trace` — Trace 付き実行
-- `tsumugai check --json` — JSON 形式の診断出力
-- 構造化 Diagnostic（`rule_id`, `span`, `suggestion` を持つ型）
-- Dry Run / 全分岐探索
-- エンディング到達検証
+- 構造化 Diagnostic（`rule_id`, `span`, `suggestion` を持つ型）— `scenario::Diagnostic`
+- `tsumugai check --format json|sarif` — JSON / SARIF 形式の診断出力
+- `tsumugai trace --choices` — 経路の再現（[TRACE.md](TRACE.md)）
+
+未実装:
+
+- `tsumugai routes` — 全分岐探索・エンディング網羅（#78）
+- `tsumugai fmt` — 推測整形（#86）
+- `tsumugai compile --target renpy` — Ren'Py 変換（#79）
