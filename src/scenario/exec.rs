@@ -85,3 +85,12 @@ pub(super) fn target_string(target: &LinkTarget) -> String {
         (None, None) => String::new(),
     }
 }
+
+/// 選択番号列を `tsumugai trace --choices` と同じ表記（カンマ区切り）にする
+pub(super) fn format_choices(choices: &[usize]) -> String {
+    choices
+        .iter()
+        .map(usize::to_string)
+        .collect::<Vec<_>>()
+        .join(",")
+}

@@ -17,6 +17,9 @@ fn main() -> anyhow::Result<()> {
         "      --choices 1,3,1            選択肢で選ぶ番号（ブロック内の並び順、1 始まり）\n",
         "      --format human|json        出力形式（既定: human）。--json は --format json と同じ\n",
         "      --no-assets                background / bgm の実在チェックを省略\n",
+        "  routes <file>  全分岐を探索し到達可能性を報告（SPEC 5.2）\n",
+        "      --format human|json        出力形式（既定: human）\n",
+        "      --no-assets                background / bgm の実在チェックを省略\n",
         "  play  <file>   シナリオの対話再生（旧記法）\n",
         "      --debug                    デバッグ情報付きで再生"
     );
@@ -55,6 +58,19 @@ fn main() -> anyhow::Result<()> {
                 scenario::render_trace_json(&result)
             } else {
                 scenario::render_trace_human(&result)
+            };
+            println!("{}", rendered);
+            if result.has_errors() {
+                std::process::exit(1);
+            }
+        }
+        "routes" => {
+            let (json, options) = parse_routes_args(&args[3..], usage);
+            let result = scenario::routes_path(Path::new(file_path), &options);
+            let rendered = if json {
+                scenario::render_routes_json(&result)
+            } else {
+                scenario::render_routes_human(&result)
             };
             println!("{}", rendered);
             if result.has_errors() {
@@ -146,6 +162,35 @@ fn parse_trace_args(rest: &[String], usage: &str) -> (bool, scenario::TraceOptio
                 other => {
                     eprintln!(
                         "trace の --format には human / json を指定してください（指定: {}）",
+                        other.unwrap_or("なし")
+                    );
+                    std::process::exit(1);
+                }
+            },
+            "--no-assets" => options.check_assets = false,
+            other => {
+                eprintln!("不明なオプション: {}\n{}", other, usage);
+                std::process::exit(1);
+            }
+        }
+    }
+    (json, options)
+}
+
+/// routes の引数を解釈する。返り値は (JSON 出力か, オプション)
+fn parse_routes_args(rest: &[String], usage: &str) -> (bool, scenario::RoutesOptions) {
+    let mut json = false;
+    let mut options = scenario::RoutesOptions::default();
+    let mut iter = rest.iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--json" => json = true,
+            "--format" => match iter.next().map(String::as_str) {
+                Some("human") => json = false,
+                Some("json") => json = true,
+                other => {
+                    eprintln!(
+                        "routes の --format には human / json を指定してください（指定: {}）",
                         other.unwrap_or("なし")
                     );
                     std::process::exit(1);
