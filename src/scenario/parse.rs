@@ -840,7 +840,10 @@ fn split_dialogue(text: &str) -> Option<(String, String)> {
 }
 
 /// 旧記法（v0）の検出と書き換え案内（SPEC 6 `legacy-command`、11.1 対応表）
-fn legacy_command(text: &str) -> Option<(String, String)> {
+///
+/// fmt（[`super::fmt`]）が「確定的に変換できない旧記法」を同じ文言で
+/// 報告するために再利用する
+pub(super) fn legacy_command(text: &str) -> Option<(String, String)> {
     if let Some(rest) = text.strip_prefix(":::") {
         let name = rest.split_whitespace().next().unwrap_or("");
         return Some((

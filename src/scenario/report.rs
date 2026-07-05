@@ -10,6 +10,7 @@
 use super::check::CheckResult;
 use super::diagnostic::{Diagnostic, Severity};
 use super::exec::format_choices;
+use super::fmt::FmtResult;
 use super::routes::{RouteEnd, RoutesResult};
 use super::trace::{TraceEnd, TraceResult, TraceStep};
 use serde_json::{Value, json};
@@ -392,6 +393,76 @@ pub fn render_routes_json(result: &RoutesResult) -> String {
         "warning_count": warning_count,
         "diagnostics": diagnostics,
         "report": result.report,
+    });
+    serde_json::to_string_pretty(&value).expect("JSON のシリアライズは失敗しない")
+}
+
+// ----------------------------------------------------------- fmt 人間向け
+
+/// fmt の人間向け出力（SPEC 7章）。
+///
+/// 変更点は 1 件ずつ「どの行を・どのルールで・どう変えたか」を diff 形式で
+/// 示す（黙って書き換えない）。確信が持てない箇所は check と同じ形式の
+/// Diagnostic として一覧の先頭に表示する
+pub fn render_fmt_human(result: &FmtResult) -> String {
+    let mut out = String::new();
+    let mut sources: HashMap<PathBuf, Option<Vec<String>>> = HashMap::new();
+    for diag in &result.diagnostics {
+        render_one(&mut out, diag, &mut sources);
+        out.push('\n');
+    }
+    let _ = writeln!(out, "=== fmt: {} ===", result.path.display());
+    if result.changes.is_empty() {
+        let _ = writeln!(out, "変更点はありません。");
+    } else {
+        for change in &result.changes {
+            let _ = writeln!(out, "[{}] {}行目", change.rule_id, change.line);
+            for line in change.before.lines() {
+                let _ = writeln!(out, "- {line}");
+            }
+            for line in change.after.lines() {
+                let _ = writeln!(out, "+ {line}");
+            }
+            out.push('\n');
+        }
+        let _ = writeln!(
+            out,
+            "{} 件の変更（--write でファイルに書き戻せます）",
+            result.changes.len()
+        );
+    }
+    if !result.diagnostics.is_empty() {
+        let _ = writeln!(
+            out,
+            "{} 件は確信が持てないため変換しませんでした（上記を参照）",
+            result.diagnostics.len()
+        );
+    }
+    out
+}
+
+// -------------------------------------------------------------- fmt JSON
+
+/// fmt の機械向け JSON 出力
+pub fn render_fmt_json(result: &FmtResult) -> String {
+    let changes: Vec<Value> = result
+        .changes
+        .iter()
+        .map(|c| {
+            json!({
+                "rule_id": c.rule_id,
+                "line": c.line,
+                "before": c.before,
+                "after": c.after,
+            })
+        })
+        .collect();
+    let value = json!({
+        "status": if result.has_errors() { "error" } else { "ok" },
+        "path": result.path,
+        "changed": result.has_changes(),
+        "changes": changes,
+        "diagnostics": result.diagnostics,
     });
     serde_json::to_string_pretty(&value).expect("JSON のシリアライズは失敗しない")
 }
