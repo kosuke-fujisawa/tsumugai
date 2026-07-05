@@ -22,9 +22,7 @@ fn main() -> anyhow::Result<()> {
         "      --no-assets                background / bgm の実在チェックを省略\n",
         "  fmt   <file>   よくある書き方を推測して v1 記法へ整形する（SPEC 7章）\n",
         "      --write                    整形結果をファイルに書き戻す（既定は表示のみ）\n",
-        "      --format human|json        出力形式（既定: human）\n",
-        "  play  <file>   シナリオの対話再生（旧記法）\n",
-        "      --debug                    デバッグ情報付きで再生"
+        "      --format human|json        出力形式（既定: human）"
     );
 
     if args.len() < 3 {
@@ -34,13 +32,8 @@ fn main() -> anyhow::Result<()> {
 
     let command = &args[1];
     let file_path = &args[2];
-    let debug_mode = args.contains(&"--debug".to_string());
 
     match command.as_str() {
-        "play" => {
-            let markdown = read_markdown(file_path)?;
-            tsumugai::player::run(&markdown, debug_mode)?;
-        }
         "check" => {
             let (format, options) = parse_check_args(&args[3..], usage);
             let result = scenario::check_path(Path::new(file_path), &options);
@@ -105,11 +98,6 @@ fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
-}
-
-fn read_markdown(file_path: &str) -> anyhow::Result<String> {
-    fs::read_to_string(file_path)
-        .map_err(|e| anyhow::anyhow!("ファイルを読み込めません '{}': {}", file_path, e))
 }
 
 enum CheckFormat {

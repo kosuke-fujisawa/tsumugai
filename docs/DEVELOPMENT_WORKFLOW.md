@@ -60,7 +60,7 @@ Rust コードを読めなくても、仕様と挙動を確認できる開発プ
 4. 実装する
    - 変更範囲を小さく保つ
    - 不要な抽象化を避ける
-   - `parser -> analyzer -> compile -> runtime -> output` の流れを崩さない
+   - `parse -> check/trace/routes/fmt -> report` の流れを崩さない
 
 5. ローカル確認を行う
    - `cargo fmt --check`

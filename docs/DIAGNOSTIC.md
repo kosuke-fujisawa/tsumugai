@@ -64,9 +64,3 @@ CLI はこれに加えて、記法ではなく環境の問題を表す `io-error
 ## 5. 出力例
 
 人間向け出力・JSON・SARIF の実例は [CLI_OUTPUT.md](CLI_OUTPUT.md) を参照してください。
-
----
-
-## 付録: 旧記法パイプラインの `analyzer::Issue`（撤去予定）
-
-旧記法（v0）向けの `analyzer::Issue`（`rule_id` / `level`（Error / Warning / Info）/ `message` / `span` / `related_spans` / `suggestion`）は、`trace` / `play` が旧 parser に依存する間だけコード上に残っています。CLI の `check` からは使われていません。runtime の v1 移行（#77〜#78）完了後に analyzer ごと撤去します。

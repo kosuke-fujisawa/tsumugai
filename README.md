@@ -55,15 +55,10 @@ tsumugai は、
 
 ### 3. チェック・検証
 
-**静的検証（parser::check）**:
-- 条件の宣言と使用の整合性チェック
-- 未定義条件の使用を警告
-- 宣言されたが未使用の条件を警告
-
-**静的解析（analyzer）**:
-- 未定義ラベルの検出
-- 未参照ラベルの検出
-- 選択肢の基本検査
+**静的検証（`tsumugai check`）**:
+- リンク切れ・シーン ID 重複・アセット実在チェック
+- 話者名の書き間違い検出（characters.yaml との突き合わせ）
+- 到達不能セクション・暗黙のフォールスルーの検出
 
 **今後強化する検証**:
 - 全分岐ドライラン
@@ -116,58 +111,16 @@ tsumugai
 ### ライブラリ API
 
 ```rust
-use tsumugai::{
-    parser,
-    runtime::{self, Input, WaitingType, ir::Event},
-    types::State,
-};
+use tsumugai::scenario;
+use std::path::Path;
 
-fn main() -> anyhow::Result<()> {
-    let scenario = r#"
-[SAY speaker=Alice]
-こんにちは。
-
-[BRANCH choice=進む label=go, choice=戻る label=back]
-
-[LABEL name=go]
-[SAY speaker=Alice]
-前に進みましょう。
-
-[LABEL name=back]
-[SAY speaker=Alice]
-戻りましょう。
-"#;
-
-    let ast = parser::parse(scenario)?;
-    let program = runtime::compile(&ast);
-    let mut state = State::new();
-    let mut input = None;
-
-    loop {
-        let (new_state, output) = runtime::step(state, &program, input.take());
-        state = new_state;
-
-        for event in &output.events {
-            if let Event::Say { speaker, text } = event {
-                println!("{}: {}", speaker, text);
-            }
-        }
-
-        match output.waiting_for {
-            Some(WaitingType::Advance) => {
-                input = Some(Input::Advance);
-            }
-            Some(WaitingType::Choice(options)) => {
-                let choice_id = options[0].id.clone();
-                input = Some(Input::SelectChoice(choice_id));
-            }
-            None => break,
-        }
-    }
-
-    Ok(())
+let result = scenario::check_path(Path::new("scenario.md"), &scenario::CheckOptions::default());
+for diag in &result.diagnostics {
+    println!("[{}] {}", diag.rule_id, diag.message);
 }
 ```
+
+`scenario` モジュールの契約（`check` / `trace` / `routes` / `fmt` の入出力型）は [docs/API.md](docs/API.md) を参照してください。
 
 ### CLI
 
@@ -176,7 +129,7 @@ cargo run -- check examples/spring                    # ディレクトリごと
 cargo run -- check examples/spring/scenario/spring_001.md
 cargo run -- check examples/spring --format json      # CI・LLM 連携用 JSON
 cargo run -- check examples/spring --format sarif     # GitHub Code Scanning 用 SARIF
-cargo run -- play assets/scenarios/strange_encounter.md   # 対話再生（旧記法）
+cargo run -- fmt examples/fmt/before.md               # よくある書き方を v1 記法へ推測整形
 ```
 
 - `check`: v1 記法（SPEC.md）の静的検査。構文・リンク切れ・話者名の書き間違い・シーン ID 重複・アセット実在などを一括検出する
@@ -216,7 +169,7 @@ error[broken-link]: このファイルに「run-togather」という見出し（
 
 - [Concept](docs/CONCEPT.md): 存在意義、設計思想、責務境界
 - [Architecture](docs/ARCHITECTURE.md): アーキテクチャとデータフロー
-- [API](docs/API.md): Core と Host の契約
+- [API](docs/API.md): `scenario` モジュールの契約
 - [Development Workflow](docs/DEVELOPMENT_WORKFLOW.md): 開発ワークフロー
 - [Review Guide](docs/REVIEW_GUIDE.md): Rust を読まなくてもレビューできる手引き
 
