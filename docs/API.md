@@ -1,212 +1,129 @@
-# API — tsumugai Core ⇄ Host 契約
+# API — tsumugai `scenario` モジュールの契約
 
-この文書は、Core が返す **Output** および **Event** の契約を定義します。
+この文書は、tsumugai の公開 API（`src/scenario/`。CLI の `check` / `trace` / `routes` / `fmt` はこの薄いラッパー）の契約を定義します。
 
----
-
-## 1. 実行サイクル（概要）
-
-```text
-parser::parse(markdown)
-  → Ast
-  → runtime::compile(&ast)
-  → Program (IR命令列)
-  → runtime::step(state, &program, input)
-  → (State, Output)
-```
-
-`runtime::step` を繰り返すことでシナリオを進行させます。
-
-- `Output.waiting_for` が `Some` のとき、ホスト側は入力を用意してから次の `step` を呼ぶ
-- `Output.waiting_for` が `None` のとき、そのまま次の `step` を呼んでよい
-- プログラム末尾に達すると `waiting_for = None` のまま返り続ける（終了判定はホスト側で行う）
+tsumugai は独立したシナリオ制作 CLI であり、ゲームエンジンにライブラリとして組み込んで対話ループを回す設計（旧 Core ⇄ Host 契約）はありません。ホスト側（arikoi 等）とは CLI 境界（ファイル入出力 + 終了コード + JSON）で接続します。データフローは [SPEC.md](../SPEC.md) 1章を参照してください。
 
 ---
 
-## 2. Rust 型（公開API）
+## 1. シーンモデル
 
 ```rust
-// runtime::Input — step への入力
-pub enum Input {
-    Advance,                    // 進行（Enterキー相当）
-    SelectChoice(String),       // 選択肢を選ぶ（ChoiceOption.id を渡す）
+pub struct Scene {
+    pub path: PathBuf,
+    pub id: Option<String>,
+    pub title: Option<String>,
+    pub background: Option<String>,
+    pub bgm: Option<String>,
+    pub lead: Vec<Block>,       // front matter 直後〜最初の H2 まで
+    pub sections: Vec<Section>, // H2 で区切られたセクション
 }
 
-// runtime::Output — step の戻り値
-pub struct Output {
-    pub events: Vec<Event>,                 // 発生したイベント列
-    pub waiting_for: Option<WaitingType>,   // 入力待ち状態
+pub struct Section {
+    pub heading: String,
+    pub anchor: String, // slugify(heading)
+    pub line: usize,
+    pub blocks: Vec<Block>,
 }
 
-// runtime::WaitingType — 入力待ちの種類
-pub enum WaitingType {
-    Advance,                        // Enter 待ち
-    Choice(Vec<ChoiceOption>),      // 選択肢待ち
-}
-
-// runtime::ir::ChoiceOption — 選択肢の1項目
-pub struct ChoiceOption {
-    pub id: String,         // 選択肢ID（compile時に確定）
-    pub label: String,      // 表示テキスト
-    pub target_pc: usize,   // ジャンプ先IRインデックス（内部用）
-}
-
-// runtime::ir::Event — ホストに通知するイベント
-pub enum Event {
-    Say { speaker: String, text: String },
-    SceneStart { name: String },
-    ShowImage { layer: String, name: String },
-    ClearLayer { layer: String },
-    PlayBgm { name: String },
-    PlaySe { name: String },
-    PlayMovie { name: String },
-    Wait { duration: f32 },
-    Custom { tag: String, params: Vec<String> },
-}
-
-// types::State — シナリオの実行状態
-pub struct State {
-    pub pc: usize,                              // IR上の現在位置
-    pub flags: HashMap<String, serde_json::Value>, // 変数・フラグ
+pub enum Block {
+    Narration { text: String, line: usize },
+    Dialogue { speaker: String, text: String, line: usize },
+    Choices { items: Vec<ChoiceItem>, line: usize },
+    Jump { label: String, target: LinkTarget, line: usize },
+    Ending { id: String, line: usize },
 }
 ```
 
+`parse_str(source, path)` / `parse_file(path)` が [`Parsed`]（`scene` + `diagnostics`）を返します。エラーで中断せず、解釈できた範囲の `Scene` と検出したすべての `Diagnostic` を常に両方返します（SPEC 6.1）。
+
 ---
 
-## 3. 典型的な使い方
+## 2. Diagnostic（構造化エラー・警告）
 
 ```rust
-use tsumugai::{
-    parser,
-    runtime::{self, Input, WaitingType, ir::Event},
-    types::State,
-};
-
-let ast = parser::parse(markdown)?;
-let program = runtime::compile(&ast);
-let mut state = State::new();
-let mut input = None;
-
-loop {
-    let (new_state, output) = runtime::step(state, &program, input.take());
-    state = new_state;
-
-    for event in &output.events {
-        if let Event::Say { speaker, text } = event {
-            println!("{}: {}", speaker, text);
-        }
-    }
-
-    match output.waiting_for {
-        Some(WaitingType::Advance) => {
-            input = Some(Input::Advance);
-        }
-        Some(WaitingType::Choice(options)) => {
-            let choice_id = options[0].id.clone();
-            input = Some(Input::SelectChoice(choice_id));
-        }
-        None => break,
-    }
+pub struct Diagnostic {
+    pub rule_id: &'static str,
+    pub severity: Severity,      // Error | Warning
+    pub message: String,
+    pub file: PathBuf,
+    pub span: Option<Span>,          // { line: usize }
+    pub related_spans: Vec<Span>,
+    pub suggestion: Option<String>,  // 機械的に適用できる書き換え例
 }
 ```
 
+ルール一覧は [SPEC.md 6章](../SPEC.md) と [DIAGNOSTIC.md](DIAGNOSTIC.md) が正です。
+
 ---
 
-## 4. 静的解析 API
+## 3. check（静的検査）
 
 ```rust
-use tsumugai::analyzer::{self, Issue, Level};
-
-let ast = parser::parse(markdown)?;
-let result = analyzer::analyze(&ast);
-
-for issue in &result.issues {
-    match issue.level {
-        Level::Error   => eprintln!("[ERROR] {}", issue.message),
-        Level::Warning => eprintln!("[WARN]  {}", issue.message),
-        Level::Info    => eprintln!("[INFO]  {}", issue.message),
-    }
-}
-
-if result.has_errors() {
-    // シナリオに問題あり
-}
+let result = scenario::check_path(path, &CheckOptions::default());
+// result: CheckResult { files: Vec<PathBuf>, diagnostics: Vec<Diagnostic> }
+result.has_errors(); // bool
 ```
 
-検査内容：
-- 未定義ラベルへのジャンプ
-- 到達不能なラベル（情報として報告）
-- 選択肢に対応するラベルが存在しない
-- 空または1択の BRANCH
+入出力エラーも `io-error` の Diagnostic にして返す（infallible）。詳細と JSON / SARIF スキーマは [CLI_OUTPUT.md](CLI_OUTPUT.md)。
 
 ---
 
-## 5. JSON 出力例（serde でシリアライズした場合）
+## 4. trace（経路の再現）
 
-### Output（台詞ステップ）
-
-```json
-{
-  "events": [
-    { "Say": { "speaker": "Alice", "text": "こんにちは。" } }
-  ],
-  "waiting_for": { "Advance": null }
-}
+```rust
+let result = scenario::trace_path(path, &TraceOptions { choices: vec![1, 3], ..Default::default() });
+// result: TraceResult { file, check: CheckResult, trace: Option<Trace> }
 ```
 
-### Output（選択肢ステップ）
-
-```json
-{
-  "events": [],
-  "waiting_for": {
-    "Choice": [
-      { "id": "root_branch_0_choice_0", "label": "はい", "target_pc": 3 },
-      { "id": "root_branch_0_choice_1", "label": "いいえ", "target_pc": 6 }
-    ]
-  }
-}
-```
-
-### State
-
-```json
-{
-  "pc": 4,
-  "flags": {
-    "score": 10,
-    "player_name": "Alice"
-  }
-}
-```
+実行前に check と同じ検査を行い、error があれば `trace` は `None` になる（SPEC 6.1）。詳細は [TRACE.md](TRACE.md)。
 
 ---
 
-## 6. エラーと警告
+## 5. routes（全分岐探索）
 
-- **パースエラー**：`parser::parse()` が `Err` を返す（`anyhow::Error`）
-- **静的検査の問題**：`analyzer::analyze()` が `AnalysisResult` を返す（`Vec<Issue>`）
-- **実行時エラー**：現時点では `step` は `Result` を返さない。変数演算の失敗は `Event::Custom { tag: "error", .. }` としてイベント列に積まれる
+```rust
+let result = scenario::routes_path(path, &RoutesOptions::default());
+// result: RoutesResult { file, check: CheckResult, report: Option<RoutesReport> }
+```
 
----
-
-## 7. 互換性の考え方
-
-- **後方互換の変更（許容）**：新 Event バリアント追加、`Event` / `ChoiceOption` へのオプショナルフィールド追加
-- **破壊的変更（要調整）**：既存 Event バリアントの意味変更・削除、`Output` / `State` の必須フィールド変更
+詳細は [ROUTES.md](ROUTES.md)。
 
 ---
 
-## 8. Roadmap
+## 6. fmt（推測整形）
 
-実装済み（v1 記法パイプライン。`scenario` モジュール）:
+```rust
+let result = scenario::fmt_path(path);
+// result: FmtResult { path, original, formatted, changes: Vec<FmtChange>, diagnostics }
+```
 
-- 構造化 Diagnostic（`rule_id`, `span`, `suggestion` を持つ型）— `scenario::Diagnostic`
-- `tsumugai check --format json|sarif` — JSON / SARIF 形式の診断出力
-- `tsumugai trace --choices` — 経路の再現（[TRACE.md](TRACE.md)）
-- `tsumugai routes` — 全分岐探索・到達可能性の報告（[ROUTES.md](ROUTES.md)）
+変換はすべて決定的なルールベース。黙って書き換えず、変更点は `changes` に 1 件ずつ記録する。確信が持てない箇所は変換せず `diagnostics` に積む（SPEC 7章）。実例は [examples/fmt/README.md](../examples/fmt/README.md)。
+
+---
+
+## 7. JSON 出力
+
+`render_json` / `render_trace_json` / `render_routes_json` / `render_fmt_json` / `render_sarif` が機械向け出力を生成する。スキーマは [CLI_OUTPUT.md](CLI_OUTPUT.md) が正。
+
+---
+
+## 8. 互換性の考え方
+
+- **後方互換の変更（許容）**：新しい `rule_id` の追加、構造体への任意（Option）フィールド追加
+- **破壊的変更（要調整）**：既存 `rule_id` の意味変更・削除、JSON スキーマの必須フィールド変更
+
+---
+
+## 9. Roadmap
+
+実装済み（`scenario` モジュール）:
+
+- `tsumugai check --format json|sarif`
+- `tsumugai trace --choices`（[TRACE.md](TRACE.md)）
+- `tsumugai routes`（[ROUTES.md](ROUTES.md)）
+- `tsumugai fmt --write`（SPEC 7章）
 
 未実装:
 
-- `tsumugai fmt` — 推測整形（#86）
 - `tsumugai compile --target renpy` — Ren'Py 変換（#79）

@@ -1,7 +1,7 @@
 //! v1 記法パイプライン用の構造化 Diagnostic
 //!
-//! SPEC.md 6章の Diagnostic ルールに対応する。旧 `analyzer::Issue` と違い
-//! `file` を持ち、複数ファイル入力（プロジェクト検査）に対応する。
+//! SPEC.md 6章の Diagnostic ルールに対応する。`file` を持ち、複数ファイル
+//! 入力（プロジェクト検査）に対応する。
 //! 「Diagnostic は学習教材である」（SPEC 6.1）に従い、どこが（file/span）・
 //! なぜ（message）・どう直すか（suggestion または message 内の案内）を持つ。
 

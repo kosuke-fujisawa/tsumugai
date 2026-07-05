@@ -18,27 +18,26 @@ tsumugai では、テクニカルな設計美よりも次を優先します。
 
 ## 現在の責務分離
 
-現行の主経路は次の通りです。
+tsumugai は独立したシナリオ制作 CLI です（epic #82）。現行の主経路は次の通りです。
 
 ```text
-Markdown
-  -> parser::parse
-  -> Ast
-  -> runtime::compile
-  -> IR Program
-  -> runtime::step
-  -> Output { events, waiting_for }
+Markdown（v1 記法、SPEC.md）
+  -> scenario::parse_str / parse_file
+  -> Scene { lead, sections: Vec<Section>, ... }（+ Diagnostic 列）
+  -> scenario::check_path / trace_path / routes_path / fmt_path
+  -> CheckResult / TraceResult / RoutesResult / FmtResult
+  -> scenario::render_human / render_json / render_sarif / render_trace_* / render_routes_* / render_fmt_*
 ```
 
-主要モジュール:
+主要モジュール（すべて `src/scenario/` 配下）:
 
-- `parser`: Markdown DSL を AST に変換する
-- `analyzer`: AST を静的検証する
-- `runtime`: AST を IR にコンパイルし、State/Input から Output を返す
-- `player`: CUI の参照実装
-- `types`: AST / State などの基本型
+- `parse`: Markdown を `Scene` + `Diagnostic` に変換する（エラーで中断しない）
+- `check`: リンク切れ・話者・到達可能性などプロジェクト横断の意味論検査
+- `trace` / `routes`: SPEC 5章の実行モデルに基づく経路再現・全分岐探索
+- `fmt`: よくある書き方を決定的ルールで v1 記法へ整形する（SPEC 7章）
+- `report`: 各結果の人間向け / JSON / SARIF 出力
 
-runtime は Markdown を直接読みません。parser は実行状態を持ちません。表示、音声再生、UI、アセットロードは core の責務ではありません。
+parser（`parse`）は実行状態を持ちません。表示、音声再生、UI、アセットロードは tsumugai の責務ではありません。旧 v0 記法向けの `parser` / `analyzer` / `runtime` / `player` / `types` モジュールは撤去済みです（#93）。
 
 ## コード設計の制約
 
