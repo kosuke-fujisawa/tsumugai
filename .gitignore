@@ -1,5 +1,10 @@
 /target
 
+# Node / TypeScript
+node_modules/
+dist/
+*.tsbuildinfo
+
 # macOS artifacts
 .DS_Store
 .DS_Store?
