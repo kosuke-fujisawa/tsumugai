@@ -1,5 +1,10 @@
 # tsumugai
 
+> **⚠️ 方針転換中（2026-07-06〜）**
+> tsumugai は、英語圏 itch.io 向け短編HTML5ビジュアルノベル「A Familiar Shape of Love」を制作するための **Markdown-first VN build system**（TypeScript / Svelte / Vite）として作り直しています。以下に書かれている「Rust製 semantic runtime」としての説明は**旧方針**であり、TypeScript版MVP完成後に置き換えられます。新方針の詳細と進捗は [epic #99](https://github.com/kosuke-fujisawa/tsumugai/issues/99) を参照してください。Rust実装（`src/`）はTS版MVP完成まで参照用に保持されます。
+
+---
+
 tsumugai（つむがい）は、  
 **Markdown で書かれたノベルゲーム用シナリオを解析し、  
 実行前に意味を確定し、検証し、再利用可能にする  
