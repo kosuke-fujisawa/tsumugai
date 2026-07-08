@@ -109,7 +109,7 @@ let result = scenario::compile_path(path, &CompileOptions::default());
 // result: CompileResult { file, check: CheckResult, bundle: Option<StoryBundle> }
 ```
 
-check と同じ実行前検査を行い、error があれば `bundle` は `None`（出力ファイルは書き出さない）。`StoryBundle` は arikoi 側の Svelte 製 player 向けの JSON で、tsumugai を npm 依存にせず CLI サブプロセス + JSON ファイルで疎結合するための契約。
+check と同じ実行前検査に加えて、`routes` 相当の全分岐探索も実行前検証に含める（#144）。check または routes の error（例: `circular-route`）があれば `bundle` は `None`（出力ファイルは書き出さない）。`unreachable-ending` / `unreachable-scene` のような warning は `bundle` を生成しつつ `check.diagnostics` に含める（実行系に渡す前に気づけるようにする）。`StoryBundle` は arikoi 側の Svelte 製 player 向けの JSON で、tsumugai を npm 依存にせず CLI サブプロセス + JSON で疎結合するための契約。
 
 - `scenes: BundleScene[]`: 1 Markdown ファイル = 1 シーン。`steps` はリード部とセクションのブロックをファイル内の出現順に平坦化したもの（SPEC 5章のフォールスルーと同じ規則で実行される）
 - `BundleStep` は `narration` / `dialogue` / `choice` / `jump` / `ending` の 5 種類。現行の v1 記法に変数構文がないため `set_variable` は未実装
@@ -117,7 +117,7 @@ check と同じ実行前検査を行い、error があれば `bundle` は `None`
 - `assets: BundleAsset[]`: front matter の `background` / `bgm` をファイル横断で重複排除して収集する
 - `storyBuildId` はビルド時刻・乱数を使わず、bundle の内容から決定的に計算する（同じ入力は常に同じ ID になる）
 
-CLI: `tsumugai compile <file> --target web --output <path>`（`--target` は現在 `web` のみ対応）。
+CLI: `tsumugai compile <file> --target web --output <path>`（`--target` は現在 `web` のみ対応）。診断（error/warning とも）があれば、成功時でも stdout に human 形式で表示する。
 
 ---
 

@@ -219,6 +219,94 @@ fn ディレクトリを渡すとio_errorになる() {
     );
 }
 
+// -------------------------------------------------------------- routes相当の検証（#144）
+
+#[test]
+fn 循環するシナリオはcheckを通ってもcompileが失敗する() {
+    // check だけでは検出できず routes の全分岐探索で初めて分かる不具合
+    // （エンディングに一切到達しない無限ループ）を compile が見逃さないことを確認する
+    let result = compile_path(
+        Path::new("tests/fixtures/trace/loop/scenario.md"),
+        &CompileOptions::default(),
+    );
+
+    assert!(result.bundle.is_none());
+    assert!(result.has_errors());
+    assert!(
+        result
+            .check
+            .diagnostics
+            .iter()
+            .any(|d| d.rule_id == "circular-route"),
+        "diagnostics: {:?}",
+        result.check.diagnostics
+    );
+}
+
+#[test]
+fn 到達不能endingがあってもcompileは成功しつつ警告を報告する() {
+    // circular-route（error）と違い、到達不能は warning 相当なので
+    // StoryBundle の生成自体は妨げない
+    let result = compile_path(
+        Path::new("tests/fixtures/routes/unreachable/entry.md"),
+        &CompileOptions::default(),
+    );
+
+    assert!(!result.has_errors());
+    assert!(result.bundle.is_some());
+    assert!(
+        result
+            .check
+            .diagnostics
+            .iter()
+            .any(|d| d.rule_id == "unreachable-ending"),
+        "diagnostics: {:?}",
+        result.check.diagnostics
+    );
+}
+
+#[test]
+fn cliで循環するシナリオがあると出力ファイルを生成せず失敗する() {
+    let output = unique_output_path("circular-route");
+    let _ = std::fs::remove_file(&output);
+
+    let result = run_compile("tests/fixtures/trace/loop/scenario.md", &output);
+    assert!(!result.status.success());
+    assert!(
+        !output.exists(),
+        "circular-route（error）がある場合は出力ファイルを書き出さない"
+    );
+    assert!(
+        String::from_utf8_lossy(&result.stdout).contains("circular-route"),
+        "stdout: {}",
+        String::from_utf8_lossy(&result.stdout)
+    );
+}
+
+#[test]
+fn cliで到達不能endingがあってもwarningを表示しつつ出力ファイルを書き出す() {
+    let output = unique_output_path("unreachable-ending");
+    let _ = std::fs::remove_file(&output);
+
+    let result = run_compile("tests/fixtures/routes/unreachable/entry.md", &output);
+    assert!(
+        result.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(
+        output.exists(),
+        "warning のみなら出力ファイルは書き出される"
+    );
+    assert!(
+        String::from_utf8_lossy(&result.stdout).contains("unreachable-ending"),
+        "stdout: {}",
+        String::from_utf8_lossy(&result.stdout)
+    );
+
+    let _ = std::fs::remove_file(&output);
+}
+
 // -------------------------------------------------------------- choiceからendingまでのroute
 
 /// [`StepTarget`] だけを頼りに、選択肢ブロックで指定した項目を選びながら

@@ -64,7 +64,7 @@ tsumugai/
 2. **Load**: `check` / `routes` / `compile` は `project.rs` が提供する共通の読み込み規則（ディレクトリ走査、またはリンクで辿れる `.md` の閉包）で複数ファイルをロードする
 3. **Check**: プロジェクト横断の意味論検査（リンク解決、アセット実在、話者宣言、到達可能性）を行う。他コマンドはこの検査を通過した場合のみ先へ進む
 4. **Trace / Routes**: check 通過後、実行位置（`Cursor { scene, seg, block }`）を SPEC 5章の規則で進める。`trace` は `--choices` で指定した 1 経路を、`routes` はすべての分岐を DFS で網羅する
-5. **Compile**: check 通過後、読み込んだ `Scene` 群を `StoryBundle`（`scenes[].steps[]` + `assets[]`）にコンパイルする。jump / choice の飛び先はソース表記ではなく `{ sceneId, stepIndex }` に解決済みで持たせる
+5. **Compile**: check 通過後、routes 相当の全分岐探索も実行前検証に含める（循環は error、到達不能エンディング/シーンは warning）。error がなければ、読み込んだ `Scene` 群を `StoryBundle`（`scenes[].steps[]` + `assets[]`）にコンパイルする。jump / choice の飛び先はソース表記ではなく `{ sceneId, stepIndex }` に解決済みで持たせる
 6. **Fmt**: よくある書き方を決定的ルールで v1 記法に整形する。確信が持てない箇所は変換せず `Diagnostic` に積む（SPEC 7章）
 7. **Report**: 各結果を human / JSON / SARIF 形式に変換する（`report.rs`）
 
