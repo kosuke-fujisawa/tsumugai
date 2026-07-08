@@ -77,6 +77,9 @@ pub struct RoutesReport {
     pub reached_endings: Vec<String>,
     /// プロジェクトに宣言されているが、どの経路からも到達できない ending id
     pub unreached_endings: Vec<String>,
+    /// entry から到達可能なシーン（ソート済み）。`unreachable_scenes` と
+    /// 合わせるとプロジェクト全シーンになる（#149）
+    pub reachable_scenes: Vec<PathBuf>,
     /// プロジェクトに読み込まれているが、どの経路からも実行されないシーン
     pub unreachable_scenes: Vec<PathBuf>,
     /// 経路数の上限に達し、探索を打ち切ったか
@@ -295,6 +298,14 @@ fn explore(scenes: &[LoadedScene], entry: &Path, options: &RoutesOptions) -> Rou
         .filter(|id| !reached_endings.contains(id))
         .collect();
 
+    let mut reachable_scenes: Vec<PathBuf> = scenes
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| explorer.visited_scenes.contains(i))
+        .map(|(_, s)| s.path.clone())
+        .collect();
+    reachable_scenes.sort();
+
     let mut unreachable_scenes: Vec<PathBuf> = scenes
         .iter()
         .enumerate()
@@ -316,6 +327,7 @@ fn explore(scenes: &[LoadedScene], entry: &Path, options: &RoutesOptions) -> Rou
         routes: explorer.routes,
         reached_endings,
         unreached_endings,
+        reachable_scenes,
         unreachable_scenes,
         truncated: explorer.truncated,
         diagnostics,
