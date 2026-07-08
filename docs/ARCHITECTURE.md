@@ -1,147 +1,126 @@
 # ARCHITECTURE — tsumugai
 
-tsumugaiは、目的の異なる2つのアーキテクチャを提供します。
-
-- **簡易アーキテクチャ (Facade)**: 手軽さと即時性を重視したAPI。
-- **コアアーキテクチャ (Layered)**: 拡張性と保守性を重視した階層化API。
-
----
-
-## 1. アーキテクチャの選択ガイド
-
-| 観点 | 簡易アーキテクチャ (Facade) | コアアーキテクチャ (Layered) |
-|:---|:---|:---|
-| **主な目的** | 手軽な利用、迅速なプロトタイピング | 拡張性、保守性、長期的な開発 |
-| **設計** | パーサーとランタイムを直接組み合わせたシンプルな構成 | DDDに基づく3層のクリーンアーキテクチャ |
-| **API** | `facade::Facade` 構造体 | `application::engine::StoryEngine` |
-| **状態管理** | 呼び出し側で `State` オブジェクトを保持 | `StoryEngine` が内部で状態をカプセル化 |
-| **データフロー** | `Markdown -> AST -> Runtime -> Output` | `Markdown -> IR -> Engine -> StepResult` |
-| **こんな時に** | 個人開発、小規模ゲーム、ツールへの組み込み | チーム開発、大規模ゲーム、複雑な独自仕様 |
-
----
-
-## 2. 簡易アーキテクチャ (Facade) 詳細
-
-`facade`モジュールを介して提供される、シンプルな構成です。
-
-- **`parser`**: MarkdownテキストをAST (Abstract Syntax Tree) に変換します。
-- **`runtime`**: ASTと現在の状態(`State`)を受け取り、次の状態と`Output`（描画すべき内容）を返します。
-- **`types`**: `AST`, `State`, `Output`, `Event`など、簡易アーキテクチャで使われるデータ構造を定義します。
-- **`facade`**: これらを統合し、`Facade::new(markdown)` や `Facade::next(&mut state)` のような簡単なインターフェースを提供します。
-
-## 3. コアアーキテクチャ (Layered) 詳細
-
-# ARCHITECTURE — tsumugai
-
-> 目的：**Markdown の台本**を逐次解釈し、**決定的な StepResult(JSON)** を返す“コア”を提供する。  
-> 表示・音・演出はホスト（例：Tauri+Svelte）側の責務。
+tsumugai は単一の Rust crate（`src/`）で構成される、Markdown シナリオの静的検査・経路検証・整形・StoryBundle 生成を行う CLI です。対話的に進行させる実行エンジン（ランタイム）は持ちません。
 
 ---
 
 ## 1. 全体像（責務の境界）
 
-```markdown
-.md（tsumugai 記法）
-│ parse
-▼
-[Core/Rust] ── Engine.step()/choose() ──> StepResult(JSON)
-▲
-│（契約：Directive/NextAction を固定）
-[Host] Tauri/Svelte/Bevy/CLI など
+```text
+Markdown（v1 記法、SPEC.md）
+  -> scenario::parse_str / parse_file
+  -> Scene { lead, sections: Vec<Section>, ... }（+ Diagnostic 列）
+  -> scenario::check_path / trace_path / routes_path / fmt_path / compile_path
+  -> CheckResult / TraceResult / RoutesResult / FmtResult / CompileResult
+  -> scenario::render_human / render_json / render_sarif / render_trace_* / render_routes_* / render_fmt_* / StoryBundle JSON
 ```
 
-- **Core**（このリポの中心）
-  - 入力：UTF-8 Markdown（`[COMMAND key=value]` 形式）
-  - 出力：`StepResult { next, directives[] }`（**決定的**）
-  - 非責務：描画・再生、アセット存在確認、演出DSL、LLMプロンプト生成
+- **parse**（`src/scenario/parse.rs`）: 1 ファイル = 1 [`Scene`] に変換する。実行状態を持たず、エラーで中断しない
+- **check**（`check.rs`）: リンク切れ・話者・到達可能性などプロジェクト横断の意味論検査
+- **trace / routes**（`trace.rs` / `routes.rs`）: SPEC 5章の実行モデルに基づく経路再現・全分岐探索
+- **compile**（`compile.rs`）: check 相当の検査を通過したプロジェクトを StoryBundle JSON に変換する（`--target web`）
+- **fmt**（`fmt.rs`）: よくある書き方を決定的ルールで v1 記法へ整形する（SPEC 7章）
+- **report**（`report.rs`）: 各結果の human / JSON / SARIF 出力
 
-- **Host / Samples**（限定同梱）
-  - `examples/cui_runner/`（CUI の最小上映装置）
-  - `hosts/tauri_svelte/`（参照 GUI。画像/BGMの受け渡しのみ）
-  - 目的は **契約確認** と **導線提示**。機能は最小限に留める。
+表示、音声再生、UI、アセットロードは tsumugai の責務ではありません。旧 v0 記法向けの `parser` / `analyzer` / `runtime` / `player` / `types` モジュールは撤去済みです（#93）。
 
 ---
 
-## 2. ディレクトリ構成（最小）
+## 2. ディレクトリ構成
 
-```markdown
+```text
 tsumugai/
-├─ crates/core/
-│ ├─ src/
-│ │ ├─ lib.rs # 公開API
-│ │ ├─ domain/ # 台本構文・状態遷移（純粋ロジック）
-│ │ ├─ application/ # Engine（ユースケース編成）
-│ │ ├─ parse/ # Markdown → IR
-│ │ └─ engine/ # StepResult/Directive の生成
-│ └─ tests/ # ユニット／DFS／ゴールデン
+├─ src/
+│  ├─ main.rs          # CLI エントリーポイント（引数パースとコマンド分岐のみ）
+│  ├─ lib.rs            # scenario モジュールの再公開
+│  └─ scenario/
+│     ├─ mod.rs          # Scene / Block / Section 等の IR 定義、公開 API の再エクスポート
+│     ├─ parse.rs        # Markdown → Scene + Diagnostic
+│     ├─ project.rs      # 複数ファイルの読み込み・リンク解決（check / routes / compile が共有）
+│     ├─ characters.rs   # characters.yaml の探索・読み込み
+│     ├─ check.rs        # プロジェクト横断の意味論検査
+│     ├─ exec.rs         # trace / routes が共有する実行位置（Cursor）とナビゲーション
+│     ├─ trace.rs        # 1 経路の実行再現（--choices）
+│     ├─ routes.rs       # 全分岐探索（到達可能性・循環・エンディング到達検証）
+│     ├─ compile.rs      # StoryBundle JSON 生成（--target web）
+│     ├─ fmt.rs          # 推測整形
+│     ├─ diagnostic.rs   # 構造化 Diagnostic（rule_id / severity / message / span / suggestion）
+│     └─ report.rs       # human / JSON / SARIF 出力
+├─ tests/
+│  ├─ check_test.rs / trace_test.rs / routes_test.rs / compile_test.rs  # 統合テスト
+│  └─ fixtures/                                                        # ケースごとのミニプロジェクト・Golden JSON
 ├─ examples/
-│ ├─ strange_encounter.md
-│ ├─ dump.rs # .md → JSON ダンプ
-│ └─ cui_runner/
-│ └─ main.rs
-├─ hosts/tauri_svelte/ # 参照GUI（任意・最小）
-├─ docs/{ARCHITECTURE.md, API.md}
-├─ schemas/stepresult.schema.json
+│  ├─ spring/            # 全ブロック種別を含む仕様網羅サンプル
+│  └─ fmt/               # fmt の整形前後サンプル
+├─ docs/{CONCEPT,ARCHITECTURE,API,CLI_OUTPUT,TRACE,ROUTES,DEVELOPMENT_WORKFLOW,REVIEW_GUIDE}.md
 └─ .github/workflows/ci.yml
 ```
 
 ---
 
-## 3. 設計優先順位（抜粋）
+## 3. データフロー（詳細）
 
-- **TDD / テストファースト**：赤→緑→リファクタ。DFS で分岐網羅、`--dump` で決定性を比較。
-- **DDD**：ドメイン＝台本構文と逐次解釈。演出はドメイン外。Domain に I/O を入れない。
-- **クリーンアーキ**：依存は内向きのみ。`StepResult/Directive/NextAction` を契約として固定。
-- **DRY / Tidy First**：重複は3回目で抽象化。構造変更と挙動変更は別コミット。
-
----
-
-## 4. データフロー（詳細）
-
-1. **Parse**：`.md` をトークン化 → 構文規則で IR（中間表現）へ  
-2. **Plan**：ジャンプ先・ラベル索引を構築（未定義は警告）  
-3. **Run**：`Engine.step()` が現在位置を 1 ステップ進め、`StepResult` を生成  
-4. **Branch**：`NextAction::WaitBranch` なら `Engine.choose(index)` を待つ  
-5. **Halt**：終端で `NextAction::Halt`
-
-> **決定性**：同一入力 `.md` は同一 `StepResult` 列を生む。CI でゴールデン比較。
+1. **Parse**: Markdown 1 ファイルを `Scene { lead, sections: Vec<Section> }` + `Diagnostic` 列に変換する。エラーで中断しない（SPEC 6.1）
+2. **Load**: `check` / `routes` / `compile` は `project.rs` が提供する共通の読み込み規則（ディレクトリ走査、またはリンクで辿れる `.md` の閉包）で複数ファイルをロードする
+3. **Check**: プロジェクト横断の意味論検査（リンク解決、アセット実在、話者宣言、到達可能性）を行う。他コマンドはこの検査を通過した場合のみ先へ進む
+4. **Trace / Routes**: check 通過後、実行位置（`Cursor { scene, seg, block }`）を SPEC 5章の規則で進める。`trace` は `--choices` で指定した 1 経路を、`routes` はすべての分岐を DFS で網羅する
+5. **Compile**: check 通過後、読み込んだ `Scene` 群を `StoryBundle`（`scenes[].steps[]` + `assets[]`）にコンパイルする。jump / choice の飛び先はソース表記ではなく `{ sceneId, stepIndex }` に解決済みで持たせる
+6. **Fmt**: よくある書き方を決定的ルールで v1 記法に整形する。確信が持てない箇所は変換せず `Diagnostic` に積む（SPEC 7章）
+7. **Report**: 各結果を human / JSON / SARIF 形式に変換する（`report.rs`）
 
 ---
 
-## 5. 互換性ポリシー
+## 4. 決定性
 
-- **破壊変更禁止**：既存 `Directive` の意味変更／フィールド削除／`NextAction` 既存値の変更  
-- **後方互換で許容**：新 `Directive` 追加、可オプショナルなフィールド追加  
-- **変更時手順**：**先に** `docs/API.md` と `schemas/*.json` を更新 → コード → ゴールデン更新
+同一の Markdown 入力からは、常に同じ結果を返します。乱数や実行時刻に依存する出力はありません。`compile` が生成する `storyBuildId` も、bundle の内容から決定的に計算した値です（FNV-1a、[API.md](API.md) 6.5章）。これにより CI での Golden JSON 比較や、LLM への再現手順の提示がしやすくなります。
 
 ---
 
-## 6. テスト戦略
+## 5. テスト戦略
 
-- **ユニット**：パーサ（正常/異常）、待機、分岐、未定義ラベル  
-- **DFS網羅**：深さ上限・ループ検出。各ルートで `StepResult` 整合を検査  
-- **ゴールデン**：`examples/dump.rs` の JSON と `tests/golden/*.json` を厳密比較  
-- **Lint**：未定義ラベル／未解決アセット／重複ラベル等を検出（失敗で赤）
+- **統合テスト**（`tests/*.rs`）: ライブラリ関数（`check_path` 等）を直接呼び出し、`tests/fixtures/` 配下のミニプロジェクトで各ルールを 1 対 1 で検証する
+- **Golden JSON**（`tests/fixtures/compile/golden/*.json` 等）: 意図しない出力変化を検出する
+- **CLI プロセステスト**（`compile_test.rs`）: `CARGO_BIN_EXE_tsumugai` で実バイナリを起動し、exit code とファイル生成有無を確認する
+- **doctest**: `src/scenario/mod.rs` / `src/lib.rs` のコード例を `cargo test` で検証する
 
----
-
-## 7. CI（最低条件）
-
-- `cargo fmt --check` / `cargo clippy -D warnings` / `cargo test`  
-- `dump` 出力とゴールデン比較  
-- Hosts は別ジョブ／任意。Core を重くしない
+CLI 引数パース自体（`main.rs`）は薄く保ち、原則としてテストしない。ロジックは `scenario` モジュールの関数に置き、そちらをテスト対象にする。
 
 ---
 
-## 8. 例外とログ
+## 6. CI（`.github/workflows/ci.yml`）
 
-- エラーには **行/列番号 + 修正候補** を含める  
-- 未解決アセットや未定義ラベル：**警告**で継続（Core を止めない）
+- `cargo fmt --all -- --check`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo test`
+- `compile` コマンドのスモークテスト（`examples/spring` から StoryBundle JSON を生成できることを確認）
+
+---
+
+## 7. 互換性ポリシー
+
+- **後方互換の変更（許容）**: 新しい `rule_id` の追加、構造体への任意（Option）フィールド追加
+- **破壊的変更（要調整）**: 既存 `rule_id` の意味変更・削除、JSON 出力の必須フィールド変更
+
+詳細は [API.md](API.md) 8章を参照。
+
+---
+
+## 8. tsumugai の外部境界
+
+tsumugai は npm ライブラリや他言語バインディングとして配布しません。外部フロントエンド（arikoi の Svelte 製 player 等）とは、CLI サブプロセス + JSON（stdout / `compile --output`）で疎結合します。`check` / `trace` / `routes` / `fmt` の `--format json` は stdout に JSON を返すだけで、ファイルは書き出しません。ファイル出力を行うのは `compile --output` （StoryBundle JSON）と `fmt --write` （整形済み Markdown）だけです。
+
+```text
+arikoi/scenarios/*.md（別リポジトリ）
+  -> tsumugai check / trace / routes --format json（CLI サブプロセス、stdout に JSON）
+  -> tsumugai compile --target web --output <path>（CLI サブプロセス、StoryBundle JSON をファイル出力）
+  -> arikoi（表示・入力・セーブロード・Web 配布を担当）
+```
 
 ---
 
 ## 9. よくある判断
 
-- フェード等の演出DSLを Core に足す？ → **No**（Host の辞書へ）  
-- アセット存在確認を Core で？ → **No**（Host の責務）  
-- 仕様を変える？ → **API.md/Schema を先に更新 → テスト赤 → 実装**
+- 演出 DSL（フェード等）を tsumugai に足す？ → **No**（ホスト側の責務）
+- アセットの実描画・再生を tsumugai で？ → **No**（存在チェックのみ行う）
+- 変数・条件分岐を足す？ → 現行 v1 記法にはまだない。追加する場合は SPEC.md の改訂と、`compile.rs` の `BundleStep` への `set_variable` 相当の追加が必要になる
+- 仕様を変える？ → 挙動を変える変更では、入力例・出力例・Diagnostic 例・テストケースのいずれかを追加・更新し、Rust コードを読まなくても変更点が分かるようにする（CLAUDE.md 参照）
