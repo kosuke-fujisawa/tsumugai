@@ -22,6 +22,8 @@ pub enum Severity {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Span {
     pub line: usize,
+    /// 列位置（1-origin）。分かる場合のみ Some（#150）
+    pub column: Option<usize>,
 }
 
 /// 検出した 1 件の問題
@@ -50,7 +52,7 @@ impl Diagnostic {
             severity: Severity::Error,
             message,
             file: file.to_path_buf(),
-            span: Some(Span { line }),
+            span: Some(Span { line, column: None }),
             related_spans: Vec::new(),
             suggestion: None,
         }
@@ -74,7 +76,15 @@ impl Diagnostic {
     }
 
     pub fn with_related(mut self, line: usize) -> Self {
-        self.related_spans.push(Span { line });
+        self.related_spans.push(Span { line, column: None });
+        self
+    }
+
+    /// 主 span に列位置（1-origin）を付与する（#150）
+    pub fn with_column(mut self, column: usize) -> Self {
+        if let Some(span) = &mut self.span {
+            span.column = Some(column);
+        }
         self
     }
 }

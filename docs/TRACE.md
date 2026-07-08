@@ -195,7 +195,7 @@ check の JSON（[CLI_OUTPUT.md](CLI_OUTPUT.md)）の上位互換。`file`（開
       "severity": "error",
       "message": "このファイルに「run-togather」という見出し（##）はありません。…",
       "file": "scenario/spring_001.md",
-      "span": { "line": 19 },
+      "span": { "line": 19, "column": null },
       "related_spans": [],
       "suggestion": "[一緒に走る](#run-together)"
     }

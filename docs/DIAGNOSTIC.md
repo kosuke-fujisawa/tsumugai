@@ -30,9 +30,12 @@ pub struct Diagnostic {
 }
 
 pub struct Span {
-    pub line: usize,    // 1-origin
+    pub line: usize,           // 1-origin
+    pub column: Option<usize>, // 1-origin。分かる場合のみ Some（#150）
 }
 ```
+
+`column` は現時点では型定義のみの段階導入で、どのルールも値を埋めていない（常に `None`）。`Diagnostic::with_column` で付与すると、`render_human` が `file:line:column` 表示と入力行の下に caret（`^`）を1つ表示する。broken-link・undefined-character 等、リンクや話者名の位置を指すルールから順に列位置の計算を追加していく方針（段階導入、SPEC.md参照なし・issue #150参照）。
 
 ---
 

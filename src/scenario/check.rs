@@ -292,7 +292,10 @@ fn check_one_link(
         ));
         diag.suggestion = Some(format!("[{label}]({fixed})"));
         if target.file.is_none() {
-            diag.related_spans.push(Span { line: section.line });
+            diag.related_spans.push(Span {
+                line: section.line,
+                column: None,
+            });
         }
     } else if anchors.is_empty() {
         diag.message.push_str(
@@ -512,7 +515,11 @@ fn check_speakers(scene: &LoadedScene, chars: &Characters, diagnostics: &mut Vec
         let mut diag =
             Diagnostic::warning("undefined-character", &scene.path, occ.first_line, message);
         diag.suggestion = suggestion;
-        diag.related_spans = occ.rest.into_iter().map(|line| Span { line }).collect();
+        diag.related_spans = occ
+            .rest
+            .into_iter()
+            .map(|line| Span { line, column: None })
+            .collect();
         diagnostics.push(diag);
     }
 }

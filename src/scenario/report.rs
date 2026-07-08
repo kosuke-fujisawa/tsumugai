@@ -63,13 +63,26 @@ fn render_one(
     };
 
     let width = span.line.to_string().len().max(2);
-    let _ = writeln!(
-        out,
-        "{:width$}--> {}:{}",
-        "",
-        diag.file.display(),
-        span.line
-    );
+    match span.column {
+        Some(col) => {
+            let _ = writeln!(
+                out,
+                "{:width$}--> {}:{}:{col}",
+                "",
+                diag.file.display(),
+                span.line
+            );
+        }
+        None => {
+            let _ = writeln!(
+                out,
+                "{:width$}--> {}:{}",
+                "",
+                diag.file.display(),
+                span.line
+            );
+        }
+    }
     let source_line = sources
         .entry(diag.file.clone())
         .or_insert_with(|| {
@@ -83,6 +96,10 @@ fn render_one(
     if let Some(text) = source_line {
         let _ = writeln!(out, "{:width$} |", "");
         let _ = writeln!(out, "{:width$} | {text}", span.line);
+        if let Some(col) = span.column {
+            let indent = " ".repeat(col.saturating_sub(1));
+            let _ = writeln!(out, "{:width$} | {indent}^", "");
+        }
         let _ = writeln!(out, "{:width$} |", "");
     }
     if let Some(suggestion) = &diag.suggestion {
