@@ -142,6 +142,13 @@ fn routesで循環があるとexit1になる() {
     assert!(stdout(&out).contains("circular-route"));
 }
 
+#[test]
+fn routesでendingを宣言しないシナリオはwarningを表示しつつexit0になる() {
+    let out = run(&["routes", "tests/fixtures/trace/eof/scenario.md"]);
+    assert!(out.status.success(), "stdout: {}", stdout(&out));
+    assert!(stdout(&out).contains("route-without-ending"));
+}
+
 // ------------------------------------------------------------------------ fmt
 
 #[test]

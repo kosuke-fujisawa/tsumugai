@@ -94,6 +94,30 @@ fn 動的に到達しないシーンとendingが報告される() {
 // ------------------------------------------------------------ 循環・深度超過
 
 #[test]
+fn エンディングを宣言しないままファイル末尾に達するとroute_without_endingのwarningになる() {
+    // #147: 書き忘れ（<!-- ending: id --> を一切書かないままファイルが終わる）を
+    // 無警告のexit 0で見逃さないことを確認する
+    let result = routes_path(
+        Path::new("tests/fixtures/trace/eof/scenario.md"),
+        &RoutesOptions::default(),
+    );
+    let report = result.report.as_ref().unwrap();
+
+    assert_eq!(report.routes.len(), 1);
+    assert!(matches!(report.routes[0].end, RouteEnd::EndOfFile));
+    assert!(!result.has_errors(), "warning相当なのでexitは0のまま");
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.rule_id == "route-without-ending"
+                && d.severity == tsumugai::scenario::Severity::Warning),
+        "diagnostics: {:?}",
+        report.diagnostics
+    );
+}
+
+#[test]
 fn 循環はcircular_routeとしてerror扱いになる() {
     let result = routes_path(
         Path::new("tests/fixtures/trace/loop/scenario.md"),

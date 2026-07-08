@@ -361,7 +361,17 @@ fn build_diagnostics(
                     ),
                 ));
             }
-            RouteEnd::Ending { .. } | RouteEnd::EndOfFile => {}
+            RouteEnd::EndOfFile => {
+                diagnostics.push(file_level(
+                    "route-without-ending",
+                    Severity::Warning,
+                    entry,
+                    format!(
+                        "{route_desc}はエンディング（`<!-- ending: id -->`）を一切宣言しないままファイル末尾に到達しました。書き忘れでなければ問題ありませんが、`{trace_cmd}` で該当箇所を確認してください"
+                    ),
+                ));
+            }
+            RouteEnd::Ending { .. } => {}
         }
     }
     for id in unreached_endings {
