@@ -67,6 +67,8 @@ result.has_errors(); // bool
 
 入出力エラーも `io-error` の Diagnostic にして返す（infallible）。詳細と JSON / SARIF スキーマは [CLI_OUTPUT.md](CLI_OUTPUT.md)。
 
+check はディレクトリ（複数エントリ想定）にも対応するため、「entry から実際に辿れるか」という動的な到達可能性は判定しない。**到達不能シーン・エンディングに到達しない route の検出は 5章の `routes` / 6.5章の `compile` の責務**（SPEC.md 6章、#148）。
+
 ---
 
 ## 4. trace（経路の再現）
