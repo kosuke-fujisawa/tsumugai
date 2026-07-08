@@ -1,7 +1,7 @@
 # tsumugai
 
-> **⚠️ 方針転換中（2026-07-06〜）**
-> tsumugai は、英語圏 itch.io 向け短編HTML5ビジュアルノベル「A Familiar Shape of Love」を制作するための **Markdown-first VN build system**（TypeScript / Svelte / Vite）として作り直しています。以下に書かれている「Rust製 semantic runtime」としての説明は**旧方針**であり、TypeScript版MVP完成後に置き換えられます。新方針の詳細と進捗は [epic #99](https://github.com/kosuke-fujisawa/tsumugai/issues/99) を参照してください。Rust実装（`src/`）はTS版MVP完成まで参照用に保持されます。
+> **注記（2026-07-08）**
+> TypeScript / Svelte / Vite への全面移行（[epic #99](https://github.com/kosuke-fujisawa/tsumugai/issues/99)）は検討の結果、不採用が確定しました。tsumugai は、以下に説明する通り Rust 製の semantic runtime / シナリオチェッカーとして維持します。新たに `compile --target web` コマンド（[#128](https://github.com/kosuke-fujisawa/tsumugai/issues/128)）を追加し、外部の Web フロントエンド（arikoi の Svelte 製 player 等）向けに StoryBundle JSON を出力できるようにする予定です。連携は npm 依存ではなく CLI サブプロセス経由で行います。
 
 ---
 
