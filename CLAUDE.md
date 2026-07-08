@@ -1,7 +1,7 @@
 # CLAUDE.md
 
-> **⚠️ TS移行中（2026-07-06〜）**
-> tsumugai は [epic #99](https://github.com/kosuke-fujisawa/tsumugai/issues/99) のもと、TypeScript / Svelte / Vite ベースの Markdown-first HTML5 VN build system として作り直し中です。以下の Rust 向け設計制約（trait/generic/macro回避など）は、**旧実装（`src/` 以下）にのみ適用**されます。TS実装（`packages/` 以下）向けの指針は、旧Rust実装削除時（issue #110）にこの文書を全面改訂して反映します。それまでの間、TS実装の設計判断は epic #99 とその子issue（#100〜#110）の本文を参照してください。
+> **📌 現在の方針（2026-07-08〜）**
+> tsumugai は Rust 製 CLI のまま維持します（[epic #99](https://github.com/kosuke-fujisawa/tsumugai/issues/99) が目指したTypeScript化は撤回済み）。既存の `check` / `trace` / `routes` に加え、Web版ノベルゲーム「arikoi」（別リポジトリ）向けに `compile --target web` を追加し、StoryBundle JSONを出力する開発を進めています（[epic #129](https://github.com/kosuke-fujisawa/tsumugai/issues/129)）。以下に書かれている Rust 向け設計制約（trait/generic/macro回避など）は現行実装にそのまま適用されます。
 
 この文書は、Claude Code などの LLM エージェントが `tsumugai` を開発するときに必ず参照する行動指針です。
 
