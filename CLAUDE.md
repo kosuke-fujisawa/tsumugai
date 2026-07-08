@@ -1,7 +1,7 @@
 # CLAUDE.md
 
-> **⚠️ TS移行中（2026-07-06〜）**
-> tsumugai は [epic #99](https://github.com/kosuke-fujisawa/tsumugai/issues/99) のもと、TypeScript / Svelte / Vite ベースの Markdown-first HTML5 VN build system として作り直し中です。以下の Rust 向け設計制約（trait/generic/macro回避など）は、**旧実装（`src/` 以下）にのみ適用**されます。TS実装（`packages/` 以下）向けの指針は、旧Rust実装削除時（issue #110）にこの文書を全面改訂して反映します。それまでの間、TS実装の設計判断は epic #99 とその子issue（#100〜#110）の本文を参照してください。
+> **注記（2026-07-08）**
+> TypeScript / Svelte / Vite への全面移行（[epic #99](https://github.com/kosuke-fujisawa/tsumugai/issues/99)）は不採用が確定しました。以下の Rust 向け設計制約・責務分離は、引き続き `src/` 以下の現行実装にそのまま適用されます。新たに `compile --target web` コマンド（[#128](https://github.com/kosuke-fujisawa/tsumugai/issues/128)）を追加し、arikoi 側の Svelte 製 player が読み込む StoryBundle JSON を出力できるようにします。
 
 この文書は、Claude Code などの LLM エージェントが `tsumugai` を開発するときに必ず参照する行動指針です。
 
