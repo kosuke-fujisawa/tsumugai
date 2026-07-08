@@ -8,7 +8,8 @@
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use tsumugai::scenario::{
-    CheckOptions, CheckResult, Severity, check_path, render_human, render_json, render_sarif,
+    CheckOptions, CheckResult, Diagnostic, Severity, check_path, render_human, render_json,
+    render_sarif,
 };
 
 fn fixture(rel: &str) -> PathBuf {
@@ -221,6 +222,46 @@ fn 人間向け出力はrustc風で位置と入力行と提案を示す() {
     );
     assert!(rendered.contains("= help: "), "{rendered}");
     assert!(rendered.contains("エラー: 1件  警告: 0件"), "{rendered}");
+}
+
+#[test]
+fn 列位置がわかる診断は人間向け出力でファイルパスにも列番号にもcaretにも反映される() {
+    // #150: Span/SourceLocationにcolumn情報を持たせ、要求文書のcaret付き診断例
+    // （file:line:column + ^ での位置表示）を再現できることを確認する
+    let path = fixture("typo_anchor/scene.md");
+    let diag =
+        Diagnostic::error("broken-link", &path, 9, "テスト用の診断".to_string()).with_column(11);
+    let result = CheckResult {
+        files: vec![path.clone()],
+        diagnostics: vec![diag],
+    };
+    let rendered = render_human(&result);
+
+    assert!(
+        rendered.contains(&format!("{}:9:11", path.display())),
+        "file:line:column の形式になる: {rendered}"
+    );
+    assert!(
+        rendered.contains("| - [一緒に走る](#run-togather)"),
+        "入力 Markdown の該当行を引用する: {rendered}"
+    );
+    assert!(
+        rendered.contains(&format!("| {}^", " ".repeat(10))),
+        "column - 1 個の空白の後に caret が1つ表示される: {rendered}"
+    );
+}
+
+#[test]
+fn 列位置がない診断は人間向け出力にcaretもfile内の列番号も出さない() {
+    let rendered = render_human(&check("typo_anchor/scene.md"));
+    assert!(
+        !rendered.contains(":9:"),
+        "column が無ければ line の後に : が続かない: {rendered}"
+    );
+    assert!(
+        !rendered.contains('^'),
+        "column が無ければ caret を出さない: {rendered}"
+    );
 }
 
 #[test]

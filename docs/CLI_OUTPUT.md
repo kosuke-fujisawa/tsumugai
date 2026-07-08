@@ -68,6 +68,7 @@ error[broken-link]: このファイルに「run-togather」という見出し（
 - `severity[rule_id]: メッセージ` → 位置（`--> ファイル:行`）→ 入力行の引用 → `= help:`（機械的に適用できる書き換え例）→ `= note:`（関連する行）
 - 最初のエラーで止まらず、検出できたすべての Diagnostic をまとめて報告する
 - 終了コード: エラーあり → **1**、警告のみ → **0**
+- 列位置（`span.column`）が分かる場合は `--> ファイル:行:列` になり、入力行の下に caret（`^`）が1つ表示される。現時点ではどのルールも列位置を計算しておらず常に `null`（#150、段階導入中）
 
 ---
 
@@ -85,8 +86,8 @@ error[broken-link]: このファイルに「run-togather」という見出し（
       "severity": "error",
       "message": "このファイルに「run-togather」という見出し（##）はありません。よく似た「## run-together」があります。`[一緒に走る](#run-together)` の間違いではありませんか？",
       "file": "scenario/spring_001.md",
-      "span": { "line": 9 },
-      "related_spans": [{ "line": 13 }],
+      "span": { "line": 9, "column": null },
+      "related_spans": [{ "line": 13, "column": null }],
       "suggestion": "[一緒に走る](#run-together)"
     }
   ]
@@ -107,8 +108,8 @@ error[broken-link]: このファイルに「run-togather」という見出し（
       "severity": "error" | "warning",
       "message": string,
       "file": string,
-      "span": { "line": number } | null,
-      "related_spans": [{ "line": number }],
+      "span": { "line": number, "column": number | null } | null,
+      "related_spans": [{ "line": number, "column": number | null }],
       "suggestion": string | null
     }
   ]

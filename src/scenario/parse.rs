@@ -401,7 +401,7 @@ impl<'a> SceneParser<'a> {
                         ),
                     )
                     .related_spans
-                    .push(super::Span { line: first });
+                    .push(super::Span { line: first, column: None });
                 } else if !self.scene.lead.is_empty() || !self.scene.sections.is_empty() {
                     self.error(
                         "invalid-h1",
@@ -445,7 +445,7 @@ impl<'a> SceneParser<'a> {
                         ),
                     )
                     .related_spans
-                    .push(super::Span { line: prev });
+                    .push(super::Span { line: prev, column: None });
                 }
                 self.current_section = Some(Section {
                     heading: text,

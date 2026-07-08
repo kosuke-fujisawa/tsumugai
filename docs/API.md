@@ -47,7 +47,7 @@ pub struct Diagnostic {
     pub severity: Severity,      // Error | Warning
     pub message: String,
     pub file: PathBuf,
-    pub span: Option<Span>,          // { line: usize }
+    pub span: Option<Span>,          // { line: usize, column: Option<usize> }
     pub related_spans: Vec<Span>,
     pub suggestion: Option<String>,  // 機械的に適用できる書き換え例
 }
