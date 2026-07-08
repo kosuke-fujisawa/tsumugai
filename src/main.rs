@@ -22,7 +22,12 @@ fn main() -> anyhow::Result<()> {
         "      --no-assets                background / bgm の実在チェックを省略\n",
         "  fmt   <file>   よくある書き方を推測して v1 記法へ整形する（SPEC 7章）\n",
         "      --write                    整形結果をファイルに書き戻す（既定は表示のみ）\n",
-        "      --format human|json        出力形式（既定: human）"
+        "      --format human|json        出力形式（既定: human）\n",
+        "  compile <file> --target web --output <path>\n",
+        "                 Markdown シナリオから StoryBundle JSON を生成する（#128）\n",
+        "      --target web               出力形式（現在は web のみ対応）\n",
+        "      --output <path>            StoryBundle JSON の書き出し先\n",
+        "      --no-assets                background / bgm の実在チェックを省略"
     );
 
     if args.len() < 3 {
@@ -90,6 +95,40 @@ fn main() -> anyhow::Result<()> {
             if result.has_errors() {
                 std::process::exit(1);
             }
+        }
+        "compile" => {
+            let (target, output, options) = parse_compile_args(&args[3..], usage);
+            if target.is_empty() {
+                eprintln!("compile には --target web の指定が必要です\n{}", usage);
+                std::process::exit(1);
+            }
+            if target != "web" {
+                eprintln!(
+                    "--target には web のみ指定できます（指定: {}）\n{}",
+                    target, usage
+                );
+                std::process::exit(1);
+            }
+            let Some(output) = output else {
+                eprintln!("compile には --output <path> の指定が必要です\n{}", usage);
+                std::process::exit(1);
+            };
+            let result = scenario::compile_path(Path::new(file_path), &options);
+            if result.has_errors() {
+                println!("{}", scenario::render_human(&result.check));
+                std::process::exit(1);
+            }
+            let bundle = result.bundle.expect("エラーがなければ bundle がある");
+            let json = serde_json::to_string_pretty(&bundle)
+                .map_err(|e| anyhow::anyhow!("StoryBundle をシリアライズできません: {}", e))?;
+            fs::write(&output, &json)
+                .map_err(|e| anyhow::anyhow!("StoryBundle を書き出せません '{}': {}", output, e))?;
+            println!(
+                "StoryBundle を書き出しました: {} ({} scenes, {} assets)",
+                output,
+                bundle.scenes.len(),
+                bundle.assets.len()
+            );
         }
         _ => {
             eprintln!("不明なコマンド: {}\n{}", command, usage);
@@ -213,6 +252,45 @@ fn parse_routes_args(rest: &[String], usage: &str) -> (bool, scenario::RoutesOpt
         }
     }
     (json, options)
+}
+
+/// compile の引数を解釈する。返り値は (--target の値, --output の値, オプション)
+fn parse_compile_args(
+    rest: &[String],
+    usage: &str,
+) -> (String, Option<String>, scenario::CompileOptions) {
+    let mut target = String::new();
+    let mut output = None;
+    let mut options = scenario::CompileOptions::default();
+    let mut iter = rest.iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--target" => {
+                target = match iter.next() {
+                    Some(v) => v.clone(),
+                    None => {
+                        eprintln!("--target には値を指定してください\n{}", usage);
+                        std::process::exit(1);
+                    }
+                };
+            }
+            "--output" => {
+                output = match iter.next() {
+                    Some(v) => Some(v.clone()),
+                    None => {
+                        eprintln!("--output には出力先パスを指定してください\n{}", usage);
+                        std::process::exit(1);
+                    }
+                };
+            }
+            "--no-assets" => options.check_assets = false,
+            other => {
+                eprintln!("不明なオプション: {}\n{}", other, usage);
+                std::process::exit(1);
+            }
+        }
+    }
+    (target, output, options)
 }
 
 /// fmt の引数を解釈する。返り値は (JSON 出力か, --write が指定されたか)

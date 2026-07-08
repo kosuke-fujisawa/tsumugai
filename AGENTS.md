@@ -1,7 +1,7 @@
 # AGENTS.md
 
 > **注記（2026-07-08）**
-> TypeScript / Svelte / Vite への全面移行（[epic #99](https://github.com/kosuke-fujisawa/tsumugai/issues/99)）は不採用が確定しました。以下の Rust 向け記述は、引き続き `src/` 以下の現行実装にそのまま適用されます。新たに `compile --target web` コマンド（[#128](https://github.com/kosuke-fujisawa/tsumugai/issues/128)）を追加し、arikoi 側の Svelte 製 player が読み込む StoryBundle JSON を出力できるようにします。
+> TypeScript / Svelte / Vite への全面移行（[epic #99](https://github.com/kosuke-fujisawa/tsumugai/issues/99)）は不採用が確定しました。以下の Rust 向け記述は、引き続き `src/` 以下の現行実装にそのまま適用されます。`compile --target web` コマンド（[#128](https://github.com/kosuke-fujisawa/tsumugai/issues/128)）を追加済みで、arikoi 側の Svelte 製 player が読み込む StoryBundle JSON を出力できます。
 
 この文書は、Codex などの LLM エージェントが `tsumugai` を開発するときに必ず参照する行動指針です。
 

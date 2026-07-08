@@ -25,6 +25,7 @@
 mod anchor;
 mod characters;
 mod check;
+mod compile;
 mod diagnostic;
 mod exec;
 mod fmt;
@@ -39,6 +40,10 @@ mod trace;
 pub use anchor::{percent_decode, slugify};
 pub use characters::{Characters, find_characters_file, load_characters};
 pub use check::{CheckOptions, CheckResult, check_path};
+pub use compile::{
+    BundleAsset, BundleScene, BundleStep, ChoiceOption as BundleChoiceOption, CompileOptions,
+    CompileResult, SourceLocation, StepTarget, StoryBundle, compile_path,
+};
 pub use diagnostic::{Diagnostic, Severity, Span};
 pub use fmt::{FmtChange, FmtResult, fmt_path, fmt_str};
 pub use parse::{FrontMatterSpans, Parsed, parse_file, parse_str};
