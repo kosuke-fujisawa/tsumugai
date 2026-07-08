@@ -102,6 +102,25 @@ let result = scenario::fmt_path(path);
 
 ---
 
+## 6.5. compile --target web（StoryBundle JSON 生成、#128）
+
+```rust
+let result = scenario::compile_path(path, &CompileOptions::default());
+// result: CompileResult { file, check: CheckResult, bundle: Option<StoryBundle> }
+```
+
+check と同じ実行前検査を行い、error があれば `bundle` は `None`（出力ファイルは書き出さない）。`StoryBundle` は arikoi 側の Svelte 製 player 向けの JSON で、tsumugai を npm 依存にせず CLI サブプロセス + JSON ファイルで疎結合するための契約。
+
+- `scenes: BundleScene[]`: 1 Markdown ファイル = 1 シーン。`steps` はリード部とセクションのブロックをファイル内の出現順に平坦化したもの（SPEC 5章のフォールスルーと同じ規則で実行される）
+- `BundleStep` は `narration` / `dialogue` / `choice` / `jump` / `ending` の 5 種類。現行の v1 記法に変数構文がないため `set_variable` は未実装
+- `jump` / `choice` の飛び先はソース表記ではなく `{ sceneId, stepIndex }` に解決済みで持つ
+- `assets: BundleAsset[]`: front matter の `background` / `bgm` をファイル横断で重複排除して収集する
+- `storyBuildId` はビルド時刻・乱数を使わず、bundle の内容から決定的に計算する（同じ入力は常に同じ ID になる）
+
+CLI: `tsumugai compile <file> --target web --output <path>`（`--target` は現在 `web` のみ対応）。
+
+---
+
 ## 7. JSON 出力
 
 `render_json` / `render_trace_json` / `render_routes_json` / `render_fmt_json` / `render_sarif` が機械向け出力を生成する。スキーマは [CLI_OUTPUT.md](CLI_OUTPUT.md) が正。
@@ -123,6 +142,7 @@ let result = scenario::fmt_path(path);
 - `tsumugai trace --choices`（[TRACE.md](TRACE.md)）
 - `tsumugai routes`（[ROUTES.md](ROUTES.md)）
 - `tsumugai fmt --write`（SPEC 7章）
+- `tsumugai compile --target web`（StoryBundle JSON 生成、#128）
 
 未実装:
 

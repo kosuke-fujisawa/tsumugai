@@ -1,7 +1,7 @@
 # tsumugai
 
 > **注記（2026-07-08）**
-> TypeScript / Svelte / Vite への全面移行（[epic #99](https://github.com/kosuke-fujisawa/tsumugai/issues/99)）は検討の結果、不採用が確定しました。tsumugai は、以下に説明する通り Rust 製の semantic runtime / シナリオチェッカーとして維持します。新たに `compile --target web` コマンド（[#128](https://github.com/kosuke-fujisawa/tsumugai/issues/128)）を追加し、外部の Web フロントエンド（arikoi の Svelte 製 player 等）向けに StoryBundle JSON を出力できるようにする予定です。連携は npm 依存ではなく CLI サブプロセス経由で行います。
+> TypeScript / Svelte / Vite への全面移行（[epic #99](https://github.com/kosuke-fujisawa/tsumugai/issues/99)）は検討の結果、不採用が確定しました。tsumugai は、以下に説明する通り Rust 製の semantic runtime / シナリオチェッカーとして維持します。新たに `compile --target web` コマンド（[#128](https://github.com/kosuke-fujisawa/tsumugai/issues/128)）を追加し、外部の Web フロントエンド（arikoi の Svelte 製 player 等）向けに StoryBundle JSON を出力できるようになりました。連携は npm 依存ではなく CLI サブプロセス経由で行います。
 
 ---
 
@@ -135,6 +135,8 @@ cargo run -- check examples/spring/scenario/spring_001.md
 cargo run -- check examples/spring --format json      # CI・LLM 連携用 JSON
 cargo run -- check examples/spring --format sarif     # GitHub Code Scanning 用 SARIF
 cargo run -- fmt examples/fmt/before.md               # よくある書き方を v1 記法へ推測整形
+cargo run -- compile examples/spring/scenario/spring_001.md --target web --output story-bundle.json
+                                                       # arikoi 等の Web フロントエンド向け StoryBundle JSON を生成
 ```
 
 - `check`: v1 記法（SPEC.md）の静的検査。構文・リンク切れ・話者名の書き間違い・シーン ID 重複・アセット実在などを一括検出する
