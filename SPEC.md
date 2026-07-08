@@ -11,6 +11,9 @@
 
 v1 は旧記法（`[SAY speaker=...]` 等の括弧コマンド、`:::choices` 等のフェンスブロック）を**完全に置き換える**。旧記法との互換性はない（→ 11.1）。
 
+> **注記（2026-07-09）**
+> 外部から提示された「tsumugai 実装要求」文書には `# scene: id` / `[label](scene:library)` / `::ending id` という記法例が含まれるが、これらは v1 では**字面どおりに採用しない**。scene / narration / dialogue / choice / jump / ending という機能レベルの要求は、本書が定義する v1 記法（front matter + H1 + 相対リンク + `<!-- ending: -->`）で既に満たされていると判断したためである。検討の経緯は [ADR 0001](docs/adr/0001-scenario-syntax-v2-migration.md) を参照。
+
 ## 1. 設計思想
 
 - **一般的な Markdown をそのまま使う**。独自記法は最小限にする
