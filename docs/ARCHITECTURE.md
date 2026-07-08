@@ -53,7 +53,7 @@ tsumugai/
 ├─ examples/
 │  ├─ spring/            # 全ブロック種別を含む仕様網羅サンプル
 │  └─ fmt/               # fmt の整形前後サンプル
-├─ docs/{CONCEPT,ARCHITECTURE,API,CLI_OUTPUT,TRACE,ROUTES,DEVELOPMENT_WORKFLOW,REVIEW_GUIDE}.md
+├─ docs/{CONCEPT,ARCHITECTURE,API,CLI_OUTPUT,TRACE,ROUTES,VERSIONING,DEVELOPMENT_WORKFLOW,REVIEW_GUIDE}.md
 └─ .github/workflows/ci.yml
 ```
 
@@ -116,6 +116,8 @@ arikoi/scenarios/*.md（別リポジトリ）
   -> tsumugai compile --target web --output <path>（CLI サブプロセス、StoryBundle JSON をファイル出力）
   -> arikoi（表示・入力・セーブロード・Web 配布を担当）
 ```
+
+arikoi がどの tsumugai バージョンを使うべきか（配布方式・git tag 固定・SemVer・`schemaVersion` 互換性）は [VERSIONING.md](VERSIONING.md) を参照。
 
 ---
 
