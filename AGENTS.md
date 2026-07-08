@@ -1,9 +1,9 @@
-# CLAUDE.md
+# AGENTS.md
 
 > **⚠️ TS移行中（2026-07-06〜）**
-> tsumugai は [epic #99](https://github.com/kosuke-fujisawa/tsumugai/issues/99) のもと、TypeScript / Svelte / Vite ベースの Markdown-first HTML5 VN build system として作り直し中です。以下の Rust 向け設計制約（trait/generic/macro回避など）は、**旧実装（`src/` 以下）にのみ適用**されます。TS実装（`packages/` 以下）向けの指針は、旧Rust実装削除時（issue #110）にこの文書を全面改訂して反映します。それまでの間、TS実装の設計判断は epic #99 とその子issue（#100〜#110）の本文を参照してください。
+> tsumugai は [epic #99](https://github.com/kosuke-fujisawa/tsumugai/issues/99) のもと、TypeScript / Svelte / Vite ベースの Markdown-first HTML5 VN build system として作り直し中です。以下の Rust 向け記述（`parser`/`analyzer`/`runtime`/`player`/`types` という責務分離やDiagnostic方針など）は、**旧実装（`src/` 以下）にのみ適用**されます。TS実装（`packages/` 以下）向けの指針は、旧Rust実装削除時（issue #110）にこの文書を全面改訂して反映します。それまでの間、TS実装の設計判断は epic #99 とその子issue（#100〜#110）の本文を参照してください。
 
-この文書は、Claude Code などの LLM エージェントが `tsumugai` を開発するときに必ず参照する行動指針です。
+この文書は、Codex などの LLM エージェントが `tsumugai` を開発するときに必ず参照する行動指針です。
 
 tsumugai の主要ユーザーは、Rust やコード読解に詳しいとは限りません。それでも仕様・挙動・出力に対するレビューは実施したい、という前提で開発します。
 
@@ -21,26 +21,27 @@ tsumugai では、テクニカルな設計美よりも次を優先します。
 
 ## 現在の責務分離
 
-tsumugai は独立したシナリオ制作 CLI です（epic #82）。現行の主経路は次の通りです。
+現行の主経路は次の通りです。
 
 ```text
-Markdown（v1 記法、SPEC.md）
-  -> scenario::parse_str / parse_file
-  -> Scene { lead, sections: Vec<Section>, ... }（+ Diagnostic 列）
-  -> scenario::check_path / trace_path / routes_path / fmt_path
-  -> CheckResult / TraceResult / RoutesResult / FmtResult
-  -> scenario::render_human / render_json / render_sarif / render_trace_* / render_routes_* / render_fmt_*
+Markdown
+  -> parser::parse
+  -> Ast
+  -> runtime::compile
+  -> IR Program
+  -> runtime::step
+  -> Output { events, waiting_for }
 ```
 
-主要モジュール（すべて `src/scenario/` 配下）:
+主要モジュール:
 
-- `parse`: Markdown を `Scene` + `Diagnostic` に変換する（エラーで中断しない）
-- `check`: リンク切れ・話者・到達可能性などプロジェクト横断の意味論検査
-- `trace` / `routes`: SPEC 5章の実行モデルに基づく経路再現・全分岐探索
-- `fmt`: よくある書き方を決定的ルールで v1 記法へ整形する（SPEC 7章）
-- `report`: 各結果の人間向け / JSON / SARIF 出力
+- `parser`: Markdown DSL を AST に変換する
+- `analyzer`: AST を静的検証する
+- `runtime`: AST を IR にコンパイルし、State/Input から Output を返す
+- `player`: CUI の参照実装
+- `types`: AST / State などの基本型
 
-parser（`parse`）は実行状態を持ちません。表示、音声再生、UI、アセットロードは tsumugai の責務ではありません。旧 v0 記法向けの `parser` / `analyzer` / `runtime` / `player` / `types` モジュールは撤去済みです（#93）。
+runtime は Markdown を直接読みません。parser は実行状態を持ちません。表示、音声再生、UI、アセットロードは core の責務ではありません。
 
 ## コード設計の制約
 
@@ -82,6 +83,14 @@ LLM と人間が追跡しやすい Rust を優先します。
 - README / docs の説明
 
 PR や最終報告では、Rust コードを読まなくても何が変わったか分かるように説明します。
+
+## TODO 管理方針
+
+作業候補は `../claude_code/TODO.md` で管理します。
+
+ユーザーは `../claude_code/TODO.md` の `Inbox` に自由にタスクを追加してかまいません。Codex は作業開始時に `../claude_code/TODO.md` を確認し、必要に応じてタスクへ ID を付け、`Backlog` / `Doing` / `Done` / `Dropped` を整理します。
+
+タスクを完了した場合は、`Done` に移し、完了日、変更内容、確認したコマンドやレビュー材料を簡潔に残してください。タスクを削除せず、対応しない判断をした場合は `Dropped` に理由を残してください。
 
 ## Diagnostic 方針
 
