@@ -47,7 +47,8 @@ tsumugai/
 │     ├─ diagnostic.rs   # 構造化 Diagnostic（rule_id / severity / message / span / suggestion）
 │     └─ report.rs       # human / JSON / SARIF 出力
 ├─ tests/
-│  ├─ check_test.rs / trace_test.rs / routes_test.rs / compile_test.rs  # 統合テスト
+│  ├─ check_test.rs / trace_test.rs / routes_test.rs / compile_test.rs  # 統合テスト（ライブラリ関数を直接呼ぶ）
+│  ├─ cli_test.rs                                                      # 外部結合レベルのCLIプロセステスト（check/trace/routes/fmt）
 │  └─ fixtures/                                                        # ケースごとのミニプロジェクト・Golden JSON
 ├─ examples/
 │  ├─ spring/            # 全ブロック種別を含む仕様網羅サンプル
@@ -78,9 +79,9 @@ tsumugai/
 
 ## 5. テスト戦略
 
-- **統合テスト**（`tests/*.rs`）: ライブラリ関数（`check_path` 等）を直接呼び出し、`tests/fixtures/` 配下のミニプロジェクトで各ルールを 1 対 1 で検証する
+- **統合テスト**（`check_test.rs` 等）: ライブラリ関数（`check_path` 等）を直接呼び出し、`tests/fixtures/` 配下のミニプロジェクトで各ルールを 1 対 1 で検証する。`main.rs` の引数パース・exit code・ファイル I/O は経由しない
 - **Golden JSON**（`tests/fixtures/compile/golden/*.json` 等）: 意図しない出力変化を検出する
-- **CLI プロセステスト**（`compile_test.rs`）: `CARGO_BIN_EXE_tsumugai` で実バイナリを起動し、exit code とファイル生成有無を確認する
+- **外部結合レベルの CLI プロセステスト**（`cli_test.rs` / `compile_test.rs`）: `CARGO_BIN_EXE_tsumugai` で実バイナリを起動し、tsumugai を外部ツールとして使う消費者（CI・arikoi 等）が実際に観測する exit code・stdout（human / JSON / SARIF）・ファイル生成有無（`compile --output` / `fmt --write`）をブラックボックスに確認する
 - **doctest**: `src/scenario/mod.rs` / `src/lib.rs` のコード例を `cargo test` で検証する
 
 CLI 引数パース自体（`main.rs`）は薄く保ち、原則としてテストしない。ロジックは `scenario` モジュールの関数に置き、そちらをテスト対象にする。
