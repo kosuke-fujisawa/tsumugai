@@ -24,6 +24,7 @@
 use super::check::{CheckOptions, CheckResult, check_path};
 use super::diagnostic::Severity;
 use super::project::{LoadedScene, file_level, load_project, resolve_sibling};
+use super::routes::{RoutesOptions, routes_path};
 use super::{Block, LinkTarget, Scene};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -143,6 +144,11 @@ pub enum BundleAsset {
 
 /// シーンファイルを実行前検査してから StoryBundle を生成する（#128）。
 ///
+/// check 相当の検査に加えて、`routes` 相当の全分岐探索も実行前検証に含める
+/// （#144）。circular-route のような error は StoryBundle を生成させない。
+/// unreachable-ending / unreachable-scene のような warning は StoryBundle
+/// を生成しつつ診断として報告する（実行系に渡す前に気づけるようにする）。
+///
 /// パスが存在しない・ディレクトリ・検査 error の場合も panic や Err にせず、
 /// Diagnostic 入りの [`CompileResult`] を返す（bundle は None になる）。
 pub fn compile_path(path: &Path, options: &CompileOptions) -> CompileResult {
@@ -182,6 +188,22 @@ pub fn compile_path(path: &Path, options: &CompileOptions) -> CompileResult {
     let scenes = load_project(vec![path.to_path_buf()], &mut load_diagnostics);
     check.diagnostics.extend(load_diagnostics);
     if check.has_errors() || scenes.is_empty() {
+        return CompileResult {
+            file: path.to_path_buf(),
+            check,
+            bundle: None,
+        };
+    }
+
+    // check だけでは分からない循環・到達不能を routes の全分岐探索で検出する
+    let routes_options = RoutesOptions {
+        check_assets: options.check_assets,
+        ..RoutesOptions::default()
+    };
+    if let Some(report) = routes_path(path, &routes_options).report {
+        check.diagnostics.extend(report.diagnostics);
+    }
+    if check.has_errors() {
         return CompileResult {
             file: path.to_path_buf(),
             check,

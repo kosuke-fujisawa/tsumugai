@@ -114,8 +114,10 @@ fn main() -> anyhow::Result<()> {
                 std::process::exit(1);
             };
             let result = scenario::compile_path(Path::new(file_path), &options);
-            if result.has_errors() {
+            if !result.check.diagnostics.is_empty() {
                 println!("{}", scenario::render_human(&result.check));
+            }
+            if result.has_errors() {
                 std::process::exit(1);
             }
             let bundle = result.bundle.expect("エラーがなければ bundle がある");
