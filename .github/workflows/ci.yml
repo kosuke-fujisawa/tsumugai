@@ -46,3 +46,6 @@ jobs:
 
     - name: Tests
       run: cargo test
+
+    - name: compile smoke test
+      run: cargo run -- compile examples/spring/scenario/spring_001.md --target web --output /tmp/story-bundle.json
