@@ -1,0 +1,292 @@
+{
+  "schemaVersion": "1",
+  "storyBuildId": "157a3791c1e0a291",
+  "title": "春・出会い",
+  "entrySceneId": "spring_001",
+  "scenes": [
+    {
+      "id": "spring_001",
+      "title": "春・出会い",
+      "source": {
+        "file": "examples/spring/scenario/spring_001.md",
+        "line": 1
+      },
+      "steps": [
+        {
+          "type": "narration",
+          "text": "桜の花びらが舞う通学路。いつもと同じ朝のはずだった。",
+          "source": {
+            "file": "examples/spring/scenario/spring_001.md",
+            "line": 9
+          }
+        },
+        {
+          "type": "dialogue",
+          "speaker": "幼なじみ",
+          "text": "おはよう。今日も遅刻しそうだね。",
+          "source": {
+            "file": "examples/spring/scenario/spring_001.md",
+            "line": 11
+          }
+        },
+        {
+          "type": "dialogue",
+          "speaker": "主人公",
+          "text": "まだ間に合うよ。",
+          "source": {
+            "file": "examples/spring/scenario/spring_001.md",
+            "line": 13
+          }
+        },
+        {
+          "type": "narration",
+          "text": "校門までは、あと五百メートル。始業のチャイムまで、あと三分。",
+          "source": {
+            "file": "examples/spring/scenario/spring_001.md",
+            "line": 15
+          }
+        },
+        {
+          "type": "choice",
+          "items": [
+            {
+              "label": "一緒に走る",
+              "target": {
+                "sceneId": "spring_001",
+                "stepIndex": 5
+              },
+              "source": {
+                "file": "examples/spring/scenario/spring_001.md",
+                "line": 19
+              }
+            },
+            {
+              "label": "諦めて歩く",
+              "target": {
+                "sceneId": "spring_001",
+                "stepIndex": 8
+              },
+              "source": {
+                "file": "examples/spring/scenario/spring_001.md",
+                "line": 20
+              }
+            },
+            {
+              "label": "先に行ってもらう",
+              "target": {
+                "sceneId": "spring_002",
+                "stepIndex": 0
+              },
+              "source": {
+                "file": "examples/spring/scenario/spring_001.md",
+                "line": 21
+              }
+            }
+          ],
+          "source": {
+            "file": "examples/spring/scenario/spring_001.md",
+            "line": 19
+          }
+        },
+        {
+          "type": "dialogue",
+          "speaker": "幼なじみ",
+          "text": "ほら、急ぐよ！",
+          "source": {
+            "file": "examples/spring/scenario/spring_001.md",
+            "line": 25
+          }
+        },
+        {
+          "type": "dialogue",
+          "speaker": "主人公",
+          "text": "待ってってば！",
+          "source": {
+            "file": "examples/spring/scenario/spring_001.md",
+            "line": 27
+          }
+        },
+        {
+          "type": "ending",
+          "id": "childhood_route",
+          "source": {
+            "file": "examples/spring/scenario/spring_001.md",
+            "line": 29
+          }
+        },
+        {
+          "type": "dialogue",
+          "speaker": "主人公",
+          "text": "もう間に合わないし、歩こうよ。",
+          "source": {
+            "file": "examples/spring/scenario/spring_001.md",
+            "line": 33
+          }
+        },
+        {
+          "type": "dialogue",
+          "speaker": "幼なじみ",
+          "text": "……たまには、そういうのもいいか。",
+          "source": {
+            "file": "examples/spring/scenario/spring_001.md",
+            "line": 35
+          }
+        },
+        {
+          "type": "jump",
+          "target": {
+            "sceneId": "spring_002",
+            "stepIndex": 8
+          },
+          "source": {
+            "file": "examples/spring/scenario/spring_001.md",
+            "line": 37
+          }
+        }
+      ]
+    },
+    {
+      "id": "spring_002",
+      "title": "翌朝",
+      "source": {
+        "file": "examples/spring/scenario/spring_002.md",
+        "line": 1
+      },
+      "steps": [
+        {
+          "type": "narration",
+          "text": "結局、彼女は先に行ってしまった。教室に着いたのは、チャイムが鳴り終わったあとだった。",
+          "source": {
+            "file": "examples/spring/scenario/spring_002.md",
+            "line": 8
+          }
+        },
+        {
+          "type": "dialogue",
+          "speaker": "主人公",
+          "text": "（昨日はちゃんと謝れなかったな……）",
+          "source": {
+            "file": "examples/spring/scenario/spring_002.md",
+            "line": 10
+          }
+        },
+        {
+          "type": "choice",
+          "items": [
+            {
+              "label": "休み時間に話しかける",
+              "target": {
+                "sceneId": "spring_002",
+                "stepIndex": 3
+              },
+              "source": {
+                "file": "examples/spring/scenario/spring_002.md",
+                "line": 14
+              }
+            },
+            {
+              "label": "放課後まで待つ",
+              "target": {
+                "sceneId": "spring_002",
+                "stepIndex": 6
+              },
+              "source": {
+                "file": "examples/spring/scenario/spring_002.md",
+                "line": 15
+              }
+            }
+          ],
+          "source": {
+            "file": "examples/spring/scenario/spring_002.md",
+            "line": 14
+          }
+        },
+        {
+          "type": "dialogue",
+          "speaker": "主人公",
+          "text": "あのさ、昨日は──",
+          "source": {
+            "file": "examples/spring/scenario/spring_002.md",
+            "line": 19
+          }
+        },
+        {
+          "type": "dialogue",
+          "speaker": "幼なじみ",
+          "text": "いいよ、別に。ほら、次、移動教室。",
+          "source": {
+            "file": "examples/spring/scenario/spring_002.md",
+            "line": 21
+          }
+        },
+        {
+          "type": "ending",
+          "id": "sprint_route",
+          "source": {
+            "file": "examples/spring/scenario/spring_002.md",
+            "line": 23
+          }
+        },
+        {
+          "type": "narration",
+          "text": "話しかけるタイミングを逃したまま、授業だけが過ぎていく。",
+          "source": {
+            "file": "examples/spring/scenario/spring_002.md",
+            "line": 27
+          }
+        },
+        {
+          "type": "jump",
+          "target": {
+            "sceneId": "spring_002",
+            "stepIndex": 8
+          },
+          "source": {
+            "file": "examples/spring/scenario/spring_002.md",
+            "line": 29
+          }
+        },
+        {
+          "type": "dialogue",
+          "speaker": "幼なじみ",
+          "text": "……で、いつまでそこに突っ立ってるの？",
+          "source": {
+            "file": "examples/spring/scenario/spring_002.md",
+            "line": 33
+          }
+        },
+        {
+          "type": "dialogue",
+          "speaker": "主人公",
+          "text": "昨日のこと、謝ろうと思って。",
+          "source": {
+            "file": "examples/spring/scenario/spring_002.md",
+            "line": 35
+          }
+        },
+        {
+          "type": "ending",
+          "id": "calm_route",
+          "source": {
+            "file": "examples/spring/scenario/spring_002.md",
+            "line": 37
+          }
+        }
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "kind": "background",
+      "path": "../assets/bg/classroom.png"
+    },
+    {
+      "kind": "background",
+      "path": "../assets/bg/school_gate.png"
+    },
+    {
+      "kind": "bgm",
+      "path": "../assets/bgm/spring.ogg"
+    }
+  ]
+}
