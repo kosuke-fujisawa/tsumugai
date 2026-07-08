@@ -350,6 +350,14 @@ pub fn render_routes_human(result: &RoutesResult) -> String {
             report.unreached_endings.join("、")
         );
     }
+    if !report.reachable_scenes.is_empty() {
+        let list: Vec<String> = report
+            .reachable_scenes
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect();
+        let _ = writeln!(out, "到達可能シーン: {}", list.join("、"));
+    }
     if !report.unreachable_scenes.is_empty() {
         let list: Vec<String> = report
             .unreachable_scenes

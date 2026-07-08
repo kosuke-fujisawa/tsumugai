@@ -52,6 +52,13 @@ fn spring例で4経路すべてを発見しendingを網羅する() {
     );
     assert!(report.unreached_endings.is_empty());
     assert!(report.unreachable_scenes.is_empty());
+    assert_eq!(
+        report.reachable_scenes,
+        vec![
+            Path::new("examples/spring/scenario/spring_001.md").to_path_buf(),
+            Path::new("examples/spring/scenario/spring_002.md").to_path_buf(),
+        ]
+    );
 }
 
 #[test]
@@ -86,6 +93,15 @@ fn 動的に到達しないシーンとendingが報告される() {
     assert_eq!(
         report.unreachable_scenes,
         vec![Path::new("tests/fixtures/routes/unreachable/sibling.md").to_path_buf()]
+    );
+    assert_eq!(
+        report.reachable_scenes,
+        vec![Path::new("tests/fixtures/routes/unreachable/entry.md").to_path_buf()]
+    );
+    // 到達可能 + 到達不能でプロジェクト全シーンと一致する
+    assert_eq!(
+        report.reachable_scenes.len() + report.unreachable_scenes.len(),
+        2
     );
     // 到達不能は warning 相当であり、循環や check エラーではないため exit は 0
     assert!(!result.has_errors());
@@ -208,6 +224,8 @@ fn json出力は安定形式で経路と到達可能性を保持する() {
     let reached = json["report"]["reached_endings"].as_array().unwrap();
     assert_eq!(reached.len(), 3);
     assert_eq!(json["report"]["truncated"], false);
+    let reachable_scenes = json["report"]["reachable_scenes"].as_array().unwrap();
+    assert_eq!(reachable_scenes.len(), 2);
 }
 
 #[test]
@@ -242,4 +260,6 @@ fn 到達不能endingとシーンが人間向け出力に含まれる() {
 
     assert!(human.contains("sibling_end"), "出力: {human}");
     assert!(human.contains("sibling.md"), "出力: {human}");
+    assert!(human.contains("到達可能シーン"), "出力: {human}");
+    assert!(human.contains("entry.md"), "出力: {human}");
 }
