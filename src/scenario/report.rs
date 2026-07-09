@@ -594,6 +594,7 @@ fn rule_summary(rule_id: &str) -> &'static str {
         "deep-heading" => "H3 以深の見出し",
         "unknown-frontmatter-key" => "front matter の未知キー",
         "unknown-directive" => "HTML コメントの未知の制御キー",
+        "too-many-choices" => "選択肢ブロック 1 つの項目数が多すぎる",
         "io-error" => "ファイルの読み込みに失敗した（記法ではなく環境の問題）",
         _ => "tsumugai check の診断",
     }
@@ -603,9 +604,9 @@ fn rule_summary(rule_id: &str) -> &'static str {
 mod tests {
     use super::rule_summary;
 
-    /// SPEC 6章のルール表（error 12種 + warning 12種）+ CLI レベルの io-error。
+    /// SPEC 6章のルール表（error 12種 + warning 13種）+ CLI レベルの io-error。
     /// ルールを追加したら SPEC → この一覧 → rule_summary の順に更新する
-    const ALL_RULE_IDS: [&str; 25] = [
+    const ALL_RULE_IDS: [&str; 26] = [
         "missing-scene-id",
         "invalid-frontmatter",
         "duplicate-scene-id",
@@ -630,6 +631,7 @@ mod tests {
         "deep-heading",
         "unknown-frontmatter-key",
         "unknown-directive",
+        "too-many-choices",
         "io-error",
     ];
 

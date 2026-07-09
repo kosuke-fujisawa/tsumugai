@@ -139,6 +139,7 @@ pub fn routes_path(path: &Path, options: &RoutesOptions) -> RoutesResult {
 
     let check_options = CheckOptions {
         check_assets: options.check_assets,
+        ..CheckOptions::default()
     };
     let mut check = check_path(path, &check_options);
     if check.has_errors() {
