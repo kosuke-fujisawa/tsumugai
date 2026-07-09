@@ -173,6 +173,7 @@ pub fn trace_path(path: &Path, options: &TraceOptions) -> TraceResult {
     // 実行前に check と同じ検査を行う（SPEC 6.1: どのコマンドから入っても同じ指摘）
     let check_options = CheckOptions {
         check_assets: options.check_assets,
+        ..CheckOptions::default()
     };
     let mut check = check_path(path, &check_options);
     if check.has_errors() {

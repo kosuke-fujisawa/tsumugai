@@ -314,6 +314,7 @@ error[broken-link]: リンク先が見つかりません
 | `deep-heading` | warning | H3 以深の見出し |
 | `unknown-frontmatter-key` | warning | front matter の未知キー |
 | `unknown-directive` | warning | `<!-- key: value -->` 形式の未知キー |
+| `too-many-choices` | warning | 選択肢ブロック 1 つの項目数が既定の目安（6件）を超える（#151） |
 
 ルールの追加・変更は本書を先に更新する。
 

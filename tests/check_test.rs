@@ -144,6 +144,7 @@ fn no_assetsオプションでアセット検査を省略できる() {
         &fixture("missing_asset/scene.md"),
         &CheckOptions {
             check_assets: false,
+            ..CheckOptions::default()
         },
     );
     assert_eq!(result.diagnostics, vec![]);
@@ -200,6 +201,17 @@ fn どこからも到達しないセクションはunreachable_sectionになる(
     let diag = &result.diagnostics[0];
     assert_eq!(diag.span.as_ref().map(|s| s.line), Some(15));
     assert!(diag.message.contains("orphan"), "{}", diag.message);
+}
+
+#[test]
+fn 選択肢の項目数が既定の目安を超えるとtoo_many_choicesになる() {
+    let result = check("too_many_choices/scene.md");
+    assert_eq!(rule_ids(&result), vec!["too-many-choices"]);
+    let diag = &result.diagnostics[0];
+    assert_eq!(diag.severity, Severity::Warning);
+    assert_eq!(diag.span.as_ref().map(|s| s.line), Some(9));
+    assert!(diag.message.contains("7件"), "{}", diag.message);
+    assert_eq!(diag.related_spans.len(), 7);
 }
 
 #[test]

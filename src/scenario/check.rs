@@ -8,6 +8,7 @@
 //! - `missing-asset`: front matter の background / bgm の実在
 //! - `undefined-character` / `missing-characters-file` / `invalid-characters-file`
 //! - `implicit-fallthrough` / `unreachable-section`: 実行フロー
+//! - `too-many-choices`: 1 つの選択肢ブロックの項目数が多すぎないか（#151）
 //!
 //! SPEC 6.1「Diagnostic は学習教材である」に従い、最初のエラーで止まらず
 //! 検出できたすべての Diagnostic を返す。[`check_path`] は入出力エラーでも
@@ -23,16 +24,29 @@ use super::{Block, LinkTarget, slugify};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
+/// 選択肢ブロックの項目数がこれを超えたら `too-many-choices` で警告する既定値
+///
+/// 要求文書「tsumugai 実装要求」の routes 要件にある「分岐数が増えすぎている
+/// 箇所を警告できると望ましい」（nice-to-have）に対応する（#151）。閾値は
+/// 選択肢の項目数そのもの（そこから辿れる経路数ではない）を数える、最も
+/// 単純な基準を採用した。
+const DEFAULT_MAX_CHOICE_ITEMS: usize = 6;
+
 /// check の動作オプション
 #[derive(Debug, Clone)]
 pub struct CheckOptions {
     /// background / bgm の実在チェック（`--no-assets` で false）
     pub check_assets: bool,
+    /// 選択肢ブロックの項目数がこれを超えたら `too-many-choices` で警告する
+    pub max_choice_items: usize,
 }
 
 impl Default for CheckOptions {
     fn default() -> Self {
-        Self { check_assets: true }
+        Self {
+            check_assets: true,
+            max_choice_items: DEFAULT_MAX_CHOICE_ITEMS,
+        }
     }
 }
 
@@ -115,6 +129,7 @@ pub fn check_path(path: &Path, options: &CheckOptions) -> CheckResult {
     check_characters(&scenes, &mut diagnostics);
     for scene in &scenes {
         check_fallthrough(scene, &mut diagnostics);
+        check_choice_branch_count(scene, options.max_choice_items, &mut diagnostics);
     }
     check_unreachable(&scenes, &mut diagnostics);
 
@@ -546,6 +561,49 @@ fn check_fallthrough(scene: &LoadedScene, diagnostics: &mut Vec<Diagnostic>) {
             )
             .with_related(next.line),
         );
+    }
+}
+
+// ------------------------------------------------------- too-many-choices
+
+/// 選択肢ブロック 1 つあたりの項目数が `max_items` を超えたら警告する（#151）。
+///
+/// 経路（routes）の分岐後の総数ではなく、選択肢ブロック自体の項目数を
+/// 数える最も単純な基準を採用した（設計の背景は issue #151 参照）。
+fn check_choice_branch_count(
+    scene: &LoadedScene,
+    max_items: usize,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let md = &scene.parsed.scene;
+    let blocks = md
+        .lead
+        .iter()
+        .chain(md.sections.iter().flat_map(|s| s.blocks.iter()));
+    for block in blocks {
+        let Block::Choices { items, line } = block else {
+            continue;
+        };
+        if items.len() <= max_items {
+            continue;
+        }
+        let mut diag = Diagnostic::warning(
+            "too-many-choices",
+            &scene.path,
+            *line,
+            format!(
+                "選択肢ブロックの項目数が{}件あります（警告の目安: {max_items}件）。分岐が多すぎると読みづらく、経路（routes）の管理も難しくなります。項目を減らすか、複数の選択肢ブロックに分けることを検討してください",
+                items.len()
+            ),
+        );
+        diag.related_spans = items
+            .iter()
+            .map(|item| Span {
+                line: item.line,
+                column: None,
+            })
+            .collect();
+        diagnostics.push(diag);
     }
 }
 

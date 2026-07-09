@@ -174,6 +174,7 @@ pub fn compile_path(path: &Path, options: &CompileOptions) -> CompileResult {
 
     let check_options = CheckOptions {
         check_assets: options.check_assets,
+        ..CheckOptions::default()
     };
     let mut check = check_path(path, &check_options);
     if check.has_errors() {
