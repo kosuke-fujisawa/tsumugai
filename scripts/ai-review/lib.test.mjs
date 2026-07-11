@@ -23,3 +23,38 @@ test("parseReviewJsonはfindingsがない場合に空配列へ正規化する", 
   assert.equal(result.status, "completed");
   assert.deepEqual(result.findings, []);
 });
+
+test("parseReviewJsonは高確信度の重大指摘だけを最大5件残す", () => {
+  const findings = [
+    ...Array.from({ length: 6 }, (_, index) => ({
+      severity: "medium",
+      confidence: "high",
+      file: "src/example.js",
+      line: index + 1,
+      title: `指摘${index + 1}`,
+      body: "再現可能な問題です。",
+    })),
+    {
+      severity: "high",
+      confidence: "medium",
+      file: "src/uncertain.js",
+      line: 1,
+      title: "確信度不足",
+      body: "推測を含みます。",
+    },
+    {
+      severity: "low",
+      confidence: "high",
+      file: "src/style.js",
+      line: 1,
+      title: "軽微な指摘",
+      body: "動作には影響しません。",
+    },
+  ];
+
+  const result = parseReviewJson(JSON.stringify({ status: "completed", findings }));
+
+  assert.equal(result.findings.length, 5);
+  assert.ok(result.findings.every((finding) => finding.confidence === "high"));
+  assert.ok(result.findings.every((finding) => finding.severity === "medium"));
+});

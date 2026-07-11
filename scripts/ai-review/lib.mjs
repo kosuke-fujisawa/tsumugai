@@ -56,21 +56,39 @@ export function buildReviewMarkdown(result) {
   const skipped = result.status === "skipped";
 
   if (skipped) {
-    return `${marker}\n## AIレビュー\n\nレビューはスキップされました。\n\n理由: ${result.reason || "不明"}\n`;
+    return `${marker}
+## AIレビュー
+
+レビューはスキップされました。
+
+理由: ${result.reason || "不明"}
+`;
   }
 
   if (findings.length === 0) {
-    return `${marker}\n## AIレビュー\n\n重大な指摘は見つかりませんでした。\n\n対象: PR差分のみ\n`;
+    return `${marker}
+## AIレビュー
+
+重大な指摘は見つかりませんでした。
+
+対象: PR差分のみ
+`;
   }
 
   const body = findings
     .map((finding, index) => {
       const location = finding.file ? `${finding.file}${finding.line ? `:${finding.line}` : ""}` : "場所未指定";
-      return `${index + 1}. **${finding.severity}** ${finding.title}\n   - 場所: \`${location}\`\n   - 内容: ${finding.body}`;
+      return `${index + 1}. **${finding.severity}** ${finding.title}
+   - 場所: \`${location}\`
+   - 内容: ${finding.body}`;
     })
     .join("\n\n");
 
-  return `${marker}\n## AIレビュー\n\n${body}\n`;
+  return `${marker}
+## AIレビュー
+
+${body}
+`;
 }
 
 export function extractResponseText(data) {
@@ -91,8 +109,18 @@ export function extractResponseText(data) {
 
 export function parseReviewJson(text) {
   const parsed = JSON.parse(text);
+  const findings = Array.isArray(parsed.findings) ? parsed.findings : [];
+  const allowedSeverities = new Set(["critical", "high", "medium"]);
+
   return {
     status: parsed.status || "completed",
-    findings: Array.isArray(parsed.findings) ? parsed.findings : [],
+    findings: findings
+      .filter(
+        (finding) =>
+          finding &&
+          finding.confidence === "high" &&
+          allowedSeverities.has(finding.severity),
+      )
+      .slice(0, 5),
   };
 }

@@ -8,7 +8,7 @@ import {
   writeJson,
 } from "./lib.mjs";
 
-const maxDiffChars = Number(process.env.AI_REVIEW_MAX_DIFF_CHARS || 120_000);
+const maxDiffChars = Number(process.env.AI_REVIEW_MAX_DIFF_CHARS || 60_000);
 const baseRef = process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : "HEAD^";
 
 let diff = "";

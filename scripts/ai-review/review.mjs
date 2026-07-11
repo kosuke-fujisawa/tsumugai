@@ -12,6 +12,7 @@ import {
 
 const apiKey = process.env.OPENAI_API_KEY;
 const model = process.env.AI_REVIEW_MODEL || "gpt-5-mini";
+const maxOutputTokens = 3_000;
 const input = readJson(inputPath);
 
 if (!apiKey) {
@@ -29,7 +30,10 @@ const systemPrompt = `あなたはGitHub Pull Requestの自動レビュアーで
 日本語で回答してください。
 PR差分に直接関係する、再現性のある指摘だけを返してください。
 重大なバグ、セキュリティ、データ破壊、テスト不足を優先してください。
-確信度が低い指摘、好みのスタイル指摘、差分外の設計論は返さないでください。`;
+各指摘には、問題を起こす具体的な入力または実行経路と、観測可能な影響が必要です。
+指摘を返す前に反証を試み、正常に動作する合理的な可能性が残る場合は指摘しないでください。
+設定、権限、外部API、ライブラリの仕様を差分だけで確認できない場合は推測せず、指摘を省略してください。
+確信度が低い指摘、低重要度の指摘、好みのスタイル指摘、差分外の設計論は返さないでください。`;
 
 const userPrompt = `以下のPR差分をレビューしてください。
 
@@ -58,13 +62,14 @@ const schema = {
     status: { type: "string", enum: ["completed"] },
     findings: {
       type: "array",
-      maxItems: 20,
+      maxItems: 5,
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["severity", "file", "line", "title", "body"],
+        required: ["severity", "confidence", "file", "line", "title", "body"],
         properties: {
-          severity: { type: "string", enum: ["critical", "high", "medium", "low"] },
+          severity: { type: "string", enum: ["critical", "high", "medium"] },
+          confidence: { type: "string", enum: ["high"] },
           file: { type: "string" },
           line: { type: ["integer", "null"] },
           title: { type: "string" },
@@ -83,6 +88,7 @@ const response = await fetch("https://api.openai.com/v1/responses", {
   },
   body: JSON.stringify({
     model,
+    max_output_tokens: maxOutputTokens,
     input: [
       { role: "system", content: [{ type: "input_text", text: systemPrompt }] },
       { role: "user", content: [{ type: "input_text", text: userPrompt }] },
