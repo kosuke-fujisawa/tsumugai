@@ -7,13 +7,24 @@ import {
   parseReviewJson,
   readJson,
   resultPath,
+  shouldSkipReview,
   writeJson,
 } from "./lib.mjs";
 
 const apiKey = process.env.OPENAI_API_KEY;
 const model = process.env.AI_REVIEW_MODEL || "gpt-5-mini";
-const maxOutputTokens = 3_000;
 const input = readJson(inputPath);
+
+if (shouldSkipReview(input)) {
+  const result = {
+    status: "skipped",
+    reason: "レビュー対象のコードまたは設定差分がありません。",
+    findings: [],
+  };
+  writeJson(resultPath, result);
+  writeFileSync(commentPath, buildReviewMarkdown(result));
+  process.exit(0);
+}
 
 if (!apiKey) {
   const result = {
@@ -48,6 +59,7 @@ ${JSON.stringify(input.pullRequest, null, 2)}
 
 ## 注意
 diffTruncated=${input.diffTruncated}
+指摘は最大3件です。タイトルと本文は簡潔にしてください。
 
 ## Diff
 \`\`\`diff
@@ -62,7 +74,7 @@ const schema = {
     status: { type: "string", enum: ["completed"] },
     findings: {
       type: "array",
-      maxItems: 5,
+      maxItems: 3,
       items: {
         type: "object",
         additionalProperties: false,
@@ -88,7 +100,6 @@ const response = await fetch("https://api.openai.com/v1/responses", {
   },
   body: JSON.stringify({
     model,
-    max_output_tokens: maxOutputTokens,
     input: [
       { role: "system", content: [{ type: "input_text", text: systemPrompt }] },
       { role: "user", content: [{ type: "input_text", text: userPrompt }] },

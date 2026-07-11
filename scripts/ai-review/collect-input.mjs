@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import {
+  buildDiffArgs,
   inputPath,
   listTrackedFiles,
   readTextIfExists,
@@ -8,23 +9,26 @@ import {
   writeJson,
 } from "./lib.mjs";
 
-const maxDiffChars = Number(process.env.AI_REVIEW_MAX_DIFF_CHARS || 60_000);
+const maxDiffChars = Number(process.env.AI_REVIEW_MAX_DIFF_CHARS || 30_000);
 const baseRef = process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : "HEAD^";
 
 let diff = "";
 try {
-  diff = runGit(["diff", "--unified=80", "--find-renames", "--diff-filter=ACMRT", `${baseRef}...HEAD`]);
+  diff = runGit(buildDiffArgs(`${baseRef}...HEAD`));
 } catch {
-  diff = runGit(["diff", "--unified=80", "--find-renames", "--diff-filter=ACMRT", "HEAD^", "HEAD"]);
+  diff = runGit(buildDiffArgs("HEAD^...HEAD"));
 }
 
-const agentFiles = listTrackedFiles(["AGENTS.md", "**/AGENTS.md"]);
+const agentFiles = listTrackedFiles(["AGENTS.md", "**/AGENTS.md"]).slice(0, 3);
 const agentInstructions = agentFiles.map((file) => ({
   file,
-  content: truncateText(readFileSync(file, "utf8"), 20_000).text,
+  content: truncateText(readFileSync(file, "utf8"), 8_000).text,
 }));
 
-const reviewInstructions = readTextIfExists(".github/ai-review-instructions.md");
+const reviewInstructions = truncateText(
+  readTextIfExists(".github/ai-review-instructions.md"),
+  8_000,
+).text;
 const truncatedDiff = truncateText(diff, maxDiffChars);
 
 writeJson(inputPath, {

@@ -3,6 +3,27 @@ name: AI Review
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.txt'
+      - '**/*.lock'
+      - '**/package-lock.json'
+      - '**/yarn.lock'
+      - '**/pnpm-lock.yaml'
+      - '**/Package.resolved'
+      - '**/dist/**'
+      - '**/build/**'
+      - '**/DerivedData/**'
+      - '**/*.min.js'
+      - '**/*.map'
+      - '**/*.png'
+      - '**/*.jpg'
+      - '**/*.jpeg'
+      - '**/*.gif'
+      - '**/*.webp'
+      - '**/*.svg'
+      - '**/*.pdf'
+      - '**/*.zip'
 
 permissions:
   contents: read

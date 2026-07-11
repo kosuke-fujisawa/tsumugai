@@ -7,6 +7,29 @@ export const inputPath = `${outputDir}/input.json`;
 export const resultPath = `${outputDir}/result.json`;
 export const commentPath = `${outputDir}/comment.md`;
 
+const excludedDiffPathspecs = [
+  ":(exclude,glob)**/*.md",
+  ":(exclude,glob)**/*.txt",
+  ":(exclude,glob)**/*.lock",
+  ":(exclude,glob)**/package-lock.json",
+  ":(exclude,glob)**/yarn.lock",
+  ":(exclude,glob)**/pnpm-lock.yaml",
+  ":(exclude,glob)**/Package.resolved",
+  ":(exclude,glob)**/dist/**",
+  ":(exclude,glob)**/build/**",
+  ":(exclude,glob)**/DerivedData/**",
+  ":(exclude,glob)**/*.min.js",
+  ":(exclude,glob)**/*.map",
+  ":(exclude,glob)**/*.png",
+  ":(exclude,glob)**/*.jpg",
+  ":(exclude,glob)**/*.jpeg",
+  ":(exclude,glob)**/*.gif",
+  ":(exclude,glob)**/*.webp",
+  ":(exclude,glob)**/*.svg",
+  ":(exclude,glob)**/*.pdf",
+  ":(exclude,glob)**/*.zip",
+];
+
 export function ensureParentDir(path) {
   mkdirSync(dirname(path), { recursive: true });
 }
@@ -37,6 +60,23 @@ export function truncateText(text, maxChars) {
 
 export function runGit(args) {
   return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+}
+
+export function buildDiffArgs(range) {
+  return [
+    "diff",
+    "--unified=20",
+    "--find-renames",
+    "--diff-filter=ACMRT",
+    range,
+    "--",
+    ".",
+    ...excludedDiffPathspecs,
+  ];
+}
+
+export function shouldSkipReview(input) {
+  return typeof input?.diff !== "string" || input.diff.trim().length === 0;
 }
 
 export function listTrackedFiles(patterns) {
@@ -121,6 +161,6 @@ export function parseReviewJson(text) {
           finding.confidence === "high" &&
           allowedSeverities.has(finding.severity),
       )
-      .slice(0, 5),
+      .slice(0, 3),
   };
 }
