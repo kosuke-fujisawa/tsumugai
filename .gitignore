@@ -8,3 +8,6 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# AIレビュー生成物
+tmp/ai-review/
