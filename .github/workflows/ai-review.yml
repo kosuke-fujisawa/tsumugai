@@ -2,7 +2,30 @@ name: AI Review
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, ready_for_review]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.txt'
+      - '**/*.lock'
+      - '**/package-lock.json'
+      - '**/yarn.lock'
+      - '**/pnpm-lock.yaml'
+      - '**/Package.resolved'
+      - '**/dist/**'
+      - '**/build/**'
+      - '**/DerivedData/**'
+      - '**/*.min.js'
+      - '**/*.map'
+      - '**/*.png'
+      - '**/*.jpg'
+      - '**/*.jpeg'
+      - '**/*.gif'
+      - '**/*.webp'
+      - '**/*.svg'
+      - '**/*.pdf'
+      - '**/*.zip'
+      - '.github/workflows/ai-review.yml'
+      - 'scripts/ai-review/**'
 
 permissions:
   contents: read
@@ -14,15 +37,16 @@ concurrency:
 
 jobs:
   review:
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -43,7 +67,6 @@ jobs:
         run: node scripts/ai-review/review.mjs
 
       - name: Publish review comment
-        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -56,3 +79,4 @@ jobs:
         with:
           name: ai-review
           path: tmp/ai-review/
+          retention-days: 3

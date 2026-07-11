@@ -7,12 +7,24 @@ import {
   parseReviewJson,
   readJson,
   resultPath,
+  shouldSkipReview,
   writeJson,
 } from "./lib.mjs";
 
 const apiKey = process.env.OPENAI_API_KEY;
 const model = process.env.AI_REVIEW_MODEL || "gpt-5-mini";
 const input = readJson(inputPath);
+
+if (shouldSkipReview(input)) {
+  const result = {
+    status: "skipped",
+    reason: "レビュー対象のコードまたは設定差分がありません。",
+    findings: [],
+  };
+  writeJson(resultPath, result);
+  writeFileSync(commentPath, buildReviewMarkdown(result));
+  process.exit(0);
+}
 
 if (!apiKey) {
   const result = {
@@ -29,7 +41,12 @@ const systemPrompt = `あなたはGitHub Pull Requestの自動レビュアーで
 日本語で回答してください。
 PR差分に直接関係する、再現性のある指摘だけを返してください。
 重大なバグ、セキュリティ、データ破壊、テスト不足を優先してください。
-確信度が低い指摘、好みのスタイル指摘、差分外の設計論は返さないでください。`;
+各指摘には、問題を起こす具体的な入力または実行経路と、観測可能な影響が必要です。
+指摘を返す前に反証を試み、正常に動作する合理的な可能性が残る場合は指摘しないでください。
+設定、権限、外部API、ライブラリの仕様を差分だけで確認できない場合は推測せず、指摘を省略してください。
+意図的な入力上限、タイムアウト、レビュー範囲の縮小は運用上の制約であり、それ自体を不具合として指摘しないでください。
+「問題が起きる可能性がある」というリスクだけでは指摘せず、対応する具体的な入力で不正な結果が確実に発生する場合だけ指摘してください。
+確信度が低い指摘、低重要度の指摘、好みのスタイル指摘、差分外の設計論は返さないでください。`;
 
 const userPrompt = `以下のPR差分をレビューしてください。
 
@@ -44,6 +61,7 @@ ${JSON.stringify(input.pullRequest, null, 2)}
 
 ## 注意
 diffTruncated=${input.diffTruncated}
+指摘は最大3件です。タイトルと本文は簡潔にしてください。
 
 ## Diff
 \`\`\`diff
@@ -58,13 +76,14 @@ const schema = {
     status: { type: "string", enum: ["completed"] },
     findings: {
       type: "array",
-      maxItems: 20,
+      maxItems: 3,
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["severity", "file", "line", "title", "body"],
+        required: ["severity", "confidence", "file", "line", "title", "body"],
         properties: {
-          severity: { type: "string", enum: ["critical", "high", "medium", "low"] },
+          severity: { type: "string", enum: ["critical", "high", "medium"] },
+          confidence: { type: "string", enum: ["high", "medium", "low"] },
           file: { type: "string" },
           line: { type: ["integer", "null"] },
           title: { type: "string" },
@@ -81,6 +100,7 @@ const response = await fetch("https://api.openai.com/v1/responses", {
     Authorization: `Bearer ${apiKey}`,
     "Content-Type": "application/json",
   },
+  signal: AbortSignal.timeout(90_000),
   body: JSON.stringify({
     model,
     input: [

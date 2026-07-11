@@ -1,6 +1,6 @@
 # AIレビュー設定
 
-このリポジトリでは、PR作成・更新時に `.github/workflows/ai-review.yml` が起動し、PR差分をLLMでレビューします。
+このリポジトリでは、同一リポジトリ内の非ドラフトPRを作成・更新したときに `.github/workflows/ai-review.yml` が起動し、PR差分をLLMでレビューします。
 
 ## 必須設定
 
@@ -21,10 +21,12 @@ Repository variables は任意です。
 
 `OPENAI_API_KEY` が未設定の場合、レビューはスキップされます。
 
+誤検知と利用量を抑えるため、差分は最大60,000文字、出力は最大3,000トークン、指摘は高確信度の `critical`、`high`、`medium` に限定し、最大5件まで返します。artifactの保持期間は3日です。
+
 ## ローカル確認
 
 ```bash
-node --test scripts/ai-review/*.test.mjs
+npm test
 node scripts/ai-review/collect-input.mjs
 node scripts/ai-review/review.mjs
 ```
