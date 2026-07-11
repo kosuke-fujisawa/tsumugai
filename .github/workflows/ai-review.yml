@@ -24,6 +24,8 @@ on:
       - '**/*.svg'
       - '**/*.pdf'
       - '**/*.zip'
+      - '.github/workflows/ai-review.yml'
+      - 'scripts/ai-review/**'
 
 permissions:
   contents: read

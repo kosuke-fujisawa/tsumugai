@@ -28,6 +28,8 @@ const excludedDiffPathspecs = [
   ":(exclude,glob)**/*.svg",
   ":(exclude,glob)**/*.pdf",
   ":(exclude,glob)**/*.zip",
+  ":(exclude,glob).github/workflows/ai-review.yml",
+  ":(exclude,glob)scripts/ai-review/**",
 ];
 
 export function ensureParentDir(path) {
@@ -67,7 +69,7 @@ export function buildDiffArgs(range) {
     "diff",
     "--unified=20",
     "--find-renames",
-    "--diff-filter=ACMRT",
+    "--diff-filter=ACDMRT",
     range,
     "--",
     ".",

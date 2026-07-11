@@ -44,6 +44,8 @@ PR差分に直接関係する、再現性のある指摘だけを返してくだ
 各指摘には、問題を起こす具体的な入力または実行経路と、観測可能な影響が必要です。
 指摘を返す前に反証を試み、正常に動作する合理的な可能性が残る場合は指摘しないでください。
 設定、権限、外部API、ライブラリの仕様を差分だけで確認できない場合は推測せず、指摘を省略してください。
+意図的な入力上限、タイムアウト、レビュー範囲の縮小は運用上の制約であり、それ自体を不具合として指摘しないでください。
+「問題が起きる可能性がある」というリスクだけでは指摘せず、対応する具体的な入力で不正な結果が確実に発生する場合だけ指摘してください。
 確信度が低い指摘、低重要度の指摘、好みのスタイル指摘、差分外の設計論は返さないでください。`;
 
 const userPrompt = `以下のPR差分をレビューしてください。
@@ -81,7 +83,7 @@ const schema = {
         required: ["severity", "confidence", "file", "line", "title", "body"],
         properties: {
           severity: { type: "string", enum: ["critical", "high", "medium"] },
-          confidence: { type: "string", enum: ["high"] },
+          confidence: { type: "string", enum: ["high", "medium", "low"] },
           file: { type: "string" },
           line: { type: ["integer", "null"] },
           title: { type: "string" },

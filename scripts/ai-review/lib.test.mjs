@@ -69,11 +69,13 @@ test("buildDiffArgsは少ない文脈で自動生成物と文書を除外する"
   const args = buildDiffArgs("origin/main...HEAD");
 
   assert.ok(args.includes("--unified=20"));
+  assert.ok(args.includes("--diff-filter=ACDMRT"));
   assert.ok(args.includes("origin/main...HEAD"));
   assert.ok(args.includes(":(exclude,glob)**/*.md"));
   assert.ok(args.includes(":(exclude,glob)**/package-lock.json"));
   assert.ok(args.includes(":(exclude,glob)**/dist/**"));
   assert.ok(args.includes(":(exclude,glob)**/*.png"));
+  assert.ok(args.includes(":(exclude,glob)scripts/ai-review/**"));
 });
 
 test("shouldSkipReviewは対象diffが空の場合だけスキップする", () => {
