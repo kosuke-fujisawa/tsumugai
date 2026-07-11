@@ -10,10 +10,9 @@
 //!   [`TraceResult`] に含め、JSON 出力の形式を崩さない
 
 use super::Block;
-use super::check::{CheckOptions, CheckResult, check_path};
-use super::diagnostic::Severity;
+use super::check::CheckResult;
 use super::exec::{Cursor, GotoResult, goto, segment_blocks, target_string};
-use super::project::{LoadedScene, file_level, load_project};
+use super::project::{LoadedScene, load_checked_project};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
@@ -150,57 +149,21 @@ impl TraceResult {
 /// パスが存在しない・ディレクトリ・検査 error の場合も panic や Err にせず、
 /// Diagnostic 入りの [`TraceResult`] を返す（trace は None になる）。
 pub fn trace_path(path: &Path, options: &TraceOptions) -> TraceResult {
-    if path.is_dir() {
-        let diag = file_level(
-            "io-error",
-            Severity::Error,
-            path,
-            format!(
-                "{} はディレクトリです。trace は開始するシーンファイル（.md）を 1 つ指定してください",
-                path.display()
-            ),
-        );
-        return TraceResult {
-            file: path.to_path_buf(),
-            check: CheckResult {
-                files: Vec::new(),
-                diagnostics: vec![diag],
-            },
-            trace: None,
-        };
-    }
-
-    // 実行前に check と同じ検査を行う（SPEC 6.1: どのコマンドから入っても同じ指摘）
-    let check_options = CheckOptions {
-        check_assets: options.check_assets,
-        ..CheckOptions::default()
+    let project = match load_checked_project(path, "trace", options.check_assets) {
+        Ok(project) => project,
+        Err(check) => {
+            return TraceResult {
+                file: path.to_path_buf(),
+                check,
+                trace: None,
+            };
+        }
     };
-    let mut check = check_path(path, &check_options);
-    if check.has_errors() {
-        return TraceResult {
-            file: path.to_path_buf(),
-            check,
-            trace: None,
-        };
-    }
 
-    // check と同じ規則でシーン閉包を読み込む。check 直後に消える等の
-    // 入出力エラーはここでも Diagnostic にする
-    let mut load_diagnostics = Vec::new();
-    let scenes = load_project(vec![path.to_path_buf()], &mut load_diagnostics);
-    check.diagnostics.extend(load_diagnostics);
-    if check.has_errors() || scenes.is_empty() {
-        return TraceResult {
-            file: path.to_path_buf(),
-            check,
-            trace: None,
-        };
-    }
-
-    let trace = run(&scenes, options);
+    let trace = run(&project.scenes, options);
     TraceResult {
         file: path.to_path_buf(),
-        check,
+        check: project.check,
         trace: Some(trace),
     }
 }

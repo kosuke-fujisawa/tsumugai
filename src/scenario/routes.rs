@@ -12,10 +12,10 @@
 //!   ending / シーン・深度超過・経路数上限による打ち切り）は warning
 
 use super::Block;
-use super::check::{CheckOptions, CheckResult, check_path};
+use super::check::CheckResult;
 use super::diagnostic::{Diagnostic, Severity};
 use super::exec::{Cursor, format_choices, goto, segment_blocks};
-use super::project::{LoadedScene, file_level, load_project};
+use super::project::{LoadedScene, file_level, load_checked_project};
 use serde::Serialize;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -117,54 +117,21 @@ impl RoutesResult {
 /// パスが存在しない・ディレクトリ・検査 error の場合も panic や Err にせず、
 /// Diagnostic 入りの [`RoutesResult`] を返す（report は None になる）。
 pub fn routes_path(path: &Path, options: &RoutesOptions) -> RoutesResult {
-    if path.is_dir() {
-        let diag = file_level(
-            "io-error",
-            Severity::Error,
-            path,
-            format!(
-                "{} はディレクトリです。routes は開始するシーンファイル（.md）を 1 つ指定してください",
-                path.display()
-            ),
-        );
-        return RoutesResult {
-            file: path.to_path_buf(),
-            check: CheckResult {
-                files: Vec::new(),
-                diagnostics: vec![diag],
-            },
-            report: None,
-        };
-    }
-
-    let check_options = CheckOptions {
-        check_assets: options.check_assets,
-        ..CheckOptions::default()
+    let project = match load_checked_project(path, "routes", options.check_assets) {
+        Ok(project) => project,
+        Err(check) => {
+            return RoutesResult {
+                file: path.to_path_buf(),
+                check,
+                report: None,
+            };
+        }
     };
-    let mut check = check_path(path, &check_options);
-    if check.has_errors() {
-        return RoutesResult {
-            file: path.to_path_buf(),
-            check,
-            report: None,
-        };
-    }
 
-    let mut load_diagnostics = Vec::new();
-    let scenes = load_project(vec![path.to_path_buf()], &mut load_diagnostics);
-    check.diagnostics.extend(load_diagnostics);
-    if check.has_errors() || scenes.is_empty() {
-        return RoutesResult {
-            file: path.to_path_buf(),
-            check,
-            report: None,
-        };
-    }
-
-    let report = explore(&scenes, path, options);
+    let report = explore(&project.scenes, path, options);
     RoutesResult {
         file: path.to_path_buf(),
-        check,
+        check: project.check,
         report: Some(report),
     }
 }

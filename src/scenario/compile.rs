@@ -21,9 +21,8 @@
 //!   このステップ種別は実装しない（narration / dialogue / choice / jump /
 //!   ending の 5 種のみ）。構文が追加された時点で対応する
 
-use super::check::{CheckOptions, CheckResult, check_path};
-use super::diagnostic::Severity;
-use super::project::{LoadedScene, file_level, load_project, resolve_sibling};
+use super::check::CheckResult;
+use super::project::{LoadedScene, load_checked_project, resolve_sibling};
 use super::routes::{RoutesOptions, routes_path};
 use super::{Block, LinkTarget, Scene};
 use serde::Serialize;
@@ -152,49 +151,16 @@ pub enum BundleAsset {
 /// パスが存在しない・ディレクトリ・検査 error の場合も panic や Err にせず、
 /// Diagnostic 入りの [`CompileResult`] を返す（bundle は None になる）。
 pub fn compile_path(path: &Path, options: &CompileOptions) -> CompileResult {
-    if path.is_dir() {
-        let diag = file_level(
-            "io-error",
-            Severity::Error,
-            path,
-            format!(
-                "{} はディレクトリです。compile は開始するシーンファイル（.md）を 1 つ指定してください",
-                path.display()
-            ),
-        );
-        return CompileResult {
-            file: path.to_path_buf(),
-            check: CheckResult {
-                files: Vec::new(),
-                diagnostics: vec![diag],
-            },
-            bundle: None,
-        };
-    }
-
-    let check_options = CheckOptions {
-        check_assets: options.check_assets,
-        ..CheckOptions::default()
+    let mut project = match load_checked_project(path, "compile", options.check_assets) {
+        Ok(project) => project,
+        Err(check) => {
+            return CompileResult {
+                file: path.to_path_buf(),
+                check,
+                bundle: None,
+            };
+        }
     };
-    let mut check = check_path(path, &check_options);
-    if check.has_errors() {
-        return CompileResult {
-            file: path.to_path_buf(),
-            check,
-            bundle: None,
-        };
-    }
-
-    let mut load_diagnostics = Vec::new();
-    let scenes = load_project(vec![path.to_path_buf()], &mut load_diagnostics);
-    check.diagnostics.extend(load_diagnostics);
-    if check.has_errors() || scenes.is_empty() {
-        return CompileResult {
-            file: path.to_path_buf(),
-            check,
-            bundle: None,
-        };
-    }
 
     // check だけでは分からない循環・到達不能を routes の全分岐探索で検出する
     let routes_options = RoutesOptions {
@@ -202,20 +168,20 @@ pub fn compile_path(path: &Path, options: &CompileOptions) -> CompileResult {
         ..RoutesOptions::default()
     };
     if let Some(report) = routes_path(path, &routes_options).report {
-        check.diagnostics.extend(report.diagnostics);
+        project.check.diagnostics.extend(report.diagnostics);
     }
-    if check.has_errors() {
+    if project.check.has_errors() {
         return CompileResult {
             file: path.to_path_buf(),
-            check,
+            check: project.check,
             bundle: None,
         };
     }
 
-    let bundle = build_bundle(&scenes, path);
+    let bundle = build_bundle(&project.scenes, path);
     CompileResult {
         file: path.to_path_buf(),
-        check,
+        check: project.check,
         bundle: Some(bundle),
     }
 }
