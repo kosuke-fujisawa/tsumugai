@@ -6,6 +6,7 @@
 //! - ファイル: そのファイルとリンクで辿れる閉包
 //! - ファイル参照はシーンファイルからの相対パスのみ（SPEC 2章）
 
+use super::check::{CheckOptions, CheckResult, check_path};
 use super::diagnostic::{Diagnostic, Severity};
 use super::parse::{Parsed, parse_file};
 use super::{Block, LinkTarget, Scene};
@@ -19,6 +20,62 @@ pub(super) struct LoadedScene {
     /// 同一ファイル判定用の正規化パス
     pub(super) canon: PathBuf,
     pub(super) parsed: Parsed,
+}
+
+/// 実行系コマンドが使う、検査済みのプロジェクト。
+///
+/// `trace` / `routes` / `compile` はどれも check と同じ規則で事前検査し、
+/// error があれば本処理を行わない。ここでその入口だけを共有し、各コマンドの
+/// 実行・探索・bundle 生成ロジックはそれぞれのモジュールに残す。
+pub(super) struct CheckedProject {
+    pub(super) check: CheckResult,
+    pub(super) scenes: Vec<LoadedScene>,
+}
+
+/// check と同じ規則で検査したあと、実行系コマンド用にシーン閉包を読み込む。
+///
+/// `check_path` はディレクトリも検査対象にできるが、実行系コマンドは開始する
+/// シーンファイルを 1 つ必要とするため、ディレクトリだけはコマンド名入りの
+/// `io-error` にする。
+pub(super) fn load_checked_project(
+    path: &Path,
+    command: &str,
+    check_assets: bool,
+) -> Result<CheckedProject, CheckResult> {
+    if path.is_dir() {
+        let diag = file_level(
+            "io-error",
+            Severity::Error,
+            path,
+            format!(
+                "{} はディレクトリです。{} は開始するシーンファイル（.md）を 1 つ指定してください",
+                path.display(),
+                command
+            ),
+        );
+        return Err(CheckResult {
+            files: Vec::new(),
+            diagnostics: vec![diag],
+        });
+    }
+
+    let check_options = CheckOptions {
+        check_assets,
+        ..CheckOptions::default()
+    };
+    let mut check = check_path(path, &check_options);
+    if check.has_errors() {
+        return Err(check);
+    }
+
+    let mut load_diagnostics = Vec::new();
+    let scenes = load_project(vec![path.to_path_buf()], &mut load_diagnostics);
+    check.diagnostics.extend(load_diagnostics);
+    if check.has_errors() || scenes.is_empty() {
+        return Err(check);
+    }
+
+    Ok(CheckedProject { check, scenes })
 }
 
 /// ディレクトリ配下の `.md` を再帰的に集める（名前順）。
