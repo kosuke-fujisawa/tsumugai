@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   buildDiffArgs,
   buildReviewMarkdown,
+  collectPaginatedItems,
   parseReviewJson,
   shouldSkipReview,
   truncateText,
@@ -81,4 +82,19 @@ test("buildDiffArgsは少ない文脈で自動生成物と文書を除外する"
 test("shouldSkipReviewは対象diffが空の場合だけスキップする", () => {
   assert.equal(shouldSkipReview({ diff: "\n  " }), true);
   assert.equal(shouldSkipReview({ diff: "+const enabled = true;" }), false);
+});
+
+test("collectPaginatedItemsは100件未満のページまで全件を取得する", async () => {
+  const requestedPages = [];
+  const firstPage = Array.from({ length: 100 }, (_, index) => index);
+  const secondPage = [100, 101];
+
+  const items = await collectPaginatedItems(async (page) => {
+    requestedPages.push(page);
+    return page === 1 ? firstPage : secondPage;
+  });
+
+  assert.deepEqual(requestedPages, [1, 2]);
+  assert.equal(items.length, 102);
+  assert.equal(items.at(-1), 101);
 });

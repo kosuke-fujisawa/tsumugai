@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { commentPath } from "./lib.mjs";
+import { collectPaginatedItems, commentPath } from "./lib.mjs";
 
 const token = process.env.GITHUB_TOKEN;
 const repository = process.env.GITHUB_REPOSITORY;
@@ -28,7 +28,9 @@ async function request(path, options = {}) {
   return data;
 }
 
-const comments = await request(`/repos/${repository}/issues/${prNumber}/comments`);
+const comments = await collectPaginatedItems((page, perPage) =>
+  request(`/repos/${repository}/issues/${prNumber}/comments?per_page=${perPage}&page=${page}`),
+);
 const existing = comments.find((comment) => typeof comment.body === "string" && comment.body.includes(marker));
 
 if (existing) {

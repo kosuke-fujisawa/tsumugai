@@ -81,6 +81,23 @@ export function shouldSkipReview(input) {
   return typeof input?.diff !== "string" || input.diff.trim().length === 0;
 }
 
+export async function collectPaginatedItems(loadPage) {
+  const perPage = 100;
+  const items = [];
+
+  for (let page = 1; ; page += 1) {
+    const batch = await loadPage(page, perPage);
+    if (!Array.isArray(batch)) {
+      throw new TypeError("ページ取得結果は配列である必要があります。");
+    }
+
+    items.push(...batch);
+    if (batch.length < perPage) {
+      return items;
+    }
+  }
+}
+
 export function listTrackedFiles(patterns) {
   try {
     return runGit(["ls-files", ...patterns])

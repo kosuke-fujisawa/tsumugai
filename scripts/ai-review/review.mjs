@@ -100,6 +100,7 @@ const response = await fetch("https://api.openai.com/v1/responses", {
     Authorization: `Bearer ${apiKey}`,
     "Content-Type": "application/json",
   },
+  signal: AbortSignal.timeout(90_000),
   body: JSON.stringify({
     model,
     input: [
