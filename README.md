@@ -169,17 +169,24 @@ error[broken-link]: このファイルに「run-togather」という見出し（
 
 👉 「ライターが書きやすいこと」を最優先
 
-詳細な記法は docs/ を参照してください。
+詳細な記法は [SPEC.md](SPEC.md) を参照してください。
 
 ---
 
 ## ドキュメント
 
+- [SPEC](SPEC.md): シナリオ記法 v1 と check ルールの正本
 - [Concept](docs/CONCEPT.md): 存在意義、設計思想、責務境界
 - [Architecture](docs/ARCHITECTURE.md): アーキテクチャとデータフロー
 - [API](docs/API.md): `scenario` モジュールの契約
+- [CLI Output](docs/CLI_OUTPUT.md): human / JSON / SARIF 出力形式の正本
+- [Diagnostic](docs/DIAGNOSTIC.md): 構造化 Diagnostic の型設計
+- [Trace](docs/TRACE.md): `trace` コマンドの経路再現仕様
+- [Routes](docs/ROUTES.md): `routes` コマンドの全分岐探索仕様
+- [Versioning](docs/VERSIONING.md): 配布・バージョニング契約（tsumugai ⇄ arikoi）
 - [Development Workflow](docs/DEVELOPMENT_WORKFLOW.md): 開発ワークフロー
 - [Review Guide](docs/REVIEW_GUIDE.md): Rust を読まなくてもレビューできる手引き
+- [ADR](docs/adr/): 重要な設計判断の記録
 
 ## 設計方針
 

@@ -2,10 +2,9 @@
 //!
 //! 一般 Markdown 準拠のシナリオ記法 v1 を解析して [`Scene`] を構築し
 //! （[`parse_str`] / [`parse_file`]）、プロジェクト全体の意味論検査
-//! （[`check_path`]）と検査結果の出力（[`render_human`] / [`render_json`] /
-//! [`render_sarif`]）を提供する。
-//! 旧 `parser`（括弧コマンド記法）は runtime の移行完了（#77〜#78）
-//! まで並存し、その後撤去される。
+//! （[`check_path`]）、経路検証（[`trace_path`] / [`routes_path`]）、
+//! 整形（[`fmt_path`]）、StoryBundle 生成（[`compile_path`]）と、
+//! 各結果の出力（[`render_human`] / [`render_json`] / [`render_sarif`] 等）を提供する。
 //!
 //! # 設計方針（SPEC 6.1）
 //! - パースはエラーで中断しない。解釈できた範囲の [`Scene`] と、
