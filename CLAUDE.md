@@ -17,7 +17,7 @@ tsumugai では、テクニカルな設計美よりも次を優先します。
 - 入力 Markdown と出力結果の対応が追跡できること
 - コードを読まなくても挙動を確認できること
 
-レビューの単位は Rust コードだけではありません。入力 Markdown、出力 Event、Diagnostic、Trace、DryRunReport、Golden JSON、CLI 出力、テスト結果もレビュー対象です。
+レビューの単位は Rust コードだけではありません。入力 Markdown、Diagnostic、Trace、RoutesReport、StoryBundle、Golden JSON、CLI 出力、テスト結果もレビュー対象です。
 
 ## 現在の責務分離
 
@@ -72,10 +72,10 @@ LLM と人間が追跡しやすい Rust を優先します。
 挙動を変える変更では、可能な限り次のいずれかを追加・更新します。
 
 - 入力 Markdown 例
-- 出力 Event 例
 - Diagnostic 例
 - Trace 例
-- DryRunReport 例
+- RoutesReport 例
+- StoryBundle 例
 - Golden JSON
 - CLI 実行例
 - テストケース
@@ -102,17 +102,14 @@ Diagnostic は以下を持つ想定です。
 
 人間向け出力と機械向け JSON 出力を分けます。
 
-将来的な CLI 方針:
+現行の CLI:
 
 ```bash
-tsumugai check scenario.md
-tsumugai check scenario.md --json
-
-tsumugai trace scenario.md
-tsumugai trace scenario.md --json
-
-tsumugai dry-run scenario.md
-tsumugai dry-run scenario.md --json
+tsumugai check path/           # --format human|json|sarif
+tsumugai trace scenario.md     # --choices 1,3 --format human|json
+tsumugai routes scenario.md    # --format human|json
+tsumugai fmt scenario.md       # --write --format human|json
+tsumugai compile scenario.md --target web --output bundle.json
 ```
 
 JSON 出力は、CI、Golden テスト、LLM へのデバッグ依頼に使える安定した形を目指します。エラー時も形式が崩れないようにします。
@@ -127,12 +124,11 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
-将来的に重視するテスト:
+重視するテスト:
 
-- Golden JSON 比較
-- CLI 出力のスナップショット
-- サンプルシナリオの `check`
-- サンプルシナリオの `dry-run`
+- Golden JSON 比較（`tests/fixtures/compile/golden/`、実装済み）
+- CLI 出力のテスト（`tests/cli_test.rs`、実装済み）
+- サンプルシナリオの `check` / `routes`
 - README サンプルの doctest
 
 テストを削除・弱体化する変更は慎重に扱い、理由を明記してください。
