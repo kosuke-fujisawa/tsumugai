@@ -39,6 +39,8 @@ MVP では **git tag による固定** を正式な推奨方式とする。
 cargo install --git https://github.com/kosuke-fujisawa/tsumugai --tag v0.1.0
 ```
 
+> **注記**: git tag はまだ作成していない。arikoi が利用可能な最初の安定点で `v0.1.0` を作る（→ リリース運用）。それまでは次の commit SHA 固定を使う。
+
 検証中に限り commit SHA 固定も許容する。
 
 ```sh

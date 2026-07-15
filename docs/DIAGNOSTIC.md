@@ -58,7 +58,7 @@ pub struct Span {
 
 ## 4. rule_id 一覧
 
-SPEC.md 6章のルール表（error 12種 + warning 12種）を参照してください。ルールの追加・変更は SPEC を先に更新します。
+SPEC.md 6章のルール表を参照してください。ルールの追加・変更は SPEC を先に更新します。
 
 CLI はこれに加えて、記法ではなく環境の問題を表す `io-error` を使います（CLI_OUTPUT.md 参照）。
 
