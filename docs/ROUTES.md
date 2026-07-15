@@ -47,6 +47,8 @@ routes も trace と同じく、実行の前に **check とまったく同じ検
 `examples/spring` を実行した場合（4 経路すべてが ending に到達する）:
 
 ```text
+✓ 問題は見つかりませんでした。（2 ファイルを検査）
+
 === Routes: examples/spring/scenario/spring_001.md ===
 Route 1: --choices 1 → エンディング「childhood_route」
 Route 2: --choices 2 → エンディング「calm_route」

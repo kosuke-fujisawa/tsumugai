@@ -53,7 +53,7 @@ tsumugai/
 ├─ examples/
 │  ├─ spring/            # 全ブロック種別を含む仕様網羅サンプル
 │  └─ fmt/               # fmt の整形前後サンプル
-├─ docs/{CONCEPT,ARCHITECTURE,API,CLI_OUTPUT,TRACE,ROUTES,VERSIONING,DEVELOPMENT_WORKFLOW,REVIEW_GUIDE}.md
+├─ docs/{CONCEPT,ARCHITECTURE,API,CLI_OUTPUT,DIAGNOSTIC,TRACE,ROUTES,VERSIONING,DEVELOPMENT_WORKFLOW,REVIEW_GUIDE}.md + adr/
 └─ .github/workflows/ci.yml
 ```
 
