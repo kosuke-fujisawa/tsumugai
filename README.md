@@ -2,11 +2,11 @@
 
 > **このリポジトリはアーカイブされています。（2026-07-15）**
 >
-> tsumugai は、作者向けの独自シナリオ形式と、それを実行・検証する独自の基盤（静的検査・経路検証 CLI）を提供することを目的としていました。
+> tsumugai は、作者向けの独自シナリオ形式と、それを実行・検証する独自ランタイム基盤（静的検査・経路検証 CLI）を提供することを目的としていました。
 >
-> 現在、この目的は、音声で語られたシナリオをティラノスクリプトへ変換し、既存のティラノスクリプトを実行基盤として利用する [voice-to-tyrano](https://github.com/kosuke-fujisawa/voice-to-tyrano) によって、より単純に実現できると判断しています。
+> 現在、この目的は、自然言語で記述されたシナリオをティラノスクリプトへ変換し、既存のティラノスクリプトを実行基盤として利用する [scenario-to-tyrano](https://github.com/kosuke-fujisawa/scenario-to-tyrano) によって、より単純に実現できると判断しています。
 >
-> シナリオ構造の考え方、分岐・到達可能性の検査観点、CI による検証方針などの再利用可能な設計知識は voice-to-tyrano へ移行しました。経緯は voice-to-tyrano の [docs/migration-from-tsumugai.md](https://github.com/kosuke-fujisawa/voice-to-tyrano/blob/main/docs/migration-from-tsumugai.md) を参照してください。
+> シナリオ構造の考え方、分岐・到達可能性の検査観点、CI による検証方針などの再利用可能な設計知識は scenario-to-tyrano へ移行しました。経緯は scenario-to-tyrano の [docs/migration-from-tsumugai.md](https://github.com/kosuke-fujisawa/scenario-to-tyrano/blob/main/docs/migration-from-tsumugai.md) を参照してください。
 
 ---
 
