@@ -1,5 +1,15 @@
 # tsumugai
 
+> **このリポジトリはアーカイブされています。（2026-07-15）**
+>
+> tsumugai は、作者向けの独自シナリオ形式と、それを実行・検証する独自ランタイム基盤（静的検査・経路検証 CLI）を提供することを目的としていました。
+>
+> 現在、この目的は、自然言語で記述されたシナリオをティラノスクリプトへ変換し、既存のティラノスクリプトを実行基盤として利用する [scenario-to-tyrano](https://github.com/kosuke-fujisawa/scenario-to-tyrano) によって、より単純に実現できると判断しています。
+>
+> シナリオ構造の考え方、分岐・到達可能性の検査観点、CI による検証方針などの再利用可能な設計知識は scenario-to-tyrano へ移行しました。経緯は scenario-to-tyrano の [docs/migration-from-tsumugai.md](https://github.com/kosuke-fujisawa/scenario-to-tyrano/blob/main/docs/migration-from-tsumugai.md) を参照してください。
+
+---
+
 > **注記（2026-07-08）**
 > TypeScript / Svelte / Vite への全面移行（[epic #99](https://github.com/kosuke-fujisawa/tsumugai/issues/99)）は検討の結果、不採用が確定しました。tsumugai は、以下に説明する通り Rust 製の静的検査・経路検証 CLI として維持します。`compile --target web` コマンド（[#128](https://github.com/kosuke-fujisawa/tsumugai/issues/128)）を追加済みで、外部の Web フロントエンド（arikoi の Svelte 製 player 等）向けに StoryBundle JSON を出力できます。連携は npm 依存ではなく CLI サブプロセス経由で行います。
 
